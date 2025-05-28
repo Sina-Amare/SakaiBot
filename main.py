@@ -17,11 +17,12 @@ import cache_manager
 import cli_handler 
 import event_handlers 
 import settings_manager 
+import ai_processor 
 
 _client_instance_for_signal = None
 _app_is_exiting_cleanly = False 
 
-# --- Custom File Handler with Auto-Flush (Moved to the top of Logger Setup) ---
+# --- Custom File Handler with Auto-Flush ---
 class AutoFlushFileHandler(logging.FileHandler):
     def emit(self, record):
         super().emit(record)
@@ -31,7 +32,7 @@ class AutoFlushFileHandler(logging.FileHandler):
 # --- Logger Setup ---
 log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-# 1. Console Handler (shared by most loggers, except event_handlers)
+# 1. Console Handler (shared by most loggers, except event_handlers and ai_processor)
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(log_formatter)
 if sys.platform == "win32" and hasattr(sys.stdout, 'reconfigure'):
@@ -56,12 +57,19 @@ main_logger.addHandler(console_handler)
 main_logger.propagate = False
 
 # Logger for event_handlers (monitoring activities)
+# This logger will ONLY write to monitor_activity.log
 monitor_event_logger = logging.getLogger("event_handlers") 
 monitor_event_logger.setLevel(logging.DEBUG) 
 monitor_event_logger.addHandler(monitor_log_file_handler) 
-# To see event_handler logs in console as well during debugging, uncomment the next line:
-# monitor_event_logger.addHandler(console_handler) 
 monitor_event_logger.propagate = False 
+
+# Logger for ai_processor
+ai_logger = logging.getLogger("ai_processor") 
+ai_logger.setLevel(logging.INFO)
+ai_logger.addHandler(app_log_file_handler) # AI logs go to the main app log file
+# ai_logger.addHandler(console_handler) # REMOVED: AI logs will NOT go to console
+ai_logger.propagate = False
+
 
 def setup_other_module_logger(module_name, level=logging.INFO): 
     logger = logging.getLogger(module_name)
@@ -78,14 +86,14 @@ setup_other_module_logger("settings_manager")
 
 # logging.getLogger('telethon').setLevel(logging.INFO) 
 
-# --- Configuration Loading & Signal Handling (Same as before) ---
+# --- Configuration Loading & Signal Handling ---
 CONFIG_FILE_NAME = "config.ini"
 def load_config():
-    # ... (load_config function from sakaibot_main_py_v_isolated_monitor_log)
+    # ... (load_config function from sakaibot_main_py_v_ai_integration_setup)
     config = configparser.ConfigParser()
     if not os.path.exists(CONFIG_FILE_NAME):
         main_logger.error(f"Configuration file '{CONFIG_FILE_NAME}' not found.")
-        main_logger.error("Please copy 'config.ini.example' to 'config.ini' and fill in your details.")
+        main_logger.error(f"Please ensure '{CONFIG_FILE_NAME}' exists and is correctly filled (you can copy from config.ini.example).")
         sys.exit(1)
     try:
         with open(CONFIG_FILE_NAME, 'r', encoding='utf-8') as f:
@@ -100,6 +108,7 @@ def load_config():
     required_sections_keys = {
         "Telegram": ["api_id", "api_hash", "phone_number"],
         "UserBot": ["session_name"],
+        "OpenRouter": ["api_key", "model_name"] 
     }
     for section, keys in required_sections_keys.items():
         if section not in config:
@@ -107,13 +116,19 @@ def load_config():
             sys.exit(1)
         for key in keys:
             if key not in config[section] or not config[section][key]:
-                main_logger.error(f"Missing or empty key '{key}' in section '{section}' in '{CONFIG_FILE_NAME}'.")
-                sys.exit(1)
+                if section == "OpenRouter" and key == "api_key" and \
+                   (not config[section][key] or "YOUR_OPENROUTER_API_KEY_HERE" in config[section][key]): 
+                    main_logger.warning(f"OpenRouter API key is missing or placeholder in '{CONFIG_FILE_NAME}'. AI features will not work.")
+                elif section == "OpenRouter" and key == "model_name" and not config[section][key]:
+                     main_logger.warning(f"OpenRouter model_name is missing in '{CONFIG_FILE_NAME}'. Will use default if available.")
+                else:
+                    main_logger.error(f"Missing or empty key '{key}' in section '{section}' in '{CONFIG_FILE_NAME}'.")
+                    sys.exit(1)
     main_logger.info("Configuration loaded successfully.") 
     return config
 
 def save_current_settings_on_exit(source="unknown"):
-    # ... (save_current_settings_on_exit function from sakaibot_main_py_v_isolated_monitor_log)
+    # ... (save_current_settings_on_exit function from sakaibot_main_py_v_ai_integration_setup)
     global _app_is_exiting_cleanly
     if _app_is_exiting_cleanly: 
         main_logger.info(f"Save on exit ({source}): Skipped, app is already exiting cleanly.")
@@ -137,7 +152,7 @@ def save_current_settings_on_exit(source="unknown"):
         main_logger.warning(f"Save on exit ({source}): cli_handler settings variables not found.")
 
 def sigint_handler(sig, frame):
-    # ... (sigint_handler function from sakaibot_main_py_v_isolated_monitor_log)
+    # ... (sigint_handler function from sakaibot_main_py_v_ai_integration_setup)
     main_logger.warning(f"SIGINT (Ctrl+C) received. SakaiBot is stopping.")
     save_current_settings_on_exit(source="SIGINT")
     global _client_instance_for_signal
@@ -151,12 +166,17 @@ def sigint_handler(sig, frame):
     sys.exit(0) 
 
 async def main(config_values):
-    # ... (main async function from sakaibot_main_py_v_isolated_monitor_log, ensure async_input is used for auth)
+    # ... (main async function from sakaibot_main_py_v_ai_integration_setup)
     global _client_instance_for_signal, _app_is_exiting_cleanly
     api_id = config_values.getint('Telegram', 'api_id')
     api_hash = config_values.get('Telegram', 'api_hash')
     phone_number = config_values.get('Telegram', 'phone_number')
     session_name = config_values.get('UserBot', 'session_name')
+    openrouter_api_key = config_values.get('OpenRouter', 'api_key', fallback="YOUR_OPENROUTER_API_KEY_HERE")
+    openrouter_model_name = config_values.get('OpenRouter', 'model_name', fallback="deepseek/chat")
+    if not openrouter_api_key or "YOUR_OPENROUTER_API_KEY_HERE" in openrouter_api_key:
+        main_logger.warning("OpenRouter API key is not properly configured in config.ini. AI features will be disabled or may fail.")
+        openrouter_api_key = None 
     client = TelegramClient(session_name, api_id, api_hash, system_version="4.16.30-vxCUSTOM")
     _client_instance_for_signal = client 
     main_logger.info(f"Initializing Telegram client with session: '{session_name}.session'")
@@ -195,7 +215,8 @@ async def main(config_values):
             main_logger.info(f"Successfully signed in as: {me.first_name} (Username: {username_str})")
             main_logger.info("Handing control to CLI Handler...")
             await cli_handler.display_main_menu_loop(
-                client, cache_manager, telegram_utils, settings_manager, event_handlers 
+                client, cache_manager, telegram_utils, settings_manager, event_handlers,
+                openrouter_api_key, openrouter_model_name 
             )
             _app_is_exiting_cleanly = True 
         else:

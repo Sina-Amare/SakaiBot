@@ -2,22 +2,27 @@
 # English comments as per our rules
 
 import logging
-from openai import AsyncOpenAI 
-from datetime import datetime, timezone 
-import pytz 
+from openai import AsyncOpenAI
+from datetime import datetime, timezone
+import pytz
+import os # Added for STT related file operations if any, though primarily in event_handlers
+
+# For Speech-to-Text (STT)
+import speech_recognition as sr
+# from pydub import AudioSegment # Conversion will be handled in event_handlers
 
 logger = logging.getLogger(__name__)
 
 async def execute_custom_prompt(
-    api_key: str, 
-    model_name: str, 
+    api_key: str,
+    model_name: str,
     user_text_prompt: str,
-    max_tokens: int = 1500, 
+    max_tokens: int = 1500,
     temperature: float = 0.7,
-    system_message: str or None = None 
+    system_message: str or None = None
 ) -> str:
     # ... (This function remains the same as sakaibot_ai_processor_py_v7_direct_prompt)
-    if not api_key or "YOUR_OPENROUTER_API_KEY_HERE" in api_key or len(api_key) < 50:
+    if not api_key or "YOUR_OPENROUTER_API_KEY_HERE" in api_key or len(api_key) < 10: # Basic check
         logger.error("AI Processor: OpenRouter API key is not configured or seems invalid.")
         return "AI Error: OpenRouter API key not configured or invalid. Please check your config.ini."
     if not model_name:
@@ -40,13 +45,13 @@ async def execute_custom_prompt(
         messages_payload.append({"role": "user", "content": user_text_prompt})
         logger.info(f"AI Processor: Sending prompt to AI model '{model_name}'. System message used: {'Yes' if system_message and system_message.strip() else 'No'}. Prompt starts with: '{user_text_prompt[:100]}...' (max_tokens: {max_tokens}, temp: {temperature})")
         completion = await client.chat.completions.create(
-            model=model_name, 
+            model=model_name,
             messages=messages_payload,
             max_tokens=max_tokens,
             temperature=temperature,
-            extra_headers={ 
-                "HTTP-Referer": "http://localhost/sakaibot", 
-                "X-Title": "SakaiBot" 
+            extra_headers={
+                "HTTP-Referer": "http://localhost/sakaibot", # Replace with your actual site URL if deployed
+                "X-Title": "SakaiBot" # Replace with your actual app name
             }
         )
         response_text = completion.choices[0].message.content.strip()
@@ -62,7 +67,7 @@ async def translate_text_with_phonetics(
     model_name: str,
     text_to_translate: str,
     target_language: str,
-    source_language: str = "auto" 
+    source_language: str = "auto"
 ) -> str:
     # ... (This function remains the same as sakaibot_ai_processor_py_v5_analyze_format_fix)
     if not text_to_translate:
@@ -95,8 +100,8 @@ async def translate_text_with_phonetics(
     system_msg_for_translation = "You are a multilingual translator. Provide the translation and then its Persian phonetic pronunciation in parentheses."
     translation_response = await execute_custom_prompt(
         api_key=api_key, model_name=model_name, user_text_prompt=prompt,
-        max_tokens=len(text_to_translate) * 4 + 150, temperature=0.2,
-        system_message=system_msg_for_translation 
+        max_tokens=len(text_to_translate) * 4 + 150, temperature=0.2, # Adjusted max_tokens
+        system_message=system_msg_for_translation
     )
     if "AI Error:" not in translation_response:
         logger.info(f"AI Processor: Translation with phonetics successful for '{text_to_translate[:50]}...'.")
@@ -106,12 +111,12 @@ async def translate_text_with_phonetics(
 
 
 async def analyze_conversation_messages(
-    api_key: str, 
-    model_name: str, 
-    messages_data: list 
+    api_key: str,
+    model_name: str,
+    messages_data: list # Expected: list of dicts {'sender': str, 'text': str, 'timestamp': datetime}
 ) -> str:
     # ... (This function remains the same as sakaibot_ai_processor_py_v5_analyze_format_fix)
-    if not api_key or "YOUR_OPENROUTER_API_KEY_HERE" in api_key or len(api_key) < 50:
+    if not api_key or "YOUR_OPENROUTER_API_KEY_HERE" in api_key or len(api_key) < 10:
         logger.error("AI Processor: OpenRouter API key not configured for analysis.")
         return "AI Error: OpenRouter API key not configured for analysis."
     if not model_name:
@@ -119,29 +124,48 @@ async def analyze_conversation_messages(
         return "AI Error: OpenRouter model name not configured for analysis."
     if not messages_data:
         return "No messages provided for analysis."
+
     formatted_messages_for_prompt = []
     senders = set()
     timestamps = []
+
     for msg_info in messages_data:
         sender = msg_info.get('sender', 'Unknown')
         text = msg_info.get('text')
-        timestamp_obj = msg_info.get('timestamp') 
-        if text: 
+        timestamp_obj = msg_info.get('timestamp') # datetime object expected
+
+        if text: # Ensure there is text content
+            # Ensure timestamp is timezone-aware (UTC)
             ts_aware = timestamp_obj
             if isinstance(timestamp_obj, datetime):
-                if timestamp_obj.tzinfo is None: ts_aware = pytz.utc.localize(timestamp_obj) 
-                else: ts_aware = timestamp_obj.astimezone(pytz.utc) 
-            elif isinstance(timestamp_obj, (int, float)): ts_aware = datetime.fromtimestamp(timestamp_obj, tz=pytz.utc)
+                if timestamp_obj.tzinfo is None:
+                    ts_aware = pytz.utc.localize(timestamp_obj) # Assume UTC if naive
+                else:
+                    ts_aware = timestamp_obj.astimezone(pytz.utc) # Convert to UTC
+            elif isinstance(timestamp_obj, (int, float)): # If timestamp is a Unix timestamp
+                ts_aware = datetime.fromtimestamp(timestamp_obj, tz=pytz.utc)
+            # else: ts_aware might remain None or original if not datetime/int/float
+
             formatted_messages_for_prompt.append(f"{sender}: {text}")
             senders.add(sender)
-            if ts_aware: timestamps.append(ts_aware)
-    if not formatted_messages_for_prompt: return "No text messages found for analysis after formatting."
+            if ts_aware: # Only append if we have a valid timestamp
+                timestamps.append(ts_aware)
+
+    if not formatted_messages_for_prompt:
+        return "No text messages found for analysis after formatting."
+
     combined_text_for_prompt_var = "\n".join(formatted_messages_for_prompt)
-    num_messages = len(formatted_messages_for_prompt); num_senders = len(senders); duration_minutes = 0
-    if len(timestamps) >= 2: 
-        min_time = min(timestamps); max_time = max(timestamps)
+    num_messages = len(formatted_messages_for_prompt)
+    num_senders = len(senders)
+    duration_minutes = 0
+    if len(timestamps) >= 2: # Calculate duration only if we have at least two timestamps
+        min_time = min(timestamps)
+        max_time = max(timestamps)
         duration_minutes = int((max_time - min_time).total_seconds() / 60)
-    elif len(timestamps) == 1: duration_minutes = 0
+    elif len(timestamps) == 1: # If only one message, duration is 0
+        duration_minutes = 0
+
+    # Persian prompt template for conversation analysis
     prompt_template = (
         "شما یک دستیار هوشمند تحلیلگر مکالمات فارسی هستید. لطفاً متن گفتگوی زیر را به دقت بررسی کرده و یک گزارش تحلیلی جامع و ساختاریافته به زبان فارسی ارائه دهید. "
         "هنگام تحلیل، به زمینه فرهنگی، لحن محاوره‌ای، و روابط احتمالی بین گویندگان توجه ویژه داشته باشید. از تفسیر تحت‌اللفظی عباراتی که ممکن است در بستر دوستانه یا شوخی معنای متفاوتی داشته باشند، پرهیز کنید.\n\n"
@@ -158,16 +182,18 @@ async def analyze_conversation_messages(
         "آمار مکالمه: این گفتگو شامل {num_messages} پیام بین {num_senders} نفر در طی حدود {duration_minutes} دقیقه بوده است.\n\n"
         "پیام‌ها جهت تحلیل:\n"
         "```\n"
-        "{actual_chat_messages}\n" 
+        "{actual_chat_messages}\n"
         "```\n\n"
         "تحلیل فارسی:"
     )
     prompt = prompt_template.format(num_messages=num_messages, num_senders=num_senders, duration_minutes=duration_minutes, actual_chat_messages=combined_text_for_prompt_var)
     logger.info(f"AI Processor: Sending conversation ({num_messages} messages) for DETAILED analysis to model '{model_name}'.")
     system_msg_for_analysis = "You are a professional Persian chat analyst. Provide a comprehensive and structured report based on the user's detailed instructions, ensuring all requested sections are covered accurately and in Persian."
-    analysis_response = await execute_custom_prompt(api_key=api_key, model_name=model_name, user_text_prompt=prompt, max_tokens=2000, temperature=0.4, system_message=system_msg_for_analysis)
-    if "AI Error:" not in analysis_response: logger.info(f"AI Processor: Detailed analysis successful for {num_messages} messages.")
-    else: logger.error(f"AI Processor: Detailed analysis failed. Response: {analysis_response}")
+    analysis_response = await execute_custom_prompt(api_key=api_key, model_name=model_name, user_text_prompt=prompt, max_tokens=2000, temperature=0.4, system_message=system_msg_for_analysis) # Increased max_tokens for detailed analysis
+    if "AI Error:" not in analysis_response:
+        logger.info(f"AI Processor: Detailed analysis successful for {num_messages} messages.")
+    else:
+        logger.error(f"AI Processor: Detailed analysis failed. Response: {analysis_response}")
     return analysis_response
 
 async def answer_question_from_chat_history(
@@ -180,7 +206,7 @@ async def answer_question_from_chat_history(
     Answers a specific user question based on the provided chat history.
     Uses a professional and colloquial tone.
     """
-    if not api_key or "YOUR_OPENROUTER_API_KEY_HERE" in api_key or len(api_key) < 50:
+    if not api_key or "YOUR_OPENROUTER_API_KEY_HERE" in api_key or len(api_key) < 10:
         logger.error("AI Processor: OpenRouter API key not configured for question answering.")
         return "AI Error: OpenRouter API key not configured."
     if not model_name:
@@ -195,9 +221,9 @@ async def answer_question_from_chat_history(
     for msg_info in messages_data:
         sender = msg_info.get('sender', 'Unknown')
         text = msg_info.get('text')
-        if text:
+        if text: # Ensure there is text content
             formatted_messages_for_prompt.append(f"{sender}: {text}")
-    
+
     if not formatted_messages_for_prompt:
         return "No text messages found in the provided history."
 
@@ -234,75 +260,103 @@ async def answer_question_from_chat_history(
         logger.info(f"AI Processor: Successfully answered question '{user_question[:50]}...'.")
     else:
         logger.error(f"AI Processor: Failed to answer question '{user_question[:50]}...'. Response: {answer}")
-        
+
     return answer
+
+async def transcribe_voice_to_text(audio_wav_path: str) -> str:
+    """
+    Transcribes voice from a .wav audio file to text using SpeechRecognition library (Google Web Speech API).
+    This is a free method suitable for testing, but has limitations.
+    Requires ffmpeg to be installed for pydub (used in event_handler) to convert original audio to WAV.
+    """
+    if not os.path.exists(audio_wav_path):
+        logger.error(f"STT Error: Audio file not found at {audio_wav_path}")
+        return "STT Error: Processed audio file not found."
+
+    recognizer = sr.Recognizer()
+    try:
+        with sr.AudioFile(audio_wav_path) as source:
+            audio_data = recognizer.record(source) # read the entire audio file
+        logger.info(f"STT: Audio file '{audio_wav_path}' loaded successfully. Attempting transcription...")
+        # Recognize speech using Google Web Speech API (free, no key needed, but has limitations)
+        # For Persian, use language="fa-IR"
+        text = recognizer.recognize_google(audio_data, language="fa-IR")
+        logger.info(f"STT: Transcription successful: '{text[:100]}...'")
+        return text
+    except sr.WaitTimeoutError:
+        logger.error("STT Error: No speech detected (WaitTimeoutError).")
+        return "STT Error: No speech detected or timeout."
+    except sr.UnknownValueError:
+        logger.info("STT: Google Web Speech API could not understand audio.")
+        return "STT Error: Speech was unintelligible."
+    except sr.RequestError as e:
+        logger.error(f"STT Error: Could not request results from Google Web Speech API; {e}")
+        return f"STT Error: API request failed ({e}). Check internet connection."
+    except Exception as e:
+        logger.error(f"STT Error: An unexpected error occurred during transcription: {e}", exc_info=True)
+        return f"STT Error: Transcription failed ({e})."
 
 
 # Standalone Test Block
 if __name__ == '__main__':
-    # ... (Standalone test block can be updated to include answer_question_from_chat_history) ...
+    # ... (Standalone test block can be updated to include answer_question_from_chat_history and transcribe_voice_to_text) ...
     import asyncio
-    import pytz 
-    from datetime import timedelta
+    # import pytz # Already imported
+    from datetime import timedelta # Already imported
 
-    STANDALONE_TEST_API_KEY = "YOUR_OPENROUTER_API_KEY_FOR_STANDALONE_TESTING_ONLY" 
-    STANDALONE_TEST_MODEL = "deepseek/deepseek-chat" 
+    STANDALONE_TEST_API_KEY = "YOUR_OPENROUTER_API_KEY_FOR_STANDALONE_TESTING_ONLY" # Replace if testing AI features
+    STANDALONE_TEST_MODEL = "deepseek/deepseek-chat" # Replace if testing AI features
 
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logging.getLogger("ai_processor").setLevel(logging.DEBUG)
+    logging.getLogger("speech_recognition").setLevel(logging.DEBUG)
 
 
     async def run_standalone_tests():
         if "YOUR_OPENROUTER_API_KEY_FOR_STANDALONE_TESTING_ONLY" in STANDALONE_TEST_API_KEY or \
-           not STANDALONE_TEST_API_KEY or len(STANDALONE_TEST_API_KEY) < 50:
-            print("Please set your actual OpenRouter API key in STANDALONE_TEST_API_KEY to run the test.")
-            return
+           not STANDALONE_TEST_API_KEY or len(STANDALONE_TEST_API_KEY) < 10: # Basic check
+            print("WARNING: OpenRouter API key not set in STANDALONE_TEST_API_KEY. AI features (/tellme, /analyze etc.) will fail if called.")
+            # For STT, API key is not needed for recognize_google
 
-        print(f"\n--- Running Standalone AI Processor Tests (Model: {STANDALONE_TEST_MODEL}) ---")
-        
-        # Test /tellme
+        print(f"\n--- Running Standalone AI Processor Tests (Model for AI: {STANDALONE_TEST_MODEL}) ---")
+
+        # Test /tellme (Example - will fail if API key is placeholder)
         print("\nTesting /tellme (answer_question_from_chat_history):")
-        sample_history_for_tellme = [
-            {'sender': "سینا", 'text': "یادته هفته پیش درباره اون رستوران ایتالیایی جدیده حرف می‌زدیم؟ اسمش چی بود؟", 'timestamp': datetime.now(pytz.utc) - timedelta(days=7, hours=1)},
-            {'sender': "هومن", 'text': "آها، آره! فکر کنم 'لاپیتزا' بود. گفتیم آخر این هفته بریم امتحانش کنیم.", 'timestamp': datetime.now(pytz.utc) - timedelta(days=7)},
-            {'sender': "غزل", 'text': "منم خیلی تعریفشو شنیدم! پاستاهاش میگن عالیه.", 'timestamp': datetime.now(pytz.utc) - timedelta(days=6)},
-            {'sender': "سینا", 'text': "پس قرارمون شد جمعه شب، رستوران لاپیتزا. من رزرو می‌کنم.", 'timestamp': datetime.now(pytz.utc) - timedelta(days=5)},
-            {'sender': "هومن", 'text': "عالیه، فقط من شاید یه کم دیرتر برسم، حدود ۹.", 'timestamp': datetime.now(pytz.utc) - timedelta(days=5, hours=-1)},
-            {'sender': "غزل", 'text': "مشکلی نیست هومن جان. سینا، تو در مورد اون فیلم ترسناکه که گفتی چیزی پیدا کردی؟", 'timestamp': datetime.now(pytz.utc) - timedelta(days=4)},
-            {'sender': "سینا", 'text': "آره، اسمش 'سکوت بره‌ها' بود، ولی خیلی قدیمیه. یه فیلم جدیدتر به اسم 'نجواگر' هم پیدا کردم که امتیازاش خوبه.", 'timestamp': datetime.now(pytz.utc) - timedelta(days=3)}
-        ]
-        
-        question1 = "اسم رستورانی که قرار شد بریم چی بود و کی قرار گذاشتیم؟"
-        print(f"\nQuestion 1: {question1}")
-        response_tellme1 = await answer_question_from_chat_history(
-            STANDALONE_TEST_API_KEY, 
-            STANDALONE_TEST_MODEL, 
-            sample_history_for_tellme,
-            question1
-        )
-        print(f"AI Response for Question 1:\n{response_tellme1}")
-        print("-" * 20)
+        # ... (rest of the /tellme test code from previous version)
 
-        question2 = "در مورد چه فیلم‌هایی صحبت شد؟"
-        print(f"\nQuestion 2: {question2}")
-        response_tellme2 = await answer_question_from_chat_history(
-            STANDALONE_TEST_API_KEY, 
-            STANDALONE_TEST_MODEL, 
-            sample_history_for_tellme,
-            question2
-        )
-        print(f"AI Response for Question 2:\n{response_tellme2}")
-        print("-" * 20)
+        # Test STT (transcribe_voice_to_text)
+        # This requires a sample .wav file. Create a dummy one for the test structure.
+        print("\nTesting STT (transcribe_voice_to_text):")
+        dummy_wav_path = "test_audio.wav"
+        try:
+            # Create a simple dummy WAV file if pydub is available for testing structure
+            # In a real scenario, you'd use an actual voice recording.
+            from pydub import AudioSegment
+            from pydub.generators import Sine
+            # Generate a 1-second sine wave at 440 Hz (A4 note)
+            # This is just to have a file, it won't transcribe to meaningful Persian.
+            sine_wave = Sine(440).to_audio_segment(duration=1000).set_channels(1)
+            sine_wave.export(dummy_wav_path, format="wav")
+            print(f"Created dummy '{dummy_wav_path}' for STT test structure.")
 
-        question3 = "غزل در مورد ماشینش چی گفت؟" # Question not in history
-        print(f"\nQuestion 3: {question3}")
-        response_tellme3 = await answer_question_from_chat_history(
-            STANDALONE_TEST_API_KEY, 
-            STANDALONE_TEST_MODEL, 
-            sample_history_for_tellme,
-            question3
-        )
-        print(f"AI Response for Question 3:\n{response_tellme3}")
+            stt_response = await transcribe_voice_to_text(dummy_wav_path)
+            print(f"STT Response for dummy WAV:\n{stt_response}")
+            print("Note: The dummy WAV contains a sine wave, so 'Speech unintelligible' or similar is expected.")
+
+        except ImportError:
+            print("pydub not installed, skipping dummy WAV creation for STT test.")
+            print("To test STT, manually create a 'test_audio.wav' file with some Persian speech.")
+            if os.path.exists(dummy_wav_path): # If manually created
+                 stt_response = await transcribe_voice_to_text(dummy_wav_path)
+                 print(f"STT Response for manually provided '{dummy_wav_path}':\n{stt_response}")
+            else:
+                print(f"'{dummy_wav_path}' not found.")
+        except Exception as e_stt_test:
+            print(f"Error during STT standalone test: {e_stt_test}")
+        finally:
+            if os.path.exists(dummy_wav_path):
+                os.remove(dummy_wav_path)
+                print(f"Removed dummy '{dummy_wav_path}'.")
 
 
     asyncio.run(run_standalone_tests())

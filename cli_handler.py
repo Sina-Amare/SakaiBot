@@ -23,7 +23,7 @@ cli_state = {
     "OPENROUTER_MODEL_NAME_CLI": "deepseek/chat",
     "MAX_ANALYZE_MESSAGES_CLI": 5000,
     "settings_saved_on_cli_exit": False,
-    "FFMPEG_PATH_CLI": None, # To store ffmpeg path from main
+    "FFMPEG_PATH_CLI": None,
 }
 
 async def async_input(prompt: str) -> str:
@@ -50,7 +50,6 @@ async def _get_user_choice_async(prompt="Enter your choice: ", expect_int=True):
             return ""
 
 def _display_main_menu():
-    # Access global cli_state
     pv_display_name = cli_state["selected_pv_for_categorization"]['display_name'] if cli_state["selected_pv_for_categorization"] and 'display_name' in cli_state["selected_pv_for_categorization"] else "None (Uses current chat for /analyze)"
     pv_status = f"(Default Context PV: '{pv_display_name}')"
 
@@ -61,16 +60,18 @@ def _display_main_menu():
 
     print("\nSakaiBot Menu:")
     print("=" * 30)
-    print("1. List all my Private Chats (PVs)")
-    print("2. Search PVs (by ID, Username, or Name)")
-    print(f"3. Set Default PV Context (for /analyze) {pv_status}")
-    print(f"4. Set/Change Categorization Target Group {group_status_text}")
-    print("5. Manage Categorization Command Mappings")
-    print(f"7. Manage Directly Authorized PVs ({len(cli_state['directly_authorized_pvs'])} authorized)")
-    print("-" * 30)
-    print("--- Monitoring (Applies to All Chats You Use & Authorized PVs) ---")
+    print("--- Private Chat (PV) Management ---")
+    print("1. List All Cached Private Chats (PVs)")
+    print("2. Refresh/Update PV List from Telegram (Recent Chats)") # New Option
+    print("3. Search PVs (from cached list)") # Was 2
+    print(f"4. Set Default PV Context (for /analyze) {pv_status}") # Was 3
+    print("--- Group & Categorization Management ---")
+    print(f"5. Set/Change Categorization Target Group {group_status_text}") # Was 4
+    print("6. Manage Categorization Command Mappings") # Was 5
+    print(f"8. Manage Directly Authorized PVs ({len(cli_state['directly_authorized_pvs'])} authorized)") # Was 7
+    print("--- Monitoring ---")
     monitoring_status = "Stop GLOBAL Monitoring" if cli_state["is_monitoring_active"] else "Start GLOBAL Monitoring"
-    print(f"6. {monitoring_status} (for categorization & AI commands)")
+    print(f"7. {monitoring_status} (for categorization & AI commands)") # Was 6
     print("   (Bot listens to your outgoing commands AND commands from authorized PVs)")
     print("=" * 30)
     print("0. Exit (Save Settings)")
@@ -123,16 +124,30 @@ def _display_entity_list(entity_list: list, title: str, entity_type: str = "PV",
     _print_footer()
     return True
 
-async def _handle_list_all_pvs(client, cache_manager, telegram_utils_module, show_numbers=True):
-    print("\nFetching your PV list, please wait...")
-    pvs = []
-    try:
-        pvs = await cache_manager.get_pvs(client, telegram_utils_module, force_refresh=False)
-        _display_entity_list(pvs, "All Your Private Chats (PVs)", entity_type="PV", show_numbers=show_numbers)
-    except Exception as e:
-        logger.error(f"Error handling 'List all PVs': {e}", exc_info=True)
-        print("An error occurred while fetching PVs. Check logs for details.")
+async def _handle_list_cached_pvs(client, cache_manager, telegram_utils_module, show_numbers=True):
+    """Handles listing PVs from the cache. If cache is empty, prompts to refresh."""
+    print("\nFetching your cached PV list...")
+    # Call get_pvs with force_refresh=False. It will do an initial fetch if cache is empty.
+    pvs = await cache_manager.get_pvs(client, telegram_utils_module, force_refresh=False)
+    if not pvs: # If still no PVs after get_pvs (e.g., initial fetch failed or cache truly empty)
+        print("Your PV cache is currently empty.")
+        print("You might want to use 'Refresh/Update PV List from Telegram' (Option 2) to populate it.")
+    else:
+        _display_entity_list(pvs, "All Your Cached Private Chats (PVs)", entity_type="PV", show_numbers=show_numbers)
     return pvs
+
+async def _handle_refresh_pvs(client, cache_manager, telegram_utils_module):
+    """Handles refreshing the PV list from Telegram and merging with cache."""
+    print("\nRefreshing PV list from Telegram (this may take a moment)...")
+    # Call get_pvs with force_refresh=True. This will fetch recent and merge.
+    refreshed_pvs = await cache_manager.get_pvs(client, telegram_utils_module, force_refresh=True)
+    if refreshed_pvs is not None: # Check if fetch and merge was successful (even if list is empty)
+        print(f"PV list refreshed. Total PVs in cache: {len(refreshed_pvs)}.")
+        _display_entity_list(refreshed_pvs, "Updated PV List (Cache)", entity_type="PV", show_numbers=False)
+    else:
+        print("Failed to refresh PV list. Please check logs in monitor_activity.log.")
+    return refreshed_pvs
+
 
 def _perform_pv_search(pvs_list: list, query: str) -> list:
     if not query:
@@ -167,17 +182,22 @@ async def _handle_search_pvs(client, cache_manager, telegram_utils_module, show_
     if not search_query:
         print("Search term cannot be empty.")
         return search_results
-    print(f"\nSearching PVs for '{search_query}', please wait...")
+    
+    print(f"\nSearching your cached PVs for '{search_query}'...")
     try:
-        all_pvs = await cache_manager.get_pvs(client, telegram_utils_module, force_refresh=False)
-        if not all_pvs:
-            print("Could not retrieve PV list to search. Try listing all PVs first or check logs.")
+        # Search should operate on the current cached list
+        all_cached_pvs = await cache_manager.get_pvs(client, telegram_utils_module, force_refresh=False)
+        if not all_cached_pvs:
+            print("PV cache is empty. Try refreshing the PV list first (Option 2).")
             return search_results
-        search_results = _perform_pv_search(all_pvs, search_query)
+            
+        search_results = _perform_pv_search(all_cached_pvs, search_query)
+        
         if search_results:
-            _display_entity_list(search_results, f"PV Search Results for '{search_query}'", entity_type="PV", show_numbers=show_numbers)
+            _display_entity_list(search_results, f"PV Search Results for '{search_query}' (from cache)", entity_type="PV", show_numbers=show_numbers)
         else:
-            print(f"No PVs found matching '{search_query}'.")
+            print(f"No PVs found in cache matching '{search_query}'.")
+            
     except Exception as e:
         logger.error(f"Error handling 'Search PVs': {e}", exc_info=True)
         print("An error occurred during PV search. Check logs for details.")
@@ -185,8 +205,8 @@ async def _handle_search_pvs(client, cache_manager, telegram_utils_module, show_
 
 async def _handle_set_default_pv_context(client, cache_manager, telegram_utils_module):
     _print_header("Set Default PV Context (e.g., for /analyze)")
-    print("1. List all PVs to select from")
-    print("2. Search PVs (by ID, Username, or Name) to select from")
+    print("1. List all cached PVs to select from")
+    print("2. Search cached PVs (by ID, Username, or Name) to select from")
     print("9. Clear Default PV Context")
     print("0. Back to main menu")
     choice_input = await _get_user_choice_async(prompt="Choose an option: ", expect_int=True)
@@ -198,15 +218,16 @@ async def _handle_set_default_pv_context(client, cache_manager, telegram_utils_m
         return
     pvs_to_select_from = []
     if choice_input == 1:
-        pvs_to_select_from = await _handle_list_all_pvs(client, cache_manager, telegram_utils_module, show_numbers=True)
+        # Use the function that lists from cache, it will prompt to refresh if empty
+        pvs_to_select_from = await _handle_list_cached_pvs(client, cache_manager, telegram_utils_module, show_numbers=True)
     elif choice_input == 2:
         pvs_to_select_from = await _handle_search_pvs(client, cache_manager, telegram_utils_module, show_numbers=True)
     elif choice_input == 0: return
     else:
         print("Invalid option. Returning to main menu.")
         return
-    if not pvs_to_select_from:
-        print("No PVs available to select from based on your previous action.")
+    if not pvs_to_select_from: # If list/search returned empty
+        print("No PVs available to select from based on your previous action (list/search was empty or cancelled).")
         return
     while True:
         pv_number = await _get_user_choice_async(
@@ -225,7 +246,10 @@ async def _handle_set_default_pv_context(client, cache_manager, telegram_utils_m
         else:
             print(f"Invalid number. Please enter a number between 1 and {len(pvs_to_select_from)} or 0.")
 
+# ... (rest of the functions like _handle_set_target_group, _display_topic_list, _handle_manage_command_topic_mappings, _handle_manage_authorized_pvs, _toggle_monitoring remain largely the same, just ensure they use cli_state correctly) ...
+
 async def _handle_set_target_group(client, cache_manager, telegram_utils_module):
+    # Uses cli_state
     _print_header("Set/Change Categorization Target Group")
     print("Fetching your groups (admins/owners of supergroups), please wait...")
     try:
@@ -269,27 +293,28 @@ async def _handle_set_target_group(client, cache_manager, telegram_utils_module)
             if cli_state["selected_target_group"]['is_forum']:
                 print(f"This group is a forum.")
                 if cli_state["current_group_topics_cache"]:
-                    _display_topic_list(cli_state["current_group_topics_cache"], cli_state["selected_target_group"]['title'], show_numbers=False)
+                    _display_topic_list(cli_state["current_group_topics_cache"], cli_state["selected_target_group"]['title'], show_numbers=False) # _display_topic_list needs to be defined or imported
                 else:
                     print(f"No topics were found/listed for forum '{cli_state['selected_target_group']['title']}'. You might need to add them manually via Option 5 if they exist.")
             else:
                 print(f"This group ('{cli_state['selected_target_group']['title']}') is not a forum. Messages will be sent to the main group chat.")
-            print("\nNext, please use 'Manage Command Mappings' (Option 5).")
+            print("\nNext, please use 'Manage Command Mappings' (Option 6).") # Adjusted option number
             return
         else:
             print(f"Invalid number.")
 
 def _display_topic_list(topics: list, group_title: str, show_numbers: bool = True):
+    """Helper to display topics, similar to _display_entity_list."""
     if not topics:
         print(f"\nNo topics to display for '{group_title}'.")
         return False
     _print_header(f"Topics in '{group_title}'")
     idx_width = 5 if show_numbers else 2
-    title_width = 60
+    title_width = 60 
     id_width = 15
     header_format = "{:<{idx}} {:<{title}} {:<{id}}"
     print(header_format.format("No." if show_numbers else "", "Topic Title", "Topic ID", idx=idx_width, title=title_width, id=id_width))
-    print("-" * (idx_width + title_width + id_width + 2))
+    print("-" * (idx_width + title_width + id_width + 2)) 
     for index, topic in enumerate(topics):
         prefix = f"{index + 1}." if show_numbers else "-"
         topic_id = topic['id']
@@ -305,8 +330,9 @@ def _display_topic_list(topics: list, group_title: str, show_numbers: bool = Tru
 
 
 async def _handle_manage_command_topic_mappings(client, telegram_utils_module):
+    # Uses cli_state
     if not cli_state["selected_target_group"]:
-        print("Please set a target group first (Main Menu - Option 4).")
+        print("Please set a target group first (Main Menu - Option 5).") # Adjusted option number
         return
     group_id = cli_state["selected_target_group"]['id']
     group_title = cli_state["selected_target_group"]['title']
@@ -429,12 +455,13 @@ async def _handle_manage_command_topic_mappings(client, telegram_utils_module):
         else: print("Invalid choice for mapping.")
 
 async def _handle_manage_authorized_pvs(client, cache_manager, telegram_utils_module):
+    # Uses cli_state
     _print_header("Manage Directly Authorized PVs")
     while True:
         print("\nAuthorized PVs Menu:")
         print("1. View authorized PVs")
-        print("2. Authorize a new PV (List all)")
-        print("3. Authorize a new PV (Search by ID, Username, or Name)")
+        print("2. Authorize a new PV (List all cached PVs)")
+        print("3. Authorize a new PV (Search cached PVs by ID, Username, or Name)")
         print("4. De-authorize a PV")
         print("0. Back to main menu")
 
@@ -447,15 +474,18 @@ async def _handle_manage_authorized_pvs(client, cache_manager, telegram_utils_mo
             else:
                 _display_entity_list(cli_state["directly_authorized_pvs"], "Directly Authorized PVs", entity_type="PV", show_numbers=False)
         elif choice == 2 or choice == 3:
-            print("\nSelect a PV to authorize for direct commands:")
+            print("\nSelect a PV to authorize for direct commands (from cached PVs):")
             pvs_to_select_from = []
-            if choice == 2:
-                pvs_to_select_from = await _handle_list_all_pvs(client, cache_manager, telegram_utils_module, show_numbers=True)
-            elif choice == 3:
+            if choice == 2: # List all cached
+                pvs_to_select_from = await _handle_list_cached_pvs(client, cache_manager, telegram_utils_module, show_numbers=True)
+            elif choice == 3: # Search cached
                 pvs_to_select_from = await _handle_search_pvs(client, cache_manager, telegram_utils_module, show_numbers=True)
+            
             if not pvs_to_select_from:
-                print("No PVs available to select from based on your previous action.")
+                print("No PVs available to select from based on your previous action (list/search was empty or cancelled).")
+                print("You may need to refresh the PV list first (Main Menu - Option 2).")
                 continue
+            
             pv_number = await _get_user_choice_async(
                 prompt=f"Enter number of PV to authorize (1-{len(pvs_to_select_from)}), or 0 to cancel: ",
                 expect_int=True
@@ -501,6 +531,7 @@ async def _handle_manage_authorized_pvs(client, cache_manager, telegram_utils_mo
             print("Invalid choice. Please try again.")
 
 async def _toggle_monitoring(client, event_handlers_module):
+    # Uses and modifies cli_state
     if cli_state["is_monitoring_active"]:
         if cli_state["registered_handler_info"]:
             owner_handler_func, owner_event_filter, authorized_handler_func, authorized_event_filter_list = cli_state["registered_handler_info"]
@@ -520,31 +551,31 @@ async def _toggle_monitoring(client, event_handlers_module):
                 print("Error stopping monitoring. Check logs.")
         else:
             logger.warning("Attempted to stop monitoring, but no handler info was stored.")
-            cli_state["is_monitoring_active"] = False
-    else:
+            cli_state["is_monitoring_active"] = False 
+    else: 
         can_categorize = cli_state["selected_target_group"] and cli_state["active_command_to_topic_map"]
         can_ai = cli_state["OPENROUTER_API_KEY_CLI"] and \
                  "YOUR_OPENROUTER_API_KEY_HERE" not in cli_state["OPENROUTER_API_KEY_CLI"] and \
-                 len(cli_state["OPENROUTER_API_KEY_CLI"]) > 10
+                 len(cli_state["OPENROUTER_API_KEY_CLI"]) > 10 
 
         if not (can_categorize or can_ai):
             print("Cannot start GLOBAL monitoring. Requirements not met:")
             if not cli_state["selected_target_group"] or not cli_state["active_command_to_topic_map"]:
-                print("   - For categorization: Set target group (Opt 4) AND define command mappings (Opt 5).")
+                print("   - For categorization: Set target group (Opt 5) AND define command mappings (Opt 6).") # Adjusted option numbers
             if not can_ai: print("   - For AI features: Ensure OpenRouter API key is set in config.ini.")
             return
 
         owner_bound_handler = functools.partial(
             event_handlers_module.categorization_reply_handler_owner,
             client=client,
-            cli_state_ref=cli_state
+            cli_state_ref=cli_state 
         )
         owner_event_filter = events.NewMessage(outgoing=True)
 
         authorized_user_bound_handler = functools.partial(
             event_handlers_module.authorized_user_command_handler,
             client=client,
-            cli_state_ref=cli_state
+            cli_state_ref=cli_state 
         )
         authorized_pv_ids = [pv['id'] for pv in cli_state["directly_authorized_pvs"] if pv and 'id' in pv]
         final_authorized_event_filters = []
@@ -556,7 +587,7 @@ async def _toggle_monitoring(client, event_handlers_module):
             client.add_event_handler(owner_bound_handler, owner_event_filter)
             logger.info(f"SakaiBot CLI: Owner's Event handler ADDED for NewMessage(outgoing=True).")
             if final_authorized_event_filters:
-                for auth_filter_item in final_authorized_event_filters:
+                for auth_filter_item in final_authorized_event_filters: 
                     client.add_event_handler(authorized_user_bound_handler, auth_filter_item)
                     logger.info(f"SakaiBot CLI: Authorized User Event handler ADDED for NewMessage(incoming=True, chats={auth_filter_item.chats}).")
 
@@ -575,13 +606,13 @@ async def display_main_menu_loop(
     settings_manager_module, event_handlers_module,
     openrouter_api_key_main: str, openrouter_model_name_main: str,
     max_analyze_messages_main: int,
-    ffmpeg_path: str or None # Added ffmpeg_path
+    ffmpeg_path: str or None
 ):
     logger.info("CLI Handler started.")
     cli_state["OPENROUTER_API_KEY_CLI"] = openrouter_api_key_main
     cli_state["OPENROUTER_MODEL_NAME_CLI"] = openrouter_model_name_main
     cli_state["MAX_ANALYZE_MESSAGES_CLI"] = max_analyze_messages_main
-    cli_state["FFMPEG_PATH_CLI"] = ffmpeg_path # Store ffmpeg path in cli_state
+    cli_state["FFMPEG_PATH_CLI"] = ffmpeg_path
     cli_state["settings_saved_on_cli_exit"] = False
 
     loaded_settings = settings_manager_module.load_user_settings()
@@ -606,20 +637,21 @@ async def display_main_menu_loop(
     logger.info("Displaying main menu.")
     running = True
     while running:
-        _display_main_menu()
+        _display_main_menu() # Display menu with new options
         choice = await _get_user_choice_async(prompt="Enter your choice: ", expect_int=True)
 
         if choice == -1:
             await async_input("\nPress Enter to continue...")
             continue
 
-        if choice == 1: await _handle_list_all_pvs(client, cache_manager, telegram_utils_module)
-        elif choice == 2: await _handle_search_pvs(client, cache_manager, telegram_utils_module)
-        elif choice == 3: await _handle_set_default_pv_context(client, cache_manager, telegram_utils_module)
-        elif choice == 4: await _handle_set_target_group(client, cache_manager, telegram_utils_module)
-        elif choice == 5: await _handle_manage_command_topic_mappings(client, telegram_utils_module)
-        elif choice == 7: await _handle_manage_authorized_pvs(client, cache_manager, telegram_utils_module)
-        elif choice == 6: await _toggle_monitoring(client, event_handlers_module)
+        if choice == 1: await _handle_list_cached_pvs(client, cache_manager, telegram_utils_module)
+        elif choice == 2: await _handle_refresh_pvs(client, cache_manager, telegram_utils_module) # New handler
+        elif choice == 3: await _handle_search_pvs(client, cache_manager, telegram_utils_module)
+        elif choice == 4: await _handle_set_default_pv_context(client, cache_manager, telegram_utils_module)
+        elif choice == 5: await _handle_set_target_group(client, cache_manager, telegram_utils_module)
+        elif choice == 6: await _handle_manage_command_topic_mappings(client, telegram_utils_module)
+        elif choice == 8: await _handle_manage_authorized_pvs(client, cache_manager, telegram_utils_module) # Adjusted number
+        elif choice == 7: await _toggle_monitoring(client, event_handlers_module) # Adjusted number
         elif choice == 0:
             logger.info("Exiting SakaiBot CLI (Option 0). Performing cleanup...")
             settings_to_save = {
@@ -656,4 +688,3 @@ async def display_main_menu_loop(
             await async_input("\nPress Enter to continue...")
 
     logger.info("CLI Handler finished.")
-

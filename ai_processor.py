@@ -16,7 +16,7 @@ async def execute_custom_prompt(
     temperature: float = 0.7,
     system_message: str = "You are a helpful assistant. Respond in the language of the user's prompt if possible."
 ) -> str:
-    # ... (This function remains the same as sakaibot_ai_processor_py_v3_focused_prompt)
+    # ... (This function remains the same as sakaibot_ai_processor_py_v4_detailed_analysis)
     if not api_key or "YOUR_OPENROUTER_API_KEY_HERE" in api_key or len(api_key) < 50:
         logger.error("AI Processor: OpenRouter API key is not configured or seems invalid.")
         return "AI Error: OpenRouter API key not configured or invalid. Please check your config.ini."
@@ -61,7 +61,7 @@ async def translate_text_with_phonetics(
     target_language: str,
     source_language: str = "auto" 
 ) -> str:
-    # ... (This function remains the same as sakaibot_ai_processor_py_v2_translate)
+    # ... (This function remains the same as sakaibot_ai_processor_py_v4_detailed_analysis)
     if not text_to_translate:
         return "AI Error: No text provided for translation."
     if not target_language:
@@ -109,8 +109,8 @@ async def analyze_conversation_messages(
 ) -> str:
     """
     Analyzes a list of messages using the specified AI model via OpenRouter.
-    Uses a more detailed Persian prompt for structured and specific analysis,
-    including main topics and key points.
+    Uses a detailed Persian prompt for structured and specific analysis.
+    Corrected prompt formatting.
     """
     if not api_key or "YOUR_OPENROUTER_API_KEY_HERE" in api_key or len(api_key) < 50:
         logger.error("AI Processor: OpenRouter API key not configured for analysis.")
@@ -148,7 +148,7 @@ async def analyze_conversation_messages(
     if not formatted_messages_for_prompt:
         return "No text messages found for analysis after formatting."
 
-    combined_text_for_prompt = "\n".join(formatted_messages_for_prompt)
+    combined_text_for_prompt_var = "\n".join(formatted_messages_for_prompt) # Renamed for clarity
     num_messages = len(formatted_messages_for_prompt)
     num_senders = len(senders)
     duration_minutes = 0
@@ -159,8 +159,10 @@ async def analyze_conversation_messages(
     elif len(timestamps) == 1: 
         duration_minutes = 0
 
-    # --- New, more detailed Persian prompt for chat analysis ---
-    prompt = (
+    # Corrected prompt construction:
+    # Use placeholders for all variables that will be filled by .format()
+    # and ensure combined_text_for_prompt_var is passed to .format()
+    prompt_template = (
         "شما یک دستیار هوشمند تحلیلگر مکالمات فارسی هستید. لطفاً متن گفتگوی زیر را به دقت بررسی کرده و یک گزارش تحلیلی جامع و ساختاریافته به زبان فارسی ارائه دهید. "
         "هنگام تحلیل، به زمینه فرهنگی، لحن محاوره‌ای، و روابط احتمالی بین گویندگان توجه ویژه داشته باشید. از تفسیر تحت‌اللفظی عباراتی که ممکن است در بستر دوستانه یا شوخی معنای متفاوتی داشته باشند، پرهیز کنید.\n\n"
         "گزارش شما باید شامل بخش‌های زیر با همین عناوین فارسی و به همین ترتیب باشد:\n\n"
@@ -176,10 +178,18 @@ async def analyze_conversation_messages(
         "آمار مکالمه: این گفتگو شامل {num_messages} پیام بین {num_senders} نفر در طی حدود {duration_minutes} دقیقه بوده است.\n\n"
         "پیام‌ها جهت تحلیل:\n"
         "```\n"
-        f"{combined_text_for_prompt}\n"
+        "{actual_chat_messages}\n" # Placeholder for the combined messages
         "```\n\n"
         "تحلیل فارسی:"
-    ).format(num_messages=num_messages, num_senders=num_senders, duration_minutes=duration_minutes)
+    )
+    
+    prompt = prompt_template.format(
+        num_messages=num_messages, 
+        num_senders=num_senders, 
+        duration_minutes=duration_minutes,
+        actual_chat_messages=combined_text_for_prompt_var # Pass the messages here
+    )
+
 
     logger.info(f"AI Processor: Sending conversation ({num_messages} messages) for DETAILED analysis to model '{model_name}'.")
     
@@ -189,8 +199,8 @@ async def analyze_conversation_messages(
         api_key=api_key,
         model_name=model_name,
         user_text_prompt=prompt,
-        max_tokens=2000, # Increased max_tokens for more detailed analysis
-        temperature=0.4, # Slightly lower temperature for more factual and structured output
+        max_tokens=2000, 
+        temperature=0.4,
         system_message=system_msg_for_analysis
     )
 
@@ -204,20 +214,28 @@ async def analyze_conversation_messages(
 
 # Standalone Test Block
 if __name__ == '__main__':
+    # ... (Standalone test block remains the same as v4) ...
     import asyncio
     import pytz 
     from datetime import timedelta
 
-    STANDALONE_TEST_API_KEY = "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" 
+    STANDALONE_TEST_API_KEY = "YOUR_OPENROUTER_API_KEY_FOR_STANDALONE_TESTING_ONLY" 
     STANDALONE_TEST_MODEL = "deepseek/deepseek-chat" 
 
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    logging.getLogger("ai_processor").setLevel(logging.DEBUG)
+    logging.getLogger("ai_processor").setLevel(logging.DEBUG) 
 
 
     async def run_standalone_tests():
-        if "YOUR_OPENROUTER_API_KEY_HERE" in STANDALONE_TEST_API_KEY or not STANDALONE_TEST_API_KEY or len(STANDALONE_TEST_API_KEY) < 50:
-            print("Please set your actual OpenRouter API key in STANDALONE_TEST_API_KEY to run the test.")
+        if "YOUR_OPENROUTER_API_KEY_FOR_STANDALONE_TESTING_ONLY" in STANDALONE_TEST_API_KEY or \
+           not STANDALONE_TEST_API_KEY or len(STANDALONE_TEST_API_KEY) < 50:
+            print("="*80)
+            print("WARNING: STANDALONE_TEST_API_KEY is not set or is a placeholder in ai_processor.py.")
+            print("To run standalone tests for this module, please temporarily edit ai_processor.py")
+            print("and set STANDALONE_TEST_API_KEY to your valid OpenRouter API key.")
+            print("This test section is for developers of SakaiBot and will NOT affect the main application,")
+            print("which correctly uses the API key from your config.ini file.")
+            print("="*80)
             return
 
         print(f"\n--- Running Standalone AI Processor Tests (Model: {STANDALONE_TEST_MODEL}) ---")

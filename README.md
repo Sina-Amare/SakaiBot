@@ -68,7 +68,7 @@ _SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips pow
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/<your‑username>/SakaiBot.git
+   git clone https://github.com/Sina-Amare/SakaiBot
    cd SakaiBot
    ```
 

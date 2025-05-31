@@ -8,7 +8,7 @@ _SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips pow
 
 1. [Key Features](#key-features)
 2. [Technology Stack](#technology-stack)
-3. [Setup & Installation](#setup--installation)
+3. [Setup and Installation](#setup-and-installation)
    - [Prerequisites](#prerequisites)
    - [Installation Steps](#installation-steps)
    - [Configuration](#configuration)

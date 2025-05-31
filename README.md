@@ -1,221 +1,215 @@
-SakaiBot 🤖
+# SakaiBot 🤖
 
-SakaiBot is an advanced and intelligent Telegram userbot developed to provide a suite of powerful tools for message management, conversation analysis, AI interaction, and task automation within Telegram.
+_SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips power‑users with a rich toolbox for message management, conversation analysis, AI interaction, and task automation—all from the comfort of Telegram._
 
-Table of Contents
-Key Features
+---
 
-Technology Stack
+## Table of Contents
 
-Setup and Installation
+1. [Key Features](#key-features)
+2. [Technology Stack](#technology-stack)
+3. [Setup & Installation](#setup--installation)
+   - [Prerequisites](#prerequisites)
+   - [Installation Steps](#installation-steps)
+   - [Configuration](#configuration)
+4. [Usage](#usage)
+   - [Running the Bot](#running-the-bot)
+   - [CLI Menu Options](#cli-menu-options)
+   - [Core Telegram Commands](#core-telegram-commands)
+   - [Configuration Details](#configuration-details)
+5. [Contributing](#contributing)
+6. [License](#license)
 
-Prerequisites
+---
 
-Installation Steps
+## Key Features ✨
 
-Configuration
+### 🔸 Advanced Private Chat _(PV)_ & Group Management
 
-Usage
+- **Cache** and **retrieve** your list of private chats and groups.
+- **Search** through PVs by _name_, _username_, or _ID_.
+- **Set** a _default_ PV context for text‑analysis commands.
 
-Running the Bot
+### 🔸 Intelligent Message Categorisation
 
-CLI Menu Options
+- **Choose** a _target_ group (regular or forum) for sending categorised messages.
+- **Map** custom commands to **topics** inside forum groups—or straight to the main chat.
 
-Core Telegram Commands
+### 🔸 AI‑Powered Processing & Analysis
 
-Configuration Details
+- **Custom Prompt Execution** – Send prompts directly to _Large Language Models_ (LLMs) via the **OpenRouter** API.
+- **Text Translation** – Translate text into multiple languages (including _Persian phonetic pronunciation_) using an LLM.
+- **Conversation Analysis** – Produce comprehensive, structured Persian reports of chat histories.
+- **Q\&A from Chat History** – Ask intelligent questions that are answered from previous messages.
+- **Speech‑to‑Text (STT)** – Convert Telegram voice messages to text via **Google Web Speech API** (_pluggable_ for other providers).
 
-Contributing
+### 🔸 Comprehensive Command‑Line Interface _(CLI)_
 
-License
+- Interactive **menu** for every bot setting and function.
+- Manage the list of **authorised users** who can issue commands.
 
-Key Features ✨
-Advanced Private Chat (PV) and Group Management:
+### 🔸 Event Monitoring & Secure Control
 
-Caching and retrieval of private chat lists and groups.
+- **Monitor** outgoing messages from the bot‑owner and incoming messages from authorised users.
+- _Confirmation flow_—execute commands suggested by others only after explicit approval.
 
-Search through PVs by name, username, or ID.
+### 🔸 Persistent Settings & Cache
 
-Set a default PV context for text analysis commands.
+- Automatic **save/load** of user‑specific settings and cache—your preferences survive restarts.
 
-Intelligent Message Categorization:
+---
 
-Ability to set a target group (regular or forum) for sending categorized messages.
+## Technology Stack 🛠️
 
-Map custom commands to specific topics in forum groups or to the main group chat.
+| Layer                | Technology                                            |
+| -------------------- | ----------------------------------------------------- |
+| **Language**         | Python ≥ 3.10                                         |
+| **Telegram API**     | [Telethon](https://github.com/LonamiWebs/Telethon)    |
+| **AI / LLMs**        | OpenRouter API, `openai` Python lib                   |
+| **Speech‑to‑Text**   | `SpeechRecognition` + Google Web Speech API           |
+| **Audio Processing** | [`pydub`](https://github.com/jiaaro/pydub) (+ FFmpeg) |
+| **Config Mgmt.**     | `configparser`                                        |
+| **Date & Time**      | `pytz`, `datetime`                                    |
 
-AI-Powered Processing and Analysis:
+---
 
-Custom Prompt Execution: Send prompts directly to Large Language Models (LLMs) via the OpenRouter API.
+## Setup & Installation 🚀
 
-Text Translation: Translate text into various languages, including Persian phonetic pronunciation (using LLM).
+### Prerequisites
 
-Conversation Analysis: Generate comprehensive and structured analytical reports of chat histories in Persian.
+- **Python** ≥ 3.10 – [Download](https://www.python.org/downloads/)
+- **FFmpeg** – Required by _pydub_ for audio processing. Make sure `ffmpeg` is on your system `PATH` _or_ specify its location in `config.ini`.
+- **Telegram Account** – Needed to obtain `api_id` & `api_hash`.
 
-Q&A from Chat History: Get intelligent answers to questions based on the content of previous messages.
+### Installation Steps
 
-Speech-to-Text (STT): Convert voice messages to text using Google Web Speech API (with extensibility for other services).
+1. **Clone the repository**
 
-Comprehensive Command-Line Interface (CLI):
+   ```bash
+   git clone https://github.com/<your‑username>/SakaiBot.git
+   cd SakaiBot
+   ```
 
-Interactive menu for managing all bot settings and functionalities.
+2. **Create & activate a virtual environment**
 
-Manage authorized users for using bot commands.
+   ```bash
+   python -m venv venv
+   # Windows
+   venv\Scripts\activate
+   # macOS / Linux
+   source venv/bin/activate
+   ```
 
-Event Monitoring and Control:
+3. **Install the required libraries**
 
-Monitor outgoing messages from the bot owner and incoming messages from authorized users for command execution.
+   1. _Generate_ `requirements.txt` (first time only):
 
-"Confirmation flow" for securely executing commands suggested by others.
+      ```bash
+      pip freeze > requirements.txt
+      ```
 
-Persistent Settings and Cache Management:
+   2. _Install_ dependencies (on any machine):
 
-Automatic saving and loading of user-specific settings and cache data.
+      ```bash
+      pip install -r requirements.txt
+      ```
 
-Technology Stack 🛠️
-Programming Language: Python 3.10+
+### Configuration
 
-Core Telegram Library: Telethon
+1. Copy `config.ini.example` to `config.ini` _(if the example exists)_, otherwise edit `config.ini` directly.
+2. Open `config.ini` and fill in **all** sections:
 
-Artificial Intelligence:
+   ```ini
+   [Telegram]
+   api_id       = <YOUR_API_ID>
+   api_hash     = <YOUR_API_HASH>
+   phone_number = +1234567890
 
-Access to various models via OpenRouter API
+   [UserBot]
+   session_name          = sakaibot_session
+   max_analyze_messages  = 100
 
-SpeechRecognition library for STT (with Google Web Speech API)
+   [OpenRouter]
+   api_key    = <YOUR_OPENROUTER_KEY>
+   model_name = deepseek/deepseek-chat
 
-OpenAI Python library (for interacting with OpenRouter, which has an OpenAI-compatible API)
+   ; Optional providers
+   [AssemblyAI]
+   api_key = <YOUR_ASSEMBLYAI_KEY>
 
-Audio Processing: Pydub (for audio format conversion)
+   [API_KEYS]
+   elevenlabs_api_key = <YOUR_ELEVENLABS_KEY>
 
-Configuration Management: configparser
+   [Paths]
+   ffmpeg_executable = /usr/local/bin/ffmpeg  ; or leave blank if on PATH
+   ```
 
-Date & Time Handling: pytz, datetime
+---
 
-Setup and Installation 🚀
-Prerequisites
-Python: Version 3.10 or higher. Download from the official Python website.
+## Usage 📖
 
-FFmpeg: Required by pydub for audio processing (essential for the STT feature). FFmpeg must be installed on your system and accessible via the system's PATH, or its path must be specified in the config.ini file. Installation guides can be found on the official FFmpeg website.
+### Running the Bot
 
-Telegram Account: To obtain api_id and api_hash.
-
-Installation Steps
-Clone the Repository:
-
-git clone [YOUR_GITHUB_REPOSITORY_URL]
-cd SakaiBot
-
-Create and Activate a Virtual Environment (Highly Recommended):
-
-python -m venv venv
-
-# On Windows
-
-venv\Scripts\activate
-
-# On macOS/Linux
-
-source venv/bin/activate
-
-Install Required Libraries:
-First, you need to create a requirements.txt file. In your activated virtual environment, run the following command to save the list of currently installed packages:
-
-pip freeze > requirements.txt
-
-Note: Ensure that only the project's core libraries are included in this file, not all libraries from your global Python environment. If you've just created the virtual environment and installed only the project dependencies, this command will work correctly.
-
-Once requirements.txt is created, others (or yourself in a new environment) can install all dependencies with:
-
-pip install -r requirements.txt
-
-Configuration
-Create a copy of config.ini.example
-
-Fill in config.ini with your details:
-
-[Telegram]:
-
-api_id and api_hash: Obtain these from my.telegram.org.
-
-phone_number: Your Telegram phone number in international format (e.g., +1234567890).
-
-[UserBot]:
-
-session_name: A custom name for the Telegram session file (e.g., sakaibot_session).
-
-max_analyze_messages: Maximum number of messages to fetch for the /analyze command.
-
-[OpenRouter]:
-
-api_key: Your API key from OpenRouter.
-
-model_name: The name of the model you want to use from OpenRouter (e.g., deepseek/deepseek-chat).
-
-[AssemblyAI] (Optional, if implemented):
-
-api_key: Your API key from AssemblyAI.
-
-[API_KEYS] (Optional, if ElevenLabs is implemented):
-
-elevenlabs_api_key: Your API key from ElevenLabs.
-
-[Paths] (Optional):
-
-ffmpeg_executable: The full path to your ffmpeg.exe (or ffmpeg) executable (e.g., C:\ffmpeg\bin\ffmpeg.exe). This is not necessary if FFmpeg is in your system's PATH.
-
-Usage 📖
-Running the Bot
-After installation and configuration, run the bot using:
-
+```bash
 python main.py
+```
 
-On the first run, you might be prompted to enter your phone number, the Telegram confirmation code, and your 2FA password (if enabled).
+On the _first_ run you will be prompted for:
 
-CLI Menu Options
-Once the bot starts successfully, an interactive CLI menu will be displayed, allowing you to manage various aspects of the bot:
+1. Your **phone number**
+2. The **Telegram confirmation code**
+3. Your **2‑factor password** (if enabled)
 
-List All Cached Private Chats (PVs)
+### CLI Menu Options
 
-Refresh/Update PV List from Telegram (Recent Chats)
+The interactive menu lets you:
 
-Search PVs (from cached list)
+1. **List** cached PVs
+2. **Refresh** PV list from Telegram
+3. **Search** PVs
+4. **Set** default PV context
+5. **Set/Change** categorisation target group
+6. **Manage** command mappings
+7. **Start/Stop** _GLOBAL_ monitoring
+8. **Manage** authorised PVs
+9. **Exit** & save settings
 
-Set Default PV Context (for /analyze)
+### Core Telegram Commands
 
-Set/Change Categorization Target Group
+| Command                               | Description                                        | Example                                 |
+| ------------------------------------- | -------------------------------------------------- | --------------------------------------- |
+| `/prompt=<text>`                      | Send a prompt directly to the configured LLM       | `/prompt=Summarise the last chat`       |
+| `/translate=<target>[,source] <text>` | Translate text. `source` can be `auto`.            | `/translate=fa Hello there`             |
+| `/analyze=<n>`                        | Analyse the last _n_ messages in the current chat  | `/analyze=250`                          |
+| `/tellme=<n>=<question>`              | Ask a question answered from the last _n_ messages | `/tellme=100=What were the key topics?` |
+| `/stt` _(reply to a voice)_           | Convert voice message to text                      | _(reply to voice)_ `/stt`               |
+| `/yourMappedCmd` _(reply)_            | Forward message to the mapped group/topic          | —                                       |
+| `confirm` _(reply to forwarded cmd)_  | Confirm and execute somebody else’s command        | —                                       |
 
-Manage Categorization Command Mappings
+> **Tip:** Use these commands only in chats with _yourself_ or other **authorised PVs**.
 
-Start/Stop GLOBAL Monitoring (for categorization & AI commands)
+### Configuration Details
 
-Manage Directly Authorized PVs
+| File                                 | Purpose                                                 |
+| ------------------------------------ | ------------------------------------------------------- |
+| `config.ini`                         | **Never** commit this! Holds API keys & core settings.  |
+| `sakaibot_user_settings.json`        | Your CLI‑configured preferences. Managed automatically. |
+| `pv_cache.json` / `group_cache.json` | Cached lists for speedy look‑ups. Auto‑managed.         |
 
-Exit (Save Settings)
+---
 
-Core Telegram Commands (In your chat with yourself or authorized PVs)
-/prompt=<your prompt text>: Sends your prompt to the OpenRouter LLM.
+## Contributing 🤝
 
-/translate=<target_lang>[,source_lang] <text_to_translate>: Translates text. (e.g., /translate=fa Hello there or /translate=en,auto سلام خوبی؟)
+Pull Requests, feature ideas, and bug reports are all warmly welcomed. Please open an **Issue** first to discuss major changes.
 
-/analyze=<number_of_messages>: Analyzes the last n messages in the current chat.
+1. **Fork** the project
+2. **Create** your feature branch: `git checkout -b feat/amazing-feature`
+3. **Commit** your changes: `git commit -m "feat: add amazing feature"`
+4. **Push** to the branch: `git push origin feat/amazing-feature`
+5. **Open** a Pull Request
 
-/tellme=<number_of_messages>=<your_question>: Asks the bot a question based on the last n messages in the current chat.
+---
 
-/stt (in reply to a voice message): Converts the voice message to text and provides a summary.
+## License 📄
 
-/<custom_categorization_command> (in reply to a message): Forwards the replied message to the mapped group/topic.
-
-confirm (in reply to a command message from another user that was forwarded to you): Confirms and executes that command.
-
-Configuration Details
-config.ini: Contains core settings and API keys for connecting to Telegram and external services. Never share this file in public repositories.
-
-sakaibot_user_settings.json: Stores your user-specific settings configured via the CLI (e.g., selected PV, target group, command mappings, authorized PVs). This file is managed automatically by the bot.
-
-pv_cache.json & group_cache.json: These files cache your private chat list and group list, respectively, for faster access and are updated automatically by the bot.
-
-Contributing 🤝
-if you have ideas for improvement or encounter any issues, feel free to open an Issue in the project's GitHub repository.
-
-License 📄
-This project is licensed under the MIT License. See the LICENSE file for details.
+SakaiBot is released under the **MIT License**. See the [LICENSE](LICENSE) file for full details.

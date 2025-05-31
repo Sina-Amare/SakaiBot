@@ -4,10 +4,10 @@ _SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips pow
 
 ---
 
-## Table of Contents
+## Table of Contents
 
-1. [Key Features](#key-features)
-2. [Technology Stack](#technology-stack)
+1. [Key Features](#key-features-)
+2. [Technology Stack](#technology-stack-)
 3. [Setup and Installation](#setup-and-installation)
 
    - [Prerequisites](#prerequisites)
@@ -26,7 +26,7 @@ _SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips pow
 
 ---
 
-## Key Features ✨
+## Key Features ✨
 
 ### 🔸 Advanced Private Chat _(PV)_ & Group Management
 
@@ -45,7 +45,7 @@ _SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips pow
 - **Text Translation** – Translate text into multiple languages (including _Persian phonetic pronunciation_) using an LLM.
 - **Conversation Analysis** – Produce comprehensive, structured Persian reports of chat histories.
 - **Q\&A from Chat History** – Ask intelligent questions that are answered from previous messages.
-- **Speech‑to‑Text (STT)** – Convert Telegram voice messages to text via **Google Web Speech API** (_pluggable_ for other providers).
+- **Speech‑to‑Text (STT)** – Convert Telegram voice messages to text via **Google Web Speech API** (_pluggable_ for other providers).
 
 ### 🔸 Comprehensive Command‑Line Interface _(CLI)_
 
@@ -55,7 +55,7 @@ _SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips pow
 ### 🔸 Event Monitoring & Secure Control
 
 - **Monitor** outgoing messages from the bot‑owner and incoming messages from authorised users.
-- _Confirmation flow_—execute commands suggested by others only after explicit approval.
+- _Confirmation flow_—execute commands suggested by others only after explicit approval.
 
 ### 🔸 Persistent Settings & Cache
 
@@ -63,29 +63,29 @@ _SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips pow
 
 ---
 
-## Technology Stack 🛠️
+## Technology Stack 🛠️
 
 | Layer                | Technology                                            |
 | -------------------- | ----------------------------------------------------- |
 | **Language**         | Python ≥ 3.10                                         |
-| **Telegram API**     | [Telethon](https://github.com/LonamiWebs/Telethon)    |
-| **AI / LLMs**        | OpenRouter API, `openai` Python lib                   |
-| **Speech‑to‑Text**   | `SpeechRecognition` + Google Web Speech API           |
+| **Telegram API**     | [Telethon](https://github.com/LonamiWebs/Telethon)    |
+| **AI / LLMs**        | OpenRouter API, `openai` Python lib                   |
+| **Speech‑to‑Text**   | `SpeechRecognition` + Google Web Speech API           |
 | **Audio Processing** | [`pydub`](https://github.com/jiaaro/pydub) (+ FFmpeg) |
-| **Config Mgmt.**     | `configparser`                                        |
-| **Date & Time**      | `pytz`, `datetime`                                    |
+| **Config Mgmt.**     | `configparser`                                        |
+| **Date & Time**      | `pytz`, `datetime`                                    |
 
 ---
 
-## Setup & Installation 🚀
+## Setup and Installation 🚀
 
 ### Prerequisites
 
 - **Python** ≥ 3.10 – [Download](https://www.python.org/downloads/)
 - **FFmpeg** – Required by _pydub_ for audio processing. Make sure `ffmpeg` is on your system `PATH` _or_ specify its location in `config.ini`.
-- **Telegram Account** – Needed to obtain `api_id` & `api_hash`.
+- **Telegram Account** – Needed to obtain `api_id` & `api_hash`.
 
-### Installation Steps
+### Installation Steps
 
 1. **Clone the repository**
 
@@ -150,9 +150,9 @@ _SakaiBot is an advanced and intelligent Telegram **user‑bot** that equips pow
 
 ---
 
-## Usage 📖
+## Usage 📖
 
-### Running the Bot
+### Running the Bot
 
 ```bash
 python main.py
@@ -160,11 +160,11 @@ python main.py
 
 On the _first_ run you will be prompted for:
 
-1. Your **phone number**
-2. The **Telegram confirmation code**
+1. Your **phone number**
+2. The **Telegram confirmation code**
 3. Your **2‑factor password** (if enabled)
 
-### CLI Menu Options
+### CLI Menu Options
 
 The interactive menu lets you:
 
@@ -178,7 +178,7 @@ The interactive menu lets you:
 8. **Manage** authorised PVs
 9. **Exit** & save settings
 
-### Core Telegram Commands
+### Core Telegram Commands
 
 | Command                               | Description                                        | Example                                 |
 | ------------------------------------- | -------------------------------------------------- | --------------------------------------- |
@@ -192,7 +192,7 @@ The interactive menu lets you:
 
 > **Tip:** Use these commands only in chats with _yourself_ or other **authorised PVs**.
 
-### Configuration Details
+### Configuration Details
 
 | File                                 | Purpose                                                 |
 | ------------------------------------ | ------------------------------------------------------- |
@@ -202,9 +202,9 @@ The interactive menu lets you:
 
 ---
 
-## Contributing 🤝
+## Contributing 🤝
 
-Pull Requests, feature ideas, and bug reports are all warmly welcomed. Please open an **Issue** first to discuss major changes.
+Pull Requests, feature ideas, and bug reports are all warmly welcomed. Please open an **Issue** first to discuss major changes.
 
 1. **Fork** the project
 2. **Create** your feature branch: `git checkout -b feat/amazing-feature`
@@ -214,6 +214,6 @@ Pull Requests, feature ideas, and bug reports are all warmly welcomed. Please o
 
 ---
 
-## License 📄
+## License 📄
 
 SakaiBot is released under the **MIT License**. See the [LICENSE](LICENSE) file for full details.

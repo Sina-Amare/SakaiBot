@@ -381,3 +381,4 @@ if __name__ == '__main__':
             loop.close()
             main_logger.info("Event loop closed.")
         print("SakaiBot finished execution.")
+# this is main script

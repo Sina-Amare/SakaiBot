@@ -609,3 +609,4 @@ async def authorized_user_command_handler(event: events.NewMessage.Event, **kwar
         cli_state_ref=cli_state_ref,
         is_direct_auth_user_command=True
     )
+# this file should get refactored

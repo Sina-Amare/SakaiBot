@@ -363,22 +363,22 @@ if __name__ == '__main__':
             # perform_graceful_shutdown_tasks might not fully complete if it has async calls.
             # The SIGINT handler is the primary place for shutdown logic.
     finally:
-        main_logger.info("Main __main__ finally: Ensuring event loop is closed.")
-        if loop and not loop.is_closed():
-            # Standard way to cancel pending tasks.
-            tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
-            if tasks:
-                main_logger.info(f"Cancelling {len(tasks)} outstanding asyncio tasks.")
-                for task in tasks:
-                    task.cancel()
-                try:
-                    # Allow tasks to be cancelled and run their cancellation handlers.
-                    loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-                except asyncio.CancelledError:
-                    main_logger.info("Asyncio tasks cancelled.")
-                except Exception as e_gather:
-                     main_logger.error(f"Error during task cleanup in __main__ finally: {e_gather}")
-            loop.close()
-            main_logger.info("Event loop closed.")
-        print("SakaiBot finished execution.")
+        # main_logger.info("Main __main__ finally: Ensuring event loop is closed.")
+        # if loop and not loop.is_closed():
+        #     # Standard way to cancel pending tasks.
+        #     tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
+        #     if tasks:
+        #         main_logger.info(f"Cancelling {len(tasks)} outstanding asyncio tasks.")
+        #         for task in tasks:
+        #             task.cancel()
+        #         try:
+        #             # Allow tasks to be cancelled and run their cancellation handlers.
+        #             loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+        #         except asyncio.CancelledError:
+        #             main_logger.info("Asyncio tasks cancelled.")
+        #         except Exception as e_gather:
+        #              main_logger.error(f"Error during task cleanup in __main__ finally: {e_gather}")
+        #     loop.close()
+        #     main_logger.info("Event loop closed.")
+        # print("SakaiBot finished execution.")
 # this is main script

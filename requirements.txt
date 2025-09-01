@@ -1,5 +1,39 @@
-telethon
-openai
-SpeechRecognition
-pydub
-pytz
+# Core Dependencies
+telethon==1.36.0
+cryptg==0.4.0  # Speed up Telethon encryption
+
+# AI/LLM Dependencies
+openai==1.51.0
+tiktoken==0.7.0  # Token counting
+
+# Audio Processing
+SpeechRecognition==3.10.4
+pydub==0.25.1
+edge-tts==6.1.12  # Microsoft Edge TTS
+
+# Configuration & Validation
+pydantic==2.9.2
+pydantic-settings==2.6.0
+python-dotenv==1.0.1
+
+# Utilities
+pytz==2024.2
+aiofiles==24.1.0  # Async file operations
+aiohttp==3.10.5  # Async HTTP requests
+
+# Caching
+diskcache==5.6.3  # Persistent caching
+
+# Logging
+python-json-logger==2.0.7  # JSON logging
+
+# CLI Enhancement
+rich==13.8.1  # Rich text formatting for CLI
+click==8.1.7  # CLI framework
+
+# Data Processing
+orjson==3.10.7  # Fast JSON processing
+
+# Error Handling & Retry
+tenacity==9.0.0  # Retry logic
+backoff==2.2.1  # Exponential backoff

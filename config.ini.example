@@ -1,0 +1,27 @@
+# SakaiBot Configuration File
+# Copy this file to data/config.ini and fill in your values
+
+[Telegram]
+api_id = YOUR_API_ID
+api_hash = YOUR_API_HASH
+phone_number = +1234567890
+
+[UserBot]
+session_name = sakaibot_session
+max_analyze_messages = 5000
+
+[OpenRouter]
+api_key = YOUR_OPENROUTER_API_KEY
+model_name = deepseek/deepseek-chat
+
+[AssemblyAI]
+# Optional - for advanced STT
+api_key = YOUR_ASSEMBLYAI_KEY
+
+[API_KEYS]
+# Optional - for TTS
+elevenlabs_api_key = YOUR_ELEVENLABS_KEY
+
+[Paths]
+# Leave blank to use system PATH
+ffmpeg_executable =

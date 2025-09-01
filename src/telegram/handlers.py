@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import asyncio
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 from datetime import datetime
 
 from telethon import TelegramClient, events, functions
@@ -49,7 +49,7 @@ from .utils import (
 )
 
 # Import AI processor (this will need to be updated when AI module is refactored)
-import ai_processor
+from src import ai
 
 
 logger = logging.getLogger(__name__)
@@ -307,7 +307,7 @@ class TaskManager:
             logger.info(f"Converted voice to WAV: {converted_path}")
             
             # Transcribe
-            transcribed_text = await ai_processor.transcribe_voice_to_text(converted_path)
+            transcribed_text = await ai.transcribe_voice_to_text(converted_path)
             
             if "STT Error:" in transcribed_text:
                 raise STTError(transcribed_text)
@@ -401,7 +401,7 @@ class TaskManager:
             
             # Generate speech
             logger.info(f"Generating TTS for text: '{text_to_speak[:50]}...'")
-            success = await ai_processor.text_to_speech_edge(
+            success = await ai.text_to_speech_edge(
                 text_to_speak=text_to_speak,
                 voice=audio_params.voice_id,
                 output_filename=temp_filename,
@@ -533,14 +533,14 @@ class TaskManager:
     ) -> str:
         """Execute specific AI command."""
         if command_data.command_type == "/prompt":
-            return await ai_processor.execute_custom_prompt(
+            return await ai.execute_custom_prompt(
                 api_key=api_key,
                 model_name=model_name,
                 user_text_prompt=command_data.target_text
             )
         
         elif command_data.command_type == "/translate":
-            return await ai_processor.translate_text_with_phonetics(
+            return await ai.translate_text_with_phonetics(
                 api_key,
                 model_name,
                 command_data.target_text,
@@ -570,7 +570,7 @@ class TaskManager:
         if not messages_data:
             return "No text messages found to analyze"
         
-        return await ai_processor.analyze_conversation_messages(
+        return await ai.analyze_conversation_messages(
             api_key, model_name, messages_data
         )
     
@@ -583,7 +583,7 @@ class TaskManager:
         if not messages_data:
             return "No text messages found in history"
         
-        return await ai_processor.answer_question_from_chat_history(
+        return await ai.answer_question_from_chat_history(
             api_key, model_name, messages_data, question
         )
     
@@ -643,7 +643,7 @@ class TaskManager:
         system_message = "You are a helpful assistant that summarizes texts accurately and concisely."
         
         try:
-            summary = await ai_processor.execute_custom_prompt(
+            summary = await ai.execute_custom_prompt(
                 api_key=api_key,
                 model_name=model_name,
                 user_text_prompt=prompt,

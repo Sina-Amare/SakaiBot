@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from enum import Enum
 
-from pydantic import BaseSettings, Field, validator, SecretStr
+from pydantic import BaseModel, Field, validator, SecretStr
+from pydantic_settings import BaseSettings
 from pydantic.types import PositiveInt
 
 
@@ -60,6 +61,7 @@ class OpenRouterConfig(BaseSettings):
     
     class Config:
         env_prefix = "OPENROUTER_"
+        protected_namespaces = ('settings_',)
 
 
 class UserBotConfig(BaseSettings):
@@ -102,7 +104,7 @@ class PathConfig(BaseSettings):
         description="Directory for log files"
     )
     session_dir: Path = Field(
-        default=Path("."),
+        default=Path("data"),
         description="Directory for session files"
     )
     
@@ -221,6 +223,13 @@ class Settings(BaseSettings):
         Raises:
             ValidationError: If required settings are missing or invalid
         """
+        # Load .env file if it exists
+        from pathlib import Path
+        env_file = Path(".env")
+        if env_file.exists():
+            from dotenv import load_dotenv
+            load_dotenv(env_file, override=True)
+        
         # Load sub-configurations
         telegram = TelegramConfig()
         openrouter = OpenRouterConfig()

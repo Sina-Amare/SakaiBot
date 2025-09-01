@@ -13,6 +13,9 @@ Usage:
     from src.ai.prompts import TranslationPrompts, AnalysisPrompts
 """
 
+from typing import Optional, Union
+from pathlib import Path
+
 from .processor import (
     AIProcessor,
     # Legacy compatibility functions

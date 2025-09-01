@@ -1,38 +1,89 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Virtual environment
-venv/
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+coverage.xml
+*.cover
+
+# Environments
+.env
+.venv
 env/
-.venv/
-.env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Session file for Telethon
-*.session
-*.session-journal
-
-# Configuration file with sensitive data
-config.ini
-
-# Log files
-*.log
-
-# Cache files
-*.json 
-sakaibot_user_settings.json
-# If using SQLite for cache in future:
-# *.db
-# *.sqlite
-# *.sqlite3
-
-# IDE and editor specific files
+# IDE settings
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
+*.swp
+*.swo
+*~
 
-# OS specific files
+# Project specific
+config.ini
+*.session
+*.session-journal
+/data/
+/cache/
+/logs/
+/temp/
+/legacy_backup/
+monitor_activity.log
+*.log
+
+# Keep data directory structure but ignore contents
+!data/.gitkeep
+!cache/.gitkeep
+!logs/.gitkeep
+
+# Claude Code settings
+.claude/
+
+# Test files
+tests/__pycache__/
+tests/integration/__pycache__/
+tests/unit/__pycache__/
+
+# Source cache
+src/utils/cache.py
+
+# OS specific
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# Audio/Media files (generated during processing)
+*.mp3
+*.wav
+*.ogg
+*.m4a
+*.flac

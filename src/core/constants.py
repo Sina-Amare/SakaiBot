@@ -16,11 +16,11 @@ APP_DESCRIPTION: Final[str] = "Advanced Telegram userbot with AI capabilities"
 
 # File Names
 DEFAULT_SESSION_NAME: Final[str] = "sakaibot_session"
-DEFAULT_CONFIG_FILE: Final[str] = "config.ini"
+DEFAULT_CONFIG_FILE: Final[str] = "data/config.ini"
 ENV_FILE: Final[str] = ".env"
-USER_SETTINGS_FILE: Final[str] = "sakaibot_user_settings.json"
-PV_CACHE_FILE: Final[str] = "pv_cache.json"
-GROUP_CACHE_FILE: Final[str] = "group_cache.json"
+USER_SETTINGS_FILE: Final[str] = "data/sakaibot_user_settings.json"
+PV_CACHE_FILE: Final[str] = "cache/pv_cache.json"
+GROUP_CACHE_FILE: Final[str] = "cache/group_cache.json"
 
 # Telegram Limits
 MAX_MESSAGE_LENGTH: Final[int] = 4096

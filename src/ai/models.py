@@ -58,6 +58,8 @@ class MessageData(BaseModel):
 class AIRequest(BaseModel):
     """Base model for AI API requests."""
     
+    model_config = {'protected_namespaces': ()}
+    
     prompt: str = Field(..., min_length=1, description="The prompt text")
     model_name: str = Field(..., description="Model name to use")
     max_tokens: int = Field(default=1500, ge=1, le=8192, description="Maximum tokens")
@@ -94,6 +96,8 @@ class TranslationRequest(AIRequest):
 class AnalysisRequest(BaseModel):
     """Model for conversation analysis requests."""
     
+    model_config = {'protected_namespaces': ()}
+    
     messages: List[MessageData] = Field(..., min_items=1, description="Messages to analyze")
     api_key: str = Field(..., description="API key")
     model_name: str = Field(..., description="Model name")
@@ -111,6 +115,8 @@ class AnalysisRequest(BaseModel):
 
 class QuestionAnswerRequest(BaseModel):
     """Model for question answering from chat history."""
+    
+    model_config = {'protected_namespaces': ()}
     
     question: str = Field(..., min_length=1, description="Question to answer")
     messages: List[MessageData] = Field(..., min_items=1, description="Chat history")

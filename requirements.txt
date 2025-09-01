@@ -1,5 +1,8 @@
 telethon
+cryptg
 openai
 SpeechRecognition
 pydub
 pytz
+edge-tts
+aiofiles

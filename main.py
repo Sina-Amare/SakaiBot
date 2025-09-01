@@ -19,6 +19,13 @@ import event_handlers
 import settings_manager
 import ai_processor
 
+# Import compatibility bridge for refactored code
+try:
+    from src.legacy_bridge import load_config as load_config_modern, get_legacy_event_handlers
+    MODERN_STRUCTURE_AVAILABLE = True
+except ImportError:
+    MODERN_STRUCTURE_AVAILABLE = False
+
 # Module-level globals for signal handling and shutdown
 _client_instance_for_signal = None
 _cli_handler_module_for_signal = None
@@ -82,6 +89,14 @@ CONFIG_FILE_NAME = "config.ini"
 DEFAULT_MAX_ANALYZE_MESSAGES = 5000
 
 def load_config():
+    # Use modern configuration if available
+    if MODERN_STRUCTURE_AVAILABLE:
+        try:
+            return load_config_modern()
+        except Exception as e:
+            main_logger.warning(f"Modern config loading failed: {e}, falling back to legacy")
+    
+    # Legacy configuration loading
     config = configparser.ConfigParser(defaults={'max_analyze_messages': str(DEFAULT_MAX_ANALYZE_MESSAGES)})
     if not os.path.exists(CONFIG_FILE_NAME):
         main_logger.error(f"Configuration file '{CONFIG_FILE_NAME}' not found.")

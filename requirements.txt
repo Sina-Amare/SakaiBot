@@ -1,0 +1,5 @@
+telethon
+openai
+SpeechRecognition
+pydub
+pytz

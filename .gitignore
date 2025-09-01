@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# Session file for Telethon
+*.session
+*.session-journal
+
+# Configuration file with sensitive data
+config.ini
+
+# Log files
+*.log
+
+# Cache files
+*.json 
+sakaibot_user_settings.json
+# If using SQLite for cache in future:
+# *.db
+# *.sqlite
+# *.sqlite3
+
+# IDE and editor specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS specific files
+.DS_Store
+Thumbs.db

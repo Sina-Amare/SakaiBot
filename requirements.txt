@@ -37,3 +37,4 @@ orjson==3.10.7  # Fast JSON processing
 # Error Handling & Retry
 tenacity==9.0.0  # Retry logic
 backoff==2.2.1  # Exponential backoff
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability

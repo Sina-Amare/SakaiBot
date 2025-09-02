@@ -1,8 +1,25 @@
-telethon
-cryptg
-openai
-SpeechRecognition
-pydub
-pytz
-edge-tts
-aiofiles
+# Core dependencies
+telethon>=1.30.0
+cryptg>=0.4.0
+
+# AI and ML
+openai>=1.0.0
+google-genai>=0.1.0
+
+# Speech processing
+SpeechRecognition>=3.10.0
+pydub>=0.25.1
+
+# Text-to-Speech
+edge-tts>=6.1.0
+
+# Async utilities
+aiofiles>=23.0.0
+
+# Configuration and validation
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+
+# Utilities
+pytz>=2023.3

@@ -55,6 +55,11 @@ class TelegramClientManager:
             else:
                 raise TelegramError("Could not get user info after authentication")
         
+        except KeyboardInterrupt:
+            self._logger.info("Authentication cancelled by user")
+            if self._client and self._client.is_connected():
+                await self._client.disconnect()
+            raise
         except Exception as e:
             if isinstance(e, TelegramError):
                 raise
@@ -94,8 +99,44 @@ class TelegramClientManager:
     
     async def _get_user_input(self, prompt: str) -> str:
         """Get user input asynchronously."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, input, prompt)
+        import sys
+        import threading
+        
+        result = []
+        exception = []
+        
+        def read_input():
+            try:
+                # Use regular input but in a thread
+                user_input = input(prompt)
+                result.append(user_input)
+            except (KeyboardInterrupt, EOFError) as e:
+                exception.append(e)
+            except Exception as e:
+                exception.append(e)
+        
+        # Start input thread
+        input_thread = threading.Thread(target=read_input, daemon=True)
+        input_thread.start()
+        
+        # Wait for input with periodic checks for shutdown
+        while input_thread.is_alive():
+            try:
+                await asyncio.sleep(0.1)  # Check every 100ms
+            except asyncio.CancelledError:
+                self._logger.info("Input cancelled")
+                raise KeyboardInterrupt("User cancelled authentication")
+        
+        # Check results
+        if exception:
+            if isinstance(exception[0], (KeyboardInterrupt, EOFError)):
+                raise KeyboardInterrupt("User cancelled authentication")
+            raise exception[0]
+        
+        if result:
+            return result[0]
+        
+        raise EOFError("No input received")
     
     async def disconnect(self) -> None:
         """Disconnect the Telegram client."""

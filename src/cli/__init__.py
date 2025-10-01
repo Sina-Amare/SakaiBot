@@ -1,11 +1,5 @@
-"""CLI interface for SakaiBot."""
+"""Modern CLI implementation for SakaiBot."""
 
-from .handler import CLIHandler
-from .state import CLIState
-from .interface import CLIInterface
+from .main import cli
 
-__all__ = [
-    "CLIHandler",
-    "CLIState",
-    "CLIInterface",
-]
+__all__ = ['cli']

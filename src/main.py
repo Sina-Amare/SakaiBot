@@ -1,6 +1,7 @@
 """Main entry point for SakaiBot."""
 
 import asyncio
+import os
 import signal
 import sys
 from pathlib import Path
@@ -63,20 +64,31 @@ class SakaiBot:
     def _signal_handler(self, sig, frame) -> None:
         """Handle shutdown signals gracefully."""
         if self._is_shutting_down:
-            self._logger.info("SIGINT: Shutdown already in progress. Ignoring.")
+            self._logger.info("Force shutdown requested. Exiting immediately.")
+            print("\nForce shutdown. Exiting immediately...")
+            os._exit(1)  # Force exit on second Ctrl+C
             return
         
         self._is_shutting_down = True
         self._logger.warning("SIGINT (Ctrl+C) received. Initiating graceful shutdown.")
-        print("\nSIGINT received. Shutting down gracefully...")
+        print("\nShutting down gracefully... (Press Ctrl+C again to force quit)")
         
-        # Perform graceful shutdown
+        # Cancel all running tasks
         try:
-            asyncio.create_task(self._graceful_shutdown("SIGINT"))
+            # Get the event loop
+            loop = asyncio.get_event_loop()
+            if loop and loop.is_running():
+                # Cancel all tasks
+                tasks = asyncio.all_tasks(loop)
+                for task in tasks:
+                    task.cancel()
+                
+                # Stop the loop
+                loop.stop()
         except Exception as e:
             self._logger.error(f"Error during signal handler shutdown: {e}")
         
-        self._logger.info("SIGINT: Exiting application now.")
+        # Exit cleanly
         sys.exit(0)
     
     async def _graceful_shutdown(self, source: str = "unknown") -> None:

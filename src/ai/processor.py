@@ -115,7 +115,7 @@ class AIProcessor:
         self,
         messages: List[Dict[str, Any]],
         participant_mapping: Optional[Dict[int, str]] = None,
-        max_messages: int = 5000
+        max_messages: int = 10000
     ) -> str:
         """Analyze a collection of messages."""
         if not self.is_configured:
@@ -145,7 +145,7 @@ class AIProcessor:
         
         return await self._provider.analyze_messages(
             messages=processed_messages,
-            analysis_type="summary"
+            analysis_type="persian_detailed"  # Use Persian sarcastic style
         )
     
     async def close(self) -> None:
@@ -167,3 +167,49 @@ class AIProcessor:
             temperature=0.7,
             system_message=system_message
         )
+    
+    async def analyze_conversation_messages(
+        self, 
+        messages_data: List[Dict[str, Any]]
+    ) -> str:
+        """Analyze conversation messages (compatibility wrapper)."""
+        # Convert to expected format for analyze_messages
+        messages = []
+        participant_mapping = {}
+        
+        for msg in messages_data:
+            from_id = msg.get('from_id', 0)
+            sender_name = msg.get('sender_name', f'User_{from_id}')
+            participant_mapping[from_id] = sender_name
+            
+            messages.append({
+                'date': msg.get('timestamp'),
+                'from_id': from_id,
+                'text': msg.get('text', '')
+            })
+        
+        return await self.analyze_messages(
+            messages=messages,
+            participant_mapping=participant_mapping
+        )
+    
+    async def answer_question_from_chat_history(
+        self,
+        messages_data: List[Dict[str, Any]],
+        user_question: str
+    ) -> str:
+        """Answer a question based on chat history (compatibility wrapper)."""
+        # Format the conversation and question
+        conversation_text = "Conversation History:\n"
+        for msg in messages_data:
+            sender = msg.get('sender', 'Unknown')
+            text = msg.get('text', '')
+            conversation_text += f"{sender}: {text}\n"
+        
+        full_prompt = (
+            f"{conversation_text}\n\n"
+            f"Based on the above conversation, please answer this question:\n"
+            f"{user_question}"
+        )
+        
+        return await self.execute_tellme_mode(full_prompt)

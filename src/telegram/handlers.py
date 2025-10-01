@@ -249,7 +249,8 @@ class EventHandlers:
         
         try:
             if not self._ai_processor.is_configured:
-                response = "AI Error: OpenRouter API key or model name not configured correctly."
+                provider_name = self._ai_processor.provider_name if self._ai_processor else "AI"
+                response = f"AI Error: {provider_name} API key or model name not configured correctly."
             elif command_type == "/prompt":
                 response = await self._handle_prompt_command(**command_args)
             elif command_type == "/translate":
@@ -261,11 +262,30 @@ class EventHandlers:
             else:
                 response = f"Unknown command type: {command_type}"
             
+            # Log successful response
+            self._logger.info(f"AI command {command_type} completed. Response length: {len(response)} chars")
+            
             # Truncate if too long
             if len(response) > MAX_MESSAGE_LENGTH:
                 response = response[:MAX_MESSAGE_LENGTH - 20] + "... (truncated)"
             
             await client.edit_message(thinking_msg, response)
+            
+            # Send Persian completion message with Bill Burr style humor
+            from datetime import datetime
+            time_str = datetime.now().strftime('%H:%M')
+            completion_messages = [
+                f"✅ تموم شد - {time_str}\nحالا برو یه کار مفید انجام بده 😏",
+                f"✅ اینم از این - {time_str}\nدیگه چی میخوای؟ شام درست کنم برات؟",
+                f"✅ بفرما، سرویستو دادم - {time_str}\nامیدوارم راضی باشی 🙄",
+                f"✅ Done - {time_str}\nیه تشکر خشک و خالی هم بد نیست ها",
+                f"✅ کارت انجام شد - {time_str}\nحالا میتونی بری به زندگیت ادامه بدی"
+            ]
+            import random
+            completion_msg = random.choice(completion_messages)
+            
+            # Send as a separate message for visibility
+            await client.send_message(chat_id, completion_msg, reply_to=reply_to_id)
         
         except Exception as e:
             self._logger.error(f"AI command ({command_type}) error: {e}", exc_info=True)
@@ -283,10 +303,18 @@ class EventHandlers:
             return "Usage: /prompt=<your question or instruction>"
         
         try:
+            # Import Persian comedian system message
+            from ..ai.persian_prompts import PERSIAN_COMEDIAN_SYSTEM
+            
             response = await self._ai_processor.execute_custom_prompt(
-                user_prompt=user_prompt_text
+                user_prompt=user_prompt_text,
+                system_message=PERSIAN_COMEDIAN_SYSTEM
             )
-            return response if response and response.strip() else "AI Error: Received an empty response"
+            if response and response.strip():
+                return response
+            else:
+                self._logger.warning(f"Empty response from AI for prompt command. Response was: {response}")
+                return "⚠️ AI responded but the message was empty. This might be due to content filtering. Try rephrasing your request."
         except AIProcessorError as e:
             return f"AI Error: {e}"
     
@@ -306,7 +334,11 @@ class EventHandlers:
                 target_language=target_language,
                 source_language=source_lang_for_ai
             )
-            return response if response and response.strip() else "AI Error: Empty translation"
+            if response and response.strip():
+                return response
+            else:
+                self._logger.warning(f"Empty response from AI for translation. Response was: {response}")
+                return "⚠️ Translation failed - the AI couldn't generate a translation. Try with different text or language."
         except AIProcessorError as e:
             return f"AI Error: {e}"
     
@@ -343,7 +375,11 @@ class EventHandlers:
                 return "No text messages found in the specified history to analyze."
             
             response = await self._ai_processor.analyze_conversation_messages(messages_data)
-            return response if response and response.strip() else "AI Error: Empty analysis"
+            if response and response.strip():
+                return response
+            else:
+                self._logger.warning(f"Empty response from AI for analysis. Response was: {response}")
+                return "⚠️ Analysis incomplete - the AI processed your messages but couldn't generate a summary. This might be due to content in the messages. Try analyzing fewer messages."
         
         except AIProcessorError as e:
             return f"AI Error: {e}"
@@ -387,7 +423,11 @@ class EventHandlers:
             response = await self._ai_processor.answer_question_from_chat_history(
                 messages_data, user_question
             )
-            return response if response and response.strip() else "AI Error: Empty response"
+            if response and response.strip():
+                return response
+            else:
+                self._logger.warning(f"Empty response from AI for tellme command. Response was: {response}")
+                return "⚠️ The AI couldn't answer your question based on the chat history. Try asking a different question or including more message history."
         
         except AIProcessorError as e:
             return f"AI Error: {e}"
@@ -584,7 +624,7 @@ class EventHandlers:
             command_type = "/analyze"
             command_args = self._parse_analyze_command(command_text, cli_state_ref)
             if not command_args:
-                max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 5000)
+                max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
                 await client.send_message(
                     chat_id,
                     f"Usage: /analyze=<number_between_1_and_{max_limit}>",
@@ -660,7 +700,7 @@ class EventHandlers:
                 return None
             
             num_messages = int(num_messages_str)
-            max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 5000)
+            max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
             
             if not (1 <= num_messages <= max_limit):
                 return None
@@ -684,7 +724,7 @@ class EventHandlers:
             num_messages = int(tellme_match.group(1))
             user_question = tellme_match.group(2).strip()
             
-            max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 5000)
+            max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
             
             if not (1 <= num_messages <= max_limit) or not user_question:
                 return None

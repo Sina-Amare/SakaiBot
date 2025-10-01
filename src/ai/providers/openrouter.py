@@ -5,11 +5,21 @@ from typing import List, Dict, Any, Optional
 import pytz
 
 from openai import AsyncOpenAI
+import httpx
 
 from ..llm_interface import LLMProvider
 from ...core.constants import OPENROUTER_HEADERS
 from ...core.exceptions import AIProcessorError
 from ...utils.logging import get_logger
+from ..persian_prompts import (
+    TRANSLATION_PHONETIC_INSTRUCTION,
+    TRANSLATION_SYSTEM_MESSAGE,
+    CONVERSATION_ANALYSIS_PROMPT,
+    CONVERSATION_ANALYSIS_SYSTEM_MESSAGE,
+    QUESTION_ANSWER_PROMPT,
+    QUESTION_ANSWER_SYSTEM_MESSAGE,
+    VOICE_MESSAGE_SUMMARY_PROMPT
+)
 
 
 class OpenRouterProvider(LLMProvider):
@@ -48,10 +58,25 @@ class OpenRouterProvider(LLMProvider):
             raise AIProcessorError("OpenRouter API key not configured or invalid")
         
         if self._client is None:
+            # Create client without any proxy configuration
+            # This avoids the httpx AsyncClient proxy error
+            import httpx
+            
+            # Create httpx client without proxy support
+            http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(600.0, connect=30.0),
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+                follow_redirects=True
+            )
+            
             self._client = AsyncOpenAI(
                 base_url="https://openrouter.ai/api/v1",
                 api_key=self._api_key,
+                http_client=http_client,
+                max_retries=3
             )
+            
+            self._logger.info(f"Initialized OpenRouter client with custom httpx configuration")
         
         return self._client
     
@@ -85,17 +110,52 @@ class OpenRouterProvider(LLMProvider):
                 f"Prompt preview: '{user_prompt[:100]}...'"
             )
             
-            completion = await client.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                extra_headers=OPENROUTER_HEADERS
-            )
+            # Add timeout for large requests
+            try:
+                completion = await client.chat.completions.create(
+                    model=self._model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    extra_headers=OPENROUTER_HEADERS,
+                    timeout=600.0  # 10 minute timeout for large requests
+                )
+            except httpx.TimeoutException:
+                self._logger.error(f"Request timed out after 10 minutes for model '{self._model}'")
+                raise AIProcessorError("Request timed out. Try with fewer messages or a different model.")
+            except httpx.HTTPStatusError as e:
+                self._logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
+                raise AIProcessorError(f"API returned error {e.response.status_code}: {e.response.text[:200]}")
             
-            response_text = completion.choices[0].message.content.strip()
+            # Debug log the response
+            self._logger.debug(f"Raw completion object: {completion}")
+            
+            # Handle response extraction safely
+            response_text = None
+            
+            # Check if we have choices and extract content
+            if completion and hasattr(completion, 'choices') and completion.choices:
+                choice = completion.choices[0]
+                if hasattr(choice, 'message') and choice.message:
+                    if hasattr(choice.message, 'content') and choice.message.content:
+                        response_text = choice.message.content.strip()
+                        self._logger.info(f"Got response text: {len(response_text)} chars")
+                    else:
+                        self._logger.warning("Message content is None or empty")
+                else:
+                    self._logger.warning("No message in choice")
+            else:
+                self._logger.warning("No choices in completion response")
+            
+            # Provide fallback if no response
+            if not response_text:
+                self._logger.error(f"Could not extract text from completion. Type: {type(completion)}")
+                if completion and hasattr(completion, 'model'):
+                    self._logger.error(f"Model used: {completion.model}")
+                response_text = "I received your request but couldn't generate a proper response. The API may be experiencing issues or the content may have been filtered. Please try again."
+            
             self._logger.info(
-                f"OpenRouter model '{self._model}' responded successfully"
+                f"OpenRouter model '{self._model}' processing complete. Response length: {len(response_text)} chars"
             )
             return response_text
         
@@ -116,19 +176,38 @@ class OpenRouterProvider(LLMProvider):
         if not text:
             raise AIProcessorError("No text provided for translation")
         
-        # Build translation prompt
-        if target_language.lower() in ["fa", "farsi", "persian"]:
-            prompt = f"""Translate the following text to Persian (Farsi).
-Provide the translation in this format:
-Persian: [translation]
-Phonetic: [pronunciation in English letters]
-
-Text to translate: {text}"""
-        else:
-            source_part = f"from {source_language} " if source_language != "auto" else ""
-            prompt = f"Translate the following text {source_part}to {target_language}:\n\n{text}"
+        # Build translation prompt with phonetic instructions
+        phonetic_instruction = TRANSLATION_PHONETIC_INSTRUCTION.format(target_language=target_language)
         
-        return await self.execute_prompt(prompt, temperature=0.3)
+        if source_language.lower() == "auto":
+            prompt = (
+                f"Detect the language of the following text and then translate it to '{target_language}'.\n"
+                f"{phonetic_instruction}\n\n"
+                f"Text to translate:\n\"{text}\"\n\n"
+                f"Output format:\n"
+                f"Detected Language: [language]\n"
+                f"Translation: [translated text]\n"
+                f"Phonetic: ([Persian phonetic pronunciation])"
+            )
+        else:
+            prompt = (
+                f"Translate the following text from '{source_language}' to '{target_language}'.\n"
+                f"{phonetic_instruction}\n\n"
+                f"Text to translate:\n\"{text}\"\n\n"
+                f"Output format:\n"
+                f"Translation: [translated text]\n"
+                f"Phonetic: ([Persian phonetic pronunciation])"
+            )
+        
+        self._logger.info(
+            f"Requesting translation for '{text[:50]}...' to {target_language} with phonetics."
+        )
+        
+        return await self.execute_prompt(
+            prompt, 
+            temperature=0.2,
+            system_message=TRANSLATION_SYSTEM_MESSAGE
+        )
     
     async def analyze_messages(
         self,
@@ -142,8 +221,10 @@ Text to translate: {text}"""
         # Format messages for analysis
         formatted_messages = []
         tehran_tz = pytz.timezone('Asia/Tehran')
+        timestamps = []
+        senders = set()
         
-        for msg in messages[-100:]:  # Limit to last 100 messages
+        for msg in messages:  # Process ALL messages (up to 10000)
             timestamp_str = ""
             if 'timestamp' in msg:
                 try:
@@ -155,21 +236,47 @@ Text to translate: {text}"""
                     if timestamp.tzinfo is None:
                         timestamp = pytz.utc.localize(timestamp)
                     
+                    timestamps.append(timestamp)
                     tehran_time = timestamp.astimezone(tehran_tz)
-                    timestamp_str = tehran_time.strftime('%Y-%m-%d %H:%M:%S Tehran')
+                    timestamp_str = tehran_time.strftime('%Y-%m-%d %H:%M:%S')
                 except Exception as e:
                     self._logger.warning(f"Could not parse timestamp: {e}")
                     timestamp_str = str(msg.get('timestamp', ''))
             
             sender_name = msg.get('sender_name', 'Unknown')
+            senders.add(sender_name)
             message_text = msg.get('text', '[No text]')
             
             formatted_messages.append(f"[{timestamp_str}] {sender_name}: {message_text}")
         
         messages_text = "\n".join(formatted_messages)
+        num_messages = len(formatted_messages)
+        num_senders = len(senders)
+        
+        # Calculate duration
+        duration_minutes = 0
+        if len(timestamps) >= 2:
+            duration = max(timestamps) - min(timestamps)
+            duration_minutes = int(duration.total_seconds() / 60)
         
         # Build analysis prompt based on type
-        if analysis_type == "summary":
+        if analysis_type == "persian_detailed":
+            # Use the detailed Persian analysis prompt
+            prompt = CONVERSATION_ANALYSIS_PROMPT.format(
+                num_messages=num_messages,
+                num_senders=num_senders,
+                duration_minutes=duration_minutes,
+                actual_chat_messages=messages_text
+            )
+            system_message = CONVERSATION_ANALYSIS_SYSTEM_MESSAGE
+        elif analysis_type == "voice_summary":
+            # Summary for voice messages
+            prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
+                transcribed_text=messages_text
+            )
+            system_message = None
+        else:
+            # Default summary
             prompt = f"""Please analyze and summarize the following chat messages.
 Provide a comprehensive summary including:
 1. Main topics discussed
@@ -179,14 +286,60 @@ Provide a comprehensive summary including:
 
 Messages:
 {messages_text}"""
-        else:
-            prompt = f"""Analyze the following chat messages:
-
-{messages_text}
-
-Provide a detailed analysis."""
+            system_message = None
         
-        return await self.execute_prompt(prompt, max_tokens=2000, temperature=0.5)
+        self._logger.info(
+            f"Sending conversation ({num_messages} messages) for {analysis_type} analysis"
+        )
+        
+        return await self.execute_prompt(
+            prompt, 
+            max_tokens=100000, 
+            temperature=0.4,
+            system_message=system_message
+        )
+    
+    async def answer_question_from_history(
+        self,
+        messages: List[Dict[str, Any]],
+        question: str
+    ) -> str:
+        """Answer a question based on chat history using Persian prompts."""
+        if not messages:
+            raise AIProcessorError("No messages provided for question answering")
+        
+        if not question:
+            raise AIProcessorError("No question provided")
+        
+        # Format messages for context
+        formatted_messages = []
+        for msg in messages:  # Process ALL messages for full context
+            sender = msg.get('sender_name', 'Unknown')
+            text = msg.get('text', '')
+            if text:
+                formatted_messages.append(f"{sender}: {text}")
+        
+        if not formatted_messages:
+            return "هیچ پیام متنی در تاریخچه ارائه شده یافت نشد."
+        
+        combined_history = "\n".join(formatted_messages)
+        
+        # Build Persian question-answering prompt
+        prompt = QUESTION_ANSWER_PROMPT.format(
+            combined_history_text=combined_history,
+            user_question=question
+        )
+        
+        self._logger.info(
+            f"Answering question '{question[:50]}...' based on {len(formatted_messages)} messages"
+        )
+        
+        return await self.execute_prompt(
+            prompt,
+            max_tokens=100000,
+            temperature=0.5,
+            system_message=QUESTION_ANSWER_SYSTEM_MESSAGE
+        )
     
     async def close(self) -> None:
         """Clean up OpenRouter client."""

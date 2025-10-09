@@ -25,3 +25,4 @@ python-dotenv>=1.0.0
 pytz>=2023.3
 click
 rich
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability

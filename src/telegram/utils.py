@@ -216,6 +216,89 @@ class TelegramUtils:
             self._logger.error(f"Error fetching topics for group ID {group_id}: {e}", exc_info=True)
             raise TelegramError(f"Failed to fetch group topics: {e}")
     
+    async def get_forum_topics(
+        self,
+        client: TelegramClient,
+        group_id: int
+    ) -> List[Dict[str, Any]]:
+        """Fetch all topics (forum threads) within a specific group."""
+        group_topics_data = []
+        
+        try:
+            group_entity = await client.get_entity(group_id)
+            
+            if not (isinstance(group_entity, Channel) and group_entity.megagroup):
+                self._logger.warning(f"Group ID {group_id} is not a supergroup")
+                return []
+            
+            # Check if it's a forum
+            is_forum = hasattr(group_entity, 'forum') and group_entity.forum is True
+            self._logger.info(
+                f"Group ID {group_id}: Title='{group_entity.title}', "
+                f"Is Forum={is_forum}"
+            )
+            
+            if not is_forum:
+                self._logger.info(f"Group ID {group_id} is not a forum")
+                return []
+            
+            # Fetch topics
+            self._logger.info(f"Fetching topics for forum group ID: {group_id}")
+            result = await client(functions.channels.GetForumTopicsRequest(
+                channel=group_entity,
+                offset_date=0,
+                offset_id=0,
+                offset_topic=0,
+                limit=100
+            ))
+            
+            general_topic_added = False
+            if result and hasattr(result, 'topics') and result.topics:
+                for topic_obj in result.topics:
+                    if isinstance(topic_obj, ForumTopic):
+                        topic_info = {
+                            'id': topic_obj.id,
+                            'title': topic_obj.title
+                        }
+                        group_topics_data.append(topic_info)
+                        
+                        if topic_obj.id == 1:
+                            general_topic_added = True
+                
+                self._logger.info(
+                    f"Successfully fetched {len(group_topics_data)} topics "
+                    f"for group ID: {group_id}"
+                )
+            
+            # Add General topic if it wasn't in the API result
+            if is_forum and not general_topic_added:
+                if not any(t['id'] == 1 for t in group_topics_data):
+                    self._logger.info(
+                        f"Adding 'General' topic (ID: 1) for forum group {group_id}"
+                    )
+                    group_topics_data.append({'id': 1, 'title': "General"})
+            
+            if not group_topics_data and is_forum:
+                self._logger.warning(
+                    f"Group {group_id} is a forum, but no topics were found"
+                )
+            
+            # Sort topics by ID
+            group_topics_data.sort(key=lambda x: x['id'])
+            return group_topics_data
+        
+        except ChannelForumMissingError:
+            group_title = getattr(group_entity, 'title', 'N/A') if group_entity else 'N/A'
+            self._logger.warning(
+                f"Group ID {group_id} ('{group_title}') is not a forum "
+                f"(ChannelForumMissingError)"
+            )
+            return []
+        
+        except Exception as e:
+            self._logger.error(f"Error fetching topics for group ID {group_id}: {e}", exc_info=True)
+            raise TelegramError(f"Failed to fetch group topics: {e}")
+
     async def get_topic_info_by_id(
         self,
         client: TelegramClient,
@@ -230,8 +313,8 @@ class TelegramUtils:
             
             if topic_message and hasattr(topic_message, 'action'):
                 # Handle General topic (ID: 1)
-                if (topic_id == 1 and 
-                    (topic_message.action is None or 
+                if (topic_id == 1 and
+                    (topic_message.action is None or
                      isinstance(topic_message.action, MessageActionChatEditTitle))):
                     self._logger.info(f"Identified General topic (ID: 1) in group {group_id}")
                     return {'id': topic_id, 'title': "General"}

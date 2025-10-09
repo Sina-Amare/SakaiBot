@@ -1,5 +1,5 @@
 """CLI command modules."""
 
-from . import pv, group, auth, monitor, ai, config
+from . import group, auth, monitor, config
 
-__all__ = ['pv', 'group', 'auth', 'monitor', 'ai', 'config']
+__all__ = ['group', 'auth', 'monitor', 'config']

@@ -14,6 +14,7 @@ Advanced Telegram userbot with AI capabilities, message automation, and powerful
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Python 3.10+
 - Telegram API credentials ([obtain here](https://my.telegram.org))
 - AI provider API key (OpenRouter or Google Gemini)
@@ -27,7 +28,7 @@ cd SakaiBot
 
 # Create virtual environment
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
+source venv/bin/activate # Linux/Mac
 venv\Scripts\activate     # Windows
 
 # Install dependencies
@@ -44,11 +45,13 @@ python sakaibot.py
 ## 📖 Basic Usage
 
 ### Check Status
+
 ```bash
 sakaibot status
 ```
 
 ### Manage Private Chats
+
 ```bash
 sakaibot pv list              # List private chats
 sakaibot pv search "john"     # Search contacts
@@ -56,6 +59,7 @@ sakaibot pv refresh           # Update from Telegram
 ```
 
 ### AI Commands
+
 ```bash
 sakaibot ai test              # Test AI configuration
 sakaibot ai translate "Hello" fa  # Translate text
@@ -63,17 +67,25 @@ sakaibot ai prompt "Explain Python"  # Custom prompt
 ```
 
 ### Start Monitoring
+
 ```bash
 sakaibot monitor start        # Start processing commands
 ```
 
 ## 📚 Documentation
 
-- [**CLI Guide**](docs/CLI.md) - Complete command reference
-- [**Features**](docs/FEATURES.md) - Detailed feature documentation  
-- [**Persian Features**](docs/PERSIAN_FEATURES.md) - Persian language support (فارسی)
+Complete documentation is available in the `docs/` directory:
+
 - [**Architecture**](docs/ARCHITECTURE.md) - Technical design and structure
+- [**API**](docs/API.md) - API reference and usage
 - [**Configuration**](docs/CONFIGURATION.md) - Setup and configuration guide
+- [**CLI Guide**](docs/CLI.md) - Complete command reference
+- [**Features**](docs/FEATURES.md) - Detailed feature documentation
+- [**Persian Features**](docs/PERSIAN_FEATURES.md) - Persian language support (فارسی)
+- [**Testing**](docs/TESTING.md) - Testing framework and procedures
+- [**Usage Guide**](docs/USAGE.md) - End-user usage instructions
+- [**FAQ**](docs/FAQ.md) - Frequently asked questions
+- [**Contributing**](docs/CONTRIBUTING.md) - Guidelines for contributors
 
 ## 🔧 Configuration
 
@@ -82,7 +94,7 @@ Create a `.env` file with your credentials:
 ```env
 # Telegram
 TELEGRAM_API_ID=your_api_id
-TELEGRAM_API_HASH=your_api_hash  
+TELEGRAM_API_HASH=your_api_hash
 TELEGRAM_PHONE_NUMBER=+1234567890
 
 # AI Provider (choose one)
@@ -114,7 +126,7 @@ SakaiBot/
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) first.
+Contributions are welcome! Please read our [Contributing Guidelines](docs/CONTRIBUTING.md) first.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)

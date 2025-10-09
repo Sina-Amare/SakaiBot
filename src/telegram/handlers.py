@@ -757,14 +757,20 @@ class EventHandlers:
         
         command_for_categorization = message.text[1:].lower().strip()
         
-        if command_for_categorization in command_topic_map:
+        # Check if command exists in the mapping (new format)
+        target_topic_id = None
+        for topic_id, commands in command_topic_map.items():
+            if command_for_categorization in commands:
+                target_topic_id = topic_id
+                break
+        
+        if target_topic_id is not None or command_for_categorization in (cmd for cmds in command_topic_map.values() for cmd in cmds):
             self._logger.info(f"Processing categorization command '/{command_for_categorization}'")
             
             if not actual_message_content:
                 self._logger.warning("No actual message content found to categorize")
                 return
             
-            target_topic_id = command_topic_map[command_for_categorization]
             log_target = f"Topic ID {target_topic_id}" if target_topic_id else "Main Group Chat"
             
             self._logger.info(

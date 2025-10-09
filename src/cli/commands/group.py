@@ -220,7 +220,19 @@ async def _manage_mappings(action: str):
             display_error("No target group set. Use 'sakaibot group set' first.")
             return
         
-        mappings = settings.get('active_command_to_topic_map', {})
+        # For backward compatibility, convert old format to new format if needed
+        old_mappings = settings.get('active_command_to_topic_map', {})
+        if old_mappings and isinstance(list(old_mappings.values())[0] if old_mappings else None, (int, type(None))):
+            # Convert old format (command -> topic_id) to new format (topic_id -> [commands])
+            new_format = {}
+            for command, topic_id in old_mappings.items():
+                if topic_id not in new_format:
+                    new_format[topic_id] = []
+                new_format[topic_id].append(command)
+            settings['active_command_to_topic_map'] = new_format
+            mappings = new_format
+        else:
+            mappings = old_mappings  # Already in new format
         
         if action == 'list':
             if not mappings:
@@ -229,12 +241,17 @@ async def _manage_mappings(action: str):
             
             # Display mappings
             table = Table(title="Command Mappings", show_header=True, header_style="bold cyan")
-            table.add_column("Command", style="cyan", width=20)
+            table.add_column("Commands", style="cyan", width=30)
             table.add_column("Target", style="green", width=40)
             
-            for cmd, topic_id in mappings.items():
-                target = "Main Group Chat" if topic_id is None else f"Topic ID: {topic_id}"
-                table.add_row(f"/{cmd}", target)
+            for topic_id, commands in mappings.items():
+                if topic_id is None:
+                    target = "Main Group Chat"
+                else:
+                    target = f"Topic ID: {topic_id}"
+                
+                command_list = ", ".join([f"/{cmd}" for cmd in commands])
+                table.add_row(command_list, target)
             
             console.print(table)
             
@@ -244,6 +261,20 @@ async def _manage_mappings(action: str):
             if not command:
                 display_error("Command cannot be empty")
                 return
+            
+            # Check if command already exists
+            existing_topic = None
+            for topic_id, commands in mappings.items():
+                if command in commands:
+                    existing_topic = topic_id
+                    break
+            
+            if existing_topic is not None:
+                if existing_topic is None:
+                    target = "Main Group Chat"
+                else:
+                    target = f"Topic ID {existing_topic}"
+                display_warning(f"Command /{command} already maps to {target}. It will be updated.")
             
             # Check if forum group
             cache_manager = await get_cache_manager()
@@ -279,8 +310,20 @@ async def _manage_mappings(action: str):
                     if client_manager:
                         await client_manager.disconnect()
             
-            # Save mapping
-            mappings[command] = topic_id
+            # Remove command from any existing topic if it exists
+            for existing_topic_id, commands in mappings.items():
+                if command in commands:
+                    commands.remove(command)
+                    # Remove the topic key if it has no commands left
+                    if not commands:
+                        del mappings[existing_topic_id]
+                    break
+            
+            # Add command to the selected topic
+            if topic_id not in mappings:
+                mappings[topic_id] = []
+            mappings[topic_id].append(command)
+            
             settings['active_command_to_topic_map'] = mappings
             settings_manager.save_user_settings(settings)
             
@@ -292,21 +335,51 @@ async def _manage_mappings(action: str):
                 display_info("No mappings to remove.")
                 return
             
-            choices = list(mappings.keys())
-            command = prompt_choice("Select command to remove:", choices)
+            # Flatten the mappings to show all command-topic pairs for selection
+            all_mappings = []
+            for topic_id, commands in mappings.items():
+                for command in commands:
+                    if topic_id is None:
+                        target = "Main Group Chat"
+                    else:
+                        target = f"Topic ID: {topic_id}"
+                    all_mappings.append(f"/{command} → {target}")
             
-            del mappings[command]
+            if not all_mappings:
+                display_info("No mappings to remove.")
+                return
+            
+            selection = prompt_choice("Select mapping to remove:", all_mappings)
+            
+            # Find the command and topic to remove
+            for topic_id, commands in mappings.items():
+                for command in commands:
+                    if topic_id is None:
+                        target = "Main Group Chat"
+                    else:
+                        target = f"Topic ID: {topic_id}"
+                    
+                    if f"/{command} → {target}" == selection:
+                        commands.remove(command)
+                        # Remove the topic key if it has no commands left
+                        if not commands:
+                            del mappings[topic_id]
+                        break
+                else:
+                    continue
+                break
+            
             settings['active_command_to_topic_map'] = mappings
             settings_manager.save_user_settings(settings)
             
-            display_success(f"Mapping removed: /{command}")
+            display_success(f"Mapping removed: {selection}")
             
         elif action == 'clear':
             if not mappings:
                 display_info("No mappings to clear.")
                 return
             
-            if confirm_action(f"Clear all {len(mappings)} mappings?"):
+            if confirm_action(f"Clear all {len([cmd for cmds in mappings.values() for cmd in cmds])} mappings?"):
                 settings['active_command_to_topic_map'] = {}
                 settings_manager.save_user_settings(settings)
                 display_success("All mappings cleared")

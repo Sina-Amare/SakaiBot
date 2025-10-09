@@ -12,7 +12,7 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.cli.commands import pv, group, auth, monitor, ai, config
+from src.cli.commands import group, auth, monitor, config
 from src.cli.utils import setup_environment, display_banner
 from src.cli.interactive import start_interactive_menu
 
@@ -24,7 +24,7 @@ console = Console()
 @click.pass_context
 def cli(ctx, debug, config_file):
     """
-    SakaiBot - Advanced Telegram Userbot with AI Capabilities
+    SakaiBot - Advanced Telegram Userbot
     
     Use 'sakaibot COMMAND --help' for more information on a command.
     """
@@ -41,9 +41,9 @@ def cli(ctx, debug, config_file):
         
         # Ask user if they want interactive menu or just status
         console.print("\n[cyan]Would you like to:[/cyan]")
-        console.print("  [1] 🎛️  Interactive Menu (navigate with numbers)")
-        console.print("  [2] 📊 Show Status (default)")
-        console.print("  [3] 🚪 Exit")
+        console.print(" [1] Interactive Menu (navigate with numbers)")
+        console.print("  [2] Show Status (default)")
+        console.print("  [3] Exit")
         
         try:
             choice = input("\nEnter choice (1/2/3) [2]: ").strip() or "2"
@@ -59,7 +59,7 @@ def cli(ctx, debug, config_file):
                 # Show status (default)
                 show_status()
         except KeyboardInterrupt:
-            console.print("\n[cyan]Goodbye! 👋[/cyan]")
+            console.print("\n[cyan]Goodbye![/cyan]")
             return
 
 def show_status():
@@ -73,7 +73,7 @@ def show_status():
         settings = settings_manager.load_user_settings()
         
         # Create status table
-        table = Table(title="🤖 SakaiBot Status", show_header=True, header_style="bold cyan")
+        table = Table(title="SakaiBot Status", show_header=True, header_style="bold cyan")
         table.add_column("Component", style="cyan", width=20)
         table.add_column("Status", width=30)
         table.add_column("Details", style="dim")
@@ -81,12 +81,12 @@ def show_status():
         # System status
         table.add_row(
             "System",
-            "[green]✓ Configured[/green]",
+            "[green]Configured[/green]",
             f"Session: {config.telegram_session_name}"
         )
         
         # AI Provider status
-        ai_status = "[green]✓ Active[/green]" if config.is_ai_enabled else "[red]✗ Not configured[/red]"
+        ai_status = "[green]Active[/green]" if config.is_ai_enabled else "[red]Not configured[/red]"
         ai_details = f"Provider: {config.llm_provider.title()}"
         if config.llm_provider == "gemini":
             ai_details += f" | Model: {config.gemini_model}"
@@ -98,7 +98,7 @@ def show_status():
         # Categorization status
         target_group = settings.get('selected_target_group')
         mappings = settings.get('active_command_to_topic_map', {})
-        cat_status = "[green]✓ Configured[/green]" if target_group and mappings else "[yellow]⚠ Partial[/yellow]"
+        cat_status = "[green]Configured[/green]" if target_group and mappings else "[yellow]Partial[/yellow]"
         cat_details = f"Group: {target_group if target_group else 'None'} | Mappings: {len(mappings)}"
         
         table.add_row("Categorization", cat_status, cat_details)
@@ -111,16 +111,13 @@ def show_status():
         
         # Cache status
         from pathlib import Path
-        pv_cache = Path("cache/pv_cache.json")
         group_cache = Path("cache/group_cache.json")
         
         cache_details = []
-        if pv_cache.exists():
-            cache_details.append("PV cache: ✓")
         if group_cache.exists():
-            cache_details.append("Group cache: ✓")
+            cache_details.append("Group cache: Available")
         
-        cache_status = "[green]✓ Available[/green]" if cache_details else "[yellow]⚠ Empty[/yellow]"
+        cache_status = "[green]Available[/green]" if cache_details else "[yellow]Empty[/yellow]"
         table.add_row("Cache", cache_status, " | ".join(cache_details) if cache_details else "No cache files")
         
         console.print(table)
@@ -128,7 +125,7 @@ def show_status():
         # Show quick commands
         console.print("\n[bold cyan]Quick Commands:[/bold cyan]")
         console.print("  • sakaibot monitor start    - Start monitoring")
-        console.print("  • sakaibot pv list          - List private chats")
+        console.print("  • sakaibot group set        - Set target group")
         console.print("  • sakaibot group set        - Set target group")
         console.print("  • sakaibot --help           - Show all commands")
         
@@ -136,11 +133,9 @@ def show_status():
         console.print(f"[red]Error loading status: {e}[/red]")
 
 # Add command groups
-cli.add_command(pv.pv)
 cli.add_command(group.group)
 cli.add_command(auth.auth)
 cli.add_command(monitor.monitor)
-cli.add_command(ai.ai)
 cli.add_command(config.config)
 
 # Add status command

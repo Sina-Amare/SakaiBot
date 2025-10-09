@@ -144,3 +144,4 @@ local/
 tmp/
 temp/
 *.tmp
+venv.linux

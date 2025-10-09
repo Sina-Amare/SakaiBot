@@ -1,285 +1,265 @@
-# SakaiBot Features Documentation
+# SakaiBot Features
 
 ## Overview
-SakaiBot is a powerful Telegram userbot that extends your Telegram experience with AI capabilities, message management, and automation features. This document provides a comprehensive guide to all available features and commands.
-
-## 🤖 AI-Powered Features
-
-### Multiple LLM Provider Support
-- **OpenRouter**: Access to various AI models through OpenRouter API
-- **Google Gemini**: Direct integration with Google's Gemini AI models
-- Easily switchable via configuration (`LLM_PROVIDER` in .env)
-
-### AI Commands
-
-#### `/prompt=<text>`
-Send custom prompts directly to the configured AI model.
-
-**Examples:**
-```
-/prompt=Explain quantum computing in simple terms
-/prompt=Write a Python function to calculate fibonacci numbers
-/prompt=Summarize the key points of machine learning
-```
-
-#### `/translate=<target_language>[,source_language] <text>`
-Translate text between languages with optional phonetic pronunciation for Persian.
-
-**Parameters:**
-- `target_language`: The language to translate to (e.g., fa, en, es, fr, de)
-- `source_language`: (Optional) Source language, defaults to "auto"
-- `text`: The text to translate
-
-**Examples:**
-```
-/translate=fa Hello world
-/translate=en,fa سلام دنیا
-/translate=es Good morning
-```
-
-**Special Persian Feature:**
-When translating to Persian (fa/farsi), you get:
-- Persian text
-- Phonetic pronunciation in English letters
-
-#### `/analyze=<number>`
-Analyze the last N messages in the current chat and provide a comprehensive summary.
-
-**Examples:**
-```
-/analyze=50    # Analyze last 50 messages
-/analyze=100   # Analyze last 100 messages
-/analyze=500   # Analyze last 500 messages
-```
-
-**Output includes:**
-- Main topics discussed
-- Key participants and their contributions
-- Important decisions or conclusions
-- Overall sentiment analysis
-- Structured Persian report
-
-#### `/tellme=<number>=<question>`
-Ask questions about chat history - the AI will answer based on the last N messages.
-
-**Examples:**
-```
-/tellme=100=What were the main topics discussed?
-/tellme=50=Who mentioned the meeting time?
-/tellme=200=What decisions were made?
-```
-
-## 🎤 Voice & Audio Features
-
-### Speech-to-Text (STT)
-Convert voice messages to text using Google Web Speech API.
-
-#### `/stt`
-Reply to any voice message with this command to transcribe it.
-
-**Usage:**
-1. Find a voice message in any chat
-2. Reply to it with `/stt`
-3. Bot will transcribe and send the text
-
-**Supported Languages:**
-- Auto-detection for most languages
-- Optimized for Persian and English
-
-### Text-to-Speech (TTS)
-Convert text to natural-sounding speech using Azure Neural Voices.
-
-#### `/tts [params] <text>` or `/speak [params] <text>`
-Generate voice messages from text.
-
-**Parameters:**
-- `voice=<voice_id>`: Select voice (default: fa-IR-DilaraNeural for Persian)
-- `rate=<±N%>`: Adjust speech rate (e.g., -10%, +20%)
-- `volume=<±N%>`: Adjust volume (e.g., -5%, +15%)
-
-**Examples:**
-```
-/tts Hello world
-/tts voice=en-US-JennyNeural Hello everyone
-/tts rate=-10% volume=+5% This is slower and louder
-/speak voice=fa-IR-FaridNeural سلام دوستان
-```
-
-**Available Persian Voices:**
-- fa-IR-DilaraNeural (Female, default)
-- fa-IR-FaridNeural (Male)
-
-## 📨 Message Management & Categorization
-
-### Private Chat (PV) Management
-- **Cache System**: Fast access to your private chats without repeated API calls
-- **Search**: Find chats by name, username, or user ID
-- **Default Context**: Set a default chat for analysis commands
-
-### Group Management
-- **Forum Support**: Full support for Telegram forum groups with topics
-- **Topic Mapping**: Map custom commands to specific forum topics
-- **Admin Features**: Manage groups where you have admin rights
-
-### Message Categorization System
-Forward messages to specific groups/topics using custom commands.
-
-**Setup Process:**
-1. Select target group (regular or forum)
-2. Create command mappings (e.g., /work → Work topic)
-3. Use commands to categorize and forward messages
-
-**Example Workflow:**
-```
-/work          # Forward to Work topic
-/personal      # Forward to Personal topic
-/important     # Forward to Important topic
-```
-
-## 🔐 Security & Authorization
-
-### Multi-Level Authorization
-1. **Owner Commands**: Full access to all features (you)
-2. **Authorized Users**: Can send commands for your approval
-3. **Confirmation Flow**: Review and approve commands from others
-
-### Confirmation System
-When authorized users send commands:
-1. Message is forwarded to you
-2. Reply with `confirm` to execute
-3. Or ignore to reject
-
-**Security Features:**
-- Whitelist-based authorization
-- Command validation
-- Audit logging of all commands
-
-## 🔄 Event Monitoring
-
-### Global Monitoring Mode
-Monitor and process commands across all your chats.
-
-**What it monitors:**
-- Your outgoing messages starting with `/`
-- Commands from authorized users
-- Replies for categorization
-
-**Activation Requirements:**
-- For Categorization: Target group + command mappings
-- For AI Features: Valid API key configuration
-
-## ⚙️ Configuration & Settings
-
-### Configuration Files
-
-#### `.env` (Primary Configuration)
-```env
-# Telegram Configuration
-TELEGRAM_API_ID=12345678
-TELEGRAM_API_HASH=your_api_hash_here
-TELEGRAM_PHONE_NUMBER=+1234567890
-
-# LLM Provider Selection
-LLM_PROVIDER=gemini  # or openrouter
-
-# Google Gemini
-GEMINI_API_KEY=your_gemini_key_here
-GEMINI_MODEL=gemini-2.5-flash
-
-# OpenRouter (Alternative)
-OPENROUTER_API_KEY=your_openrouter_key_here
-OPENROUTER_MODEL=google/gemini-2.5-flash
-
-# Optional Services
-ASSEMBLYAI_API_KEY=your_assemblyai_key
-ELEVENLABS_API_KEY=your_elevenlabs_key
-```
-
-#### Auto-Managed Files
-- `data/sakaibot_session.session`: Telegram session
-- `data/sakaibot_user_settings.json`: User preferences
-- `cache/pv_cache.json`: Private chat cache
-- `cache/group_cache.json`: Group cache
-- `logs/monitor_activity.log`: Activity logs
-
-## 📊 Data Management
-
-### Cache System
-- **Automatic Caching**: PVs and groups are cached for performance
-- **Manual Refresh**: Update cache on-demand
-- **Smart Updates**: Incremental updates preserve data
-
-### Settings Persistence
-- All CLI configurations are auto-saved
-- Settings survive bot restarts
-- JSON-based storage for easy backup
-
-## 🚀 Advanced Features
-
-### Batch Processing
-- Process multiple messages simultaneously
-- Queue commands for sequential execution
-- Parallel API calls for efficiency
-
-### Error Recovery
-- Automatic retry with exponential backoff
-- Graceful degradation on API failures
-- Comprehensive error logging
-
-### Performance Optimization
-- Message batching for analysis
-- Lazy loading of resources
-- Connection pooling for API calls
-
-## 📝 Command Quick Reference
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/prompt=<text>` | Send AI prompt | `/prompt=Explain AI` |
-| `/translate=<lang> <text>` | Translate text | `/translate=fa Hello` |
-| `/analyze=<n>` | Analyze messages | `/analyze=100` |
-| `/tellme=<n>=<q>` | Ask about chat | `/tellme=50=What happened?` |
-| `/stt` | Voice to text | Reply with `/stt` |
-| `/tts <text>` | Text to voice | `/tts Hello world` |
-| `confirm` | Approve command | Reply with `confirm` |
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**AI Commands Not Working:**
-- Check API key configuration
-- Verify provider selection in .env
-- Ensure internet connectivity
-
-**Voice Features Failing:**
-- Verify FFmpeg installation
-- Check audio file size limits
-- Ensure proper voice message format
-
-**Cache Not Updating:**
-- Use manual refresh option
-- Check file permissions
-- Clear cache if corrupted
-
-## 📈 Usage Tips
-
-1. **Optimize API Usage**: Use appropriate message limits for analysis
-2. **Cache Management**: Refresh cache periodically for accuracy
-3. **Command Shortcuts**: Create short, memorable command mappings
-4. **Batch Operations**: Group similar tasks together
-5. **Error Monitoring**: Check logs regularly for issues
-
-## 🔮 Future Enhancements
-
-Planned features include:
-- Support for more LLM providers (Claude, Local LLMs)
-- Advanced message filtering and search
-- Scheduled command execution
-- Multi-language UI support
-- Enhanced voice recognition accuracy
-- Custom AI model fine-tuning support
-
----
-
-For more information, see [ARCHITECTURE.md](ARCHITECTURE.md) for technical details or [CLI_GUIDE.md](CLI_GUIDE.md) for interface documentation.
+
+SakaiBot is an advanced Telegram userbot with AI capabilities that provides a comprehensive solution for message automation, categorization, and AI-assisted interactions. This document details all the features available in the application.
+
+## Core Features
+
+### 1. AI Integration
+
+SakaiBot supports multiple LLM providers for intelligent processing:
+
+#### Multiple Provider Support
+
+- **OpenRouter**: Access to various models through the OpenRouter API
+- **Google Gemini**: Google's advanced AI models
+- Easy switching between providers via configuration
+
+#### AI-Powered Commands
+
+- **/prompt**: Send custom prompts to the AI
+- **/translate**: Translate text with phonetic pronunciation
+- **/analyze**: Analyze conversation history
+- **/tellme**: Ask questions based on chat history
+
+### 2. Speech Processing
+
+#### Speech-to-Text (STT)
+
+- Convert voice messages to text
+- Reply to voice messages with `/stt` command
+- AI-powered transcription with context understanding
+- Support for multiple languages
+
+#### Text-to-Speech (TS)
+
+- Convert text to voice messages
+- Use `/tts` or `/speak` commands
+- Customizable voice, rate, and volume parameters
+- Support for Persian and other languages
+
+### 3. Message Management
+
+#### Automated Categorization
+
+- Forward messages to specific topics in groups
+- Set up command-topic mappings
+- Organize conversations automatically
+- Support for Telegram forum topics
+
+#### Message Analysis
+
+- Summarize long conversations
+- Analyze conversation patterns
+- Extract key information from chat history
+- Understand participant interactions
+
+### 4. Command-Line Interface
+
+#### Rich Interactive Menu
+
+- Navigate with numbered options
+- Access all features through a menu system
+- Colorful terminal interface with progress indicators
+- Easy-to-use navigation
+
+#### Command Groups
+
+- **PV Management**: Handle private chats
+- **Group Management**: Manage groups and topics
+- **Authorization**: Control access for other users
+- **Monitoring**: Start/stop message processing
+- **AI Tools**: Test and configure AI features
+
+### 5. Authorization System
+
+#### Multi-Level Authorization
+
+- Owner account with full access
+- Authorized users with limited permissions
+- Confirmation flows for sensitive actions
+- Secure command execution
+
+#### Confirmation Flows
+
+- Prevent accidental actions
+- Explicit confirmation for forwarding messages
+- Secure handling of categorization commands
+
+## Detailed Feature Descriptions
+
+### AI Features
+
+#### Prompt Command
+
+The `/prompt` command allows you to send custom requests to the AI:
+
+- Usage: `/prompt=your question or instruction`
+- Example: `/prompt=Summarize the key points from our conversation`
+
+#### Translation with Phonetics
+
+The `/translate` command provides translations with phonetic pronunciation:
+
+- Usage: `/translate=language [text]` or reply with `/translate=language`
+- Example: `/translate=Persian Hello, how are you?`
+- Provides both translation and phonetic pronunciation for Persian
+
+#### Conversation Analysis
+
+The `/analyze` command analyzes conversation history:
+
+- Usage: `/analyze=number_of_messages`
+- Example: `/analyze=50` (analyzes last 50 messages)
+- Provides detailed summaries and insights
+
+#### Question Answering
+
+The `/tellme` command answers questions based on chat history:
+
+- Usage: `/tellme=number_of_messages=your_question`
+- Example: `/tellme=10=What did John say about the project?`
+
+### Message Categorization
+
+#### Topic-Based Organization
+
+SakaiBot allows you to categorize messages by forwarding them to specific topics in forum groups:
+
+1. Set a target group with `sakaibot group set`
+2. Configure command-to-topic mappings using `sakaibot group map`
+3. Use commands like `/work`, `/personal`, etc., when replying to messages
+4. Messages are automatically forwarded to the appropriate topic
+
+#### Forum Group Mapping
+
+The enhanced forum group mapping feature supports:
+
+- **Multiple Commands Per Topic**: Multiple different commands can map to the same forum topic, allowing for flexible categorization (e.g., both `/help` and `/support` can map to a "Support" topic)
+- **Interactive Mapping Setup**: Use `sakaibot group map --add` to interactively set up command-topic mappings
+- **Flexible Topic Selection**: When mapping commands, you can select specific forum topics or the main group chat
+- **Listing Mappings**: Use `sakaibot group map --list` to view all current command-topic mappings
+- **Dynamic Updates**: Modify mappings as needed without restarting the bot
+- **Backward Compatibility**: Existing configurations continue to work seamlessly
+
+This feature enables more sophisticated message organization in forum groups, allowing users to create intuitive command systems for categorizing incoming messages into appropriate topics.
+
+#### Smart Forwarding
+
+- Preserves message context
+- Maintains original formatting where possible
+- Supports both individual messages and message ranges
+
+### Speech Features
+
+#### STT (Speech-to-Text)
+
+- Reply to voice messages with `/stt`
+- Transcribes voice to text
+- Provides AI-generated summary of the content
+- Works with multiple languages
+
+#### TTS (Text-to-Speech)
+
+- Convert text to voice messages with `/tts` or `/speak`
+- Supports parameters like voice, rate, and volume
+- Example: `/tts voice=PersianFemale rate=+10% Hello world`
+- Can reply to text messages to convert them to voice
+
+### Monitoring Features
+
+#### Event Handling
+
+- Real-time message processing
+- Command recognition and execution
+- Support for both direct commands and reply-based commands
+- Asynchronous processing for better performance
+
+#### Activity Tracking
+
+- Monitor bot status with `sakaibot monitor status`
+- Start/stop monitoring with simple commands
+- Detailed logging of all activities
+
+## User Experience Features
+
+### Rich Terminal Interface
+
+- Colorful output using the Rich library
+- Progress indicators for long-running operations
+- Clear error messages and helpful prompts
+- Responsive design for better user experience
+
+### Caching System
+
+- Reduces API calls to Telegram
+- Faster access to PV and group lists
+- Automatic cache refresh options
+- Efficient data storage and retrieval
+
+### Error Handling
+
+- Comprehensive error messages
+- Graceful degradation when services are unavailable
+- Automatic retry mechanisms for API calls
+- Detailed logging for troubleshooting
+
+## Advanced Features
+
+### Custom Configuration
+
+- Flexible configuration system with .env support
+- Support for multiple AI providers
+- Customizable message limits
+- Extensible architecture for new features
+
+### Extensibility
+
+- Plugin architecture for new AI providers
+- Modular design for easy feature addition
+- Well-documented APIs for customization
+- Support for additional services (AssemblyAI, ElevenLabs)
+
+### Security
+
+- Secure API key handling
+- Session management for Telegram
+- Authorization controls for different users
+- Protection against unauthorized access
+
+## Integration Capabilities
+
+### Telegram Features
+
+- Full access to Telegram API via Telethon
+- Support for private chats, groups, and channels
+- Message forwarding and copying
+- Media handling (text, voice, images, etc.)
+
+### AI Service Integration
+
+- Seamless integration with OpenRouter
+- Support for Google Gemini
+- Easy switching between providers
+- Consistent interface across providers
+
+## Performance Features
+
+### Asynchronous Processing
+
+- Non-blocking operations
+- Concurrent message handling
+- Efficient resource utilization
+- Better responsiveness under load
+
+### Resource Management
+
+- Proper cleanup of temporary files
+- Connection management for APIs
+- Memory-efficient processing of large datasets
+- Automatic resource release on exit
+
+## Summary
+
+SakaiBot combines the power of AI with Telegram automation to provide a comprehensive userbot solution. The features are designed to be both powerful and accessible, with a focus on privacy, security, and ease of use. Whether you're looking to automate routine tasks, analyze conversations, or enhance your Telegram experience with AI capabilities, SakaiBot provides a robust and extensible platform.

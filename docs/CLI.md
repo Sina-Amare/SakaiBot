@@ -2,390 +2,431 @@
 
 ## Overview
 
-SakaiBot provides a modern command-line interface built with Click and Rich libraries, offering a professional user experience with colored output, interactive prompts, and intuitive commands.
+The SakaiBot CLI provides a comprehensive command-line interface for managing and interacting with your Telegram userbot. The CLI is built using the Click framework and provides several command groups for different functionalities.
 
-## Installation & Setup
+## Getting Started
 
-### Prerequisites
-- Python 3.10+
-- Virtual environment (recommended)
+### Running the CLI
 
-### Quick Start
+You can run the CLI in several ways:
+
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/SakaiBot
-cd SakaiBot
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or
-venv\Scripts\activate     # Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure bot
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run the bot
+# Direct Python execution
 python sakaibot.py
-```
 
-## Command Structure
+# Using the installed command (if installed)
+sakaibot
 
-```
-sakaibot [OPTIONS] COMMAND [ARGS]
+# Show help
+sakaibot --help
 ```
 
 ### Global Options
-- `--debug` - Enable debug mode for verbose output
-- `--config-file PATH` - Use custom configuration file
-- `--help` - Show help message
 
-## Commands Reference
+- `--debug`: Enable debug mode for more verbose output
+- `--config-file`: Specify a custom configuration file path
 
-### 📊 Status & Configuration
+## Command Structure
 
-#### `sakaibot status`
-Display current bot status and configuration overview.
+The CLI is organized into several command groups:
 
-```bash
-sakaibot status
+```
+sakaibot [OPTIONS] COMMAND [ARGS]...
 ```
 
-Shows:
-- System configuration status
-- AI provider status and model
-- Categorization settings
-- Authorization status
-- Cache availability
+### Available Commands
 
-#### `sakaibot config`
-Manage bot configuration.
+- `ai`: AI provider management and testing
+- `auth`: Authorization management
+- `config`: Configuration management
+- `group`: Group management
+- `monitor`: Monitoring controls
+- `pv`: Private chat management
+- `status`: Show current bot status
+- `menu`: Start interactive menu system
+- `setup`: Run interactive setup wizard
+
+## Detailed Command Reference
+
+### PV (Private Chats) Commands
+
+Manage your private conversations with contacts.
+
+#### `sakaibot pv list`
+
+List all cached private chats.
+
+**Options:**
+
+- `--limit INTEGER`: Number of PVs to display (default: 50)
+- `--refresh`: Refresh cache before listing
+
+**Example:**
 
 ```bash
-# Show current configuration
-sakaibot config show
-sakaibot config show --all  # Show full values
-
-# Validate configuration
-sakaibot config validate
-
-# Show example configuration
-sakaibot config example
-
-# Edit configuration
-sakaibot config edit
+sakaibot pv list --limit 100
+sakaibot pv list --refresh
 ```
 
-### 💬 Private Chat Management
+#### `sakaibot pv refresh`
 
-#### `sakaibot pv`
-Manage private chats (PVs).
+Refresh PV list from Telegram.
+
+**Options:**
+
+- `--fetch-limit INTEGER`: Number of recent chats to fetch (default: 200)
+
+**Example:**
 
 ```bash
-# List cached private chats
-sakaibot pv list
-sakaibot pv list --limit 50 --refresh
+sakaibot pv refresh --fetch-limit 500
+```
 
-# Refresh PV cache from Telegram
-sakaibot pv refresh
-sakaibot pv refresh --fetch-limit 300
+#### `sakaibot pv search`
 
-# Search for private chats
+Search for private chats by name, username, or ID.
+
+**Arguments:**
+
+- `QUERY`: Search query
+
+**Options:**
+
+- `--limit INTEGER`: Maximum results to show (default: 10)
+
+**Example:**
+
+```bash
 sakaibot pv search "john"
-sakaibot pv search "@username" --limit 10
+sakaibot pv search "123456789" --limit 5
+```
 
-# Set default context for analysis
-sakaibot pv set-context "@johndoe"
+#### `sakaibot pv set-context`
+
+Set default PV context for analysis commands.
+
+**Arguments:**
+
+- `IDENTIFIER`: PV identifier (username, ID, or name)
+
+**Options:**
+
+- `--clear`: Clear the default context
+
+**Example:**
+
+```bash
+sakaibot pv set-context john_doe
 sakaibot pv set-context --clear
+```
 
-# Show current context
+#### `sakaibot pv context`
+
+Show current default PV context.
+
+**Example:**
+
+```bash
 sakaibot pv context
 ```
 
-### 👥 Group Management
+### Group Commands
 
-#### `sakaibot group`
-Manage groups and categorization settings.
+Manage your Telegram groups.
+
+#### `sakaibot group list`
+
+List all cached groups.
+
+**Options:**
+
+- `--limit INTEGER`: Number of groups to display (default: 50)
+- `--refresh`: Refresh cache before listing
+
+#### `sakaibot group refresh`
+
+Refresh group list from Telegram.
+
+**Options:**
+
+- `--fetch-limit INTEGER`: Number of recent groups to fetch (default: 200)
+
+#### `sakaibot group search`
+
+Search for groups by name or ID.
+
+**Arguments:**
+
+- `QUERY`: Search query
+
+**Options:**
+
+- `--limit INTEGER`: Maximum results to show (default: 10)
+
+#### `sakaibot group set`
+
+Set target group for categorization.
+
+**Arguments:**
+
+- `IDENTIFIER`: Group identifier (username, ID, or name)
+
+**Options:**
+
+- `--clear`: Clear the selected group
+
+#### `sakaibot group map`
+
+Manage command to topic mappings for forum groups. This command allows you to map specific commands to specific topics within a forum group.
+
+**Options:**
+
+- `--add`: Add a new mapping
+- `--remove`: Remove an existing mapping
+- `--clear`: Clear all mappings
+- `--list`: List all existing mappings (default)
+
+**Example:**
 
 ```bash
-# List groups
-sakaibot group list
-sakaibot group list --refresh --all
+# List all current mappings
+sakaibot group map --list
 
-# Set target group for categorization
-sakaibot group set "Work Team"
-sakaibot group set --clear
+# Add a new mapping (will prompt for command and target topic)
+sakaibot group map --add
 
-# List topics in forum group
-sakaibot group topics
+# Remove a mapping
+sakaibot group map --remove
 
-# Manage command mappings
-sakaibot group map           # List current mappings
-sakaibot group map --add      # Add new mapping
-sakaibot group map --remove   # Remove a mapping
-sakaibot group map --clear    # Clear all mappings
+# Clear all mappings
+sakaibot group map --clear
 ```
 
-### 🔐 Authorization Management
+When adding a mapping, if the target group is a forum, you will be prompted to select a specific topic for the command. Multiple commands can be mapped to the same topic.
 
-#### `sakaibot auth`
-Manage authorized users who can send commands.
+#### `sakaibot group topics`
+
+List topics in the selected group.
+
+### Auth Commands
+
+Manage authorized users who can interact with your bot.
+
+#### `sakaibot auth list`
+
+List authorized users.
+
+#### `sakaibot auth add`
+
+Add an authorized user.
+
+**Arguments:**
+
+- `IDENTIFIER`: User identifier (username, ID, or name)
+
+#### `sakaibot auth remove`
+
+Remove an authorized user.
+
+**Arguments:**
+
+- `IDENTIFIER`: User identifier (username, ID, or name)
+
+### Monitor Commands
+
+Control the monitoring of messages.
+
+#### `sakaibot monitor start`
+
+Start processing messages and commands.
+
+#### `sakaibot monitor stop`
+
+Stop processing messages.
+
+#### `sakaibot monitor status`
+
+Show monitoring status.
+
+### AI Commands
+
+Manage and test AI functionality.
+
+#### `sakaibot ai test`
+
+Test AI configuration with a simple prompt.
+
+**Options:**
+
+- `--prompt TEXT`: Test prompt (default: "Hello, please respond with 'AI is working!'")
+
+**Example:**
 
 ```bash
-# List authorized users
-sakaibot auth list
-
-# Add authorized user
-sakaibot auth add "@username"
-sakaibot auth add "John Doe"
-sakaibot auth add 12345678  # By user ID
-
-# Remove authorization
-sakaibot auth remove "@username"
-sakaibot auth remove 12345678
-
-# Clear all authorizations
-sakaibot auth clear
-```
-
-### 🔄 Monitoring
-
-#### `sakaibot monitor`
-Control global monitoring for commands and messages.
-
-```bash
-# Start monitoring
-sakaibot monitor start
-sakaibot monitor start --verbose  # Show detailed output
-
-# Stop monitoring
-sakaibot monitor stop
-
-# Show monitoring status
-sakaibot monitor status
-```
-
-### 🤖 AI Features
-
-#### `sakaibot ai`
-AI provider management and testing.
-
-```bash
-# Test AI configuration
 sakaibot ai test
-sakaibot ai test --prompt "Custom test prompt"
-
-# Show AI configuration
-sakaibot ai config
-
-# Send custom prompt
-sakaibot ai prompt "Explain quantum computing"
-sakaibot ai prompt "Write code" --max-tokens 2000 --temperature 0.5
-
-# Translate text
-sakaibot ai translate "Hello world" fa
-sakaibot ai translate "Bonjour" en --source fr
+sakaibot ai test --prompt "What's the weather like?"
 ```
 
-## Interactive Features
+#### `sakaibot ai config`
 
-### Rich Output
-- ✅ **Colored text** for better readability
-- 📊 **Tables** for structured data display
-- 🔄 **Progress spinners** during operations
-- ⚠️ **Clear messages** for errors, warnings, and success
+Show current AI configuration.
 
-### Interactive Prompts
-- **Choice selection** from lists
-- **Confirmation prompts** for destructive actions
-- **Text input** with validation
-- **Number input** with range validation
+**Example:**
+
+```bash
+sakaibot ai config
+```
+
+#### `sakaibot ai translate`
+
+Translate text using AI.
+
+**Arguments:**
+
+- `TEXT`: Text to translate
+- `TARGET_LANGUAGE`: Target language
+
+**Options:**
+
+- `--source TEXT`: Source language (default: auto)
+
+**Example:**
+
+```bash
+sakaibot ai translate "Hello world" "Persian"
+sakaibot ai translate "Bonjour" "English" --source French
+```
+
+#### `sakaibot ai prompt`
+
+Send a custom prompt to AI.
+
+**Arguments:**
+
+- `PROMPT`: The prompt to send
+
+**Options:**
+
+- `--max-tokens INTEGER`: Maximum response tokens (default: 1500)
+- `--temperature FLOAT`: Response creativity (0.0-1.0) (default: 0.7)
+
+**Example:**
+
+```bash
+sakaibot ai prompt "Explain quantum computing in simple terms"
+sakaibot ai prompt "Write a poem about programming" --max-tokens 2000 --temperature 0.9
+```
+
+### Config Commands
+
+Manage configuration settings.
+
+#### `sakaibot config show`
+
+Show current configuration.
+
+#### `sakaibot config validate`
+
+Validate configuration.
+
+### Status Command
+
+#### `sakaibot status`
+
+Show current bot status and configuration.
+
+### Menu Command
+
+#### `sakaibot menu`
+
+Start interactive menu system with a navigable interface.
+
+### Setup Command
+
+#### `sakaibot setup`
+
+Run interactive setup wizard (coming soon).
+
+## Interactive Menu
+
+The interactive menu provides a user-friendly way to navigate SakaiBot's features:
+
+```bash
+sakaibot menu
+```
+
+This command starts a menu-driven interface where you can:
+
+- View and manage private chats
+- Manage groups and categorization
+- Configure AI settings
+- Start/stop monitoring
+- Access various bot features
 
 ## Command Examples
 
-### Initial Setup
-```bash
-# 1. Check configuration
-sakaibot config validate
+### Basic Operations
 
-# 2. Show current status
-sakaibot status
-
-# 3. Refresh contact list
-sakaibot pv refresh
-
-# 4. Set up categorization
-sakaibot group set "My Group"
-sakaibot group map --add
-
-# 5. Add authorized users
-sakaibot auth add "@trusted_user"
-
-# 6. Start monitoring
-sakaibot monitor start
-```
-
-### Daily Usage
 ```bash
 # Check bot status
 sakaibot status
 
-# Search and message a contact
-sakaibot pv search "john"
+# List private chats
+sakaibot pv list
 
-# Monitor for commands
-sakaibot monitor start --verbose
-```
+# Search for a contact
+sakaibot pv search "friend_name"
 
-### AI Operations
-```bash
-# Test AI is working
+# Refresh contact list
+sakaibot pv refresh
+
+# Test AI functionality
 sakaibot ai test
 
-# Translate message
-sakaibot ai translate "Hello friend" persian
-
-# Send custom prompt
-sakaibot ai prompt "Summarize the benefits of Python"
-```
-
-## Advanced Usage
-
-### Scripting
-The CLI is designed for easy scripting:
-
-```bash
-#!/bin/bash
-# daily_refresh.sh
-
-# Refresh all caches
-sakaibot pv refresh --fetch-limit 500
-sakaibot group list --refresh
-
-# Check status
-sakaibot monitor status
-
-# Start monitoring if not active
-if ! sakaibot monitor status | grep -q "Active"; then
-    sakaibot monitor start
-fi
-```
-
-### Shell Aliases
-Add to your shell configuration (`.bashrc`, `.zshrc`):
-
-```bash
-alias sb='python ~/SakaiBot/sakaibot.py'
-alias sbmon='python ~/SakaiBot/sakaibot.py monitor start'
-alias sbstatus='python ~/SakaiBot/sakaibot.py status'
-alias sbpv='python ~/SakaiBot/sakaibot.py pv list'
-```
-
-### Environment Variables
-You can override configuration with environment variables:
-
-```bash
-export TELEGRAM_API_ID=12345678
-export LLM_PROVIDER=gemini
-export DEBUG=true
-
-sakaibot status  # Will use these values
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### Command Not Found
-```bash
-# Make script executable
-chmod +x sakaibot.py
-
-# Or use Python directly
-python sakaibot.py [command]
-```
-
-#### Import Errors
-```bash
-# Ensure virtual environment is activated
-source venv/bin/activate
-
-# Reinstall dependencies
-pip install -r requirements.txt
-```
-
-#### Configuration Errors
-```bash
-# Validate configuration
-sakaibot config validate
-
-# Check specific provider
+# Show AI configuration
 sakaibot ai config
 ```
 
-#### Permission Errors
-```bash
-# Fix directory permissions
-chmod 755 data/ cache/ logs/
+### Advanced Operations
 
-# Fix file permissions
-chmod 644 .env
+```bash
+# Translate text
+sakaibot ai translate "Hello, how are you?" "Persian"
+
+# Send custom prompt to AI
+sakaibot ai prompt "Summarize the benefits of Python programming"
+
+# Set default context for analysis
+sakaibot pv set-context "important_contact"
+
+# Add authorized user
+sakaibot auth add "trusted_friend"
+
+# Start monitoring
+sakaibot monitor start
 ```
 
-## Tips & Best Practices
+## Error Handling
 
-### Performance
-- **Cache regularly**: Refresh PV cache weekly for accuracy
-- **Limit fetches**: Use reasonable limits when refreshing
-- **Monitor selectively**: Only monitor when needed
+The CLI provides clear error messages when commands fail:
 
-### Security
-- **Protect .env**: Never commit or share your .env file
-- **Rotate keys**: Change API keys periodically
-- **Limit authorizations**: Only authorize trusted users
-- **Review logs**: Check logs regularly for issues
-
-### Organization
-- **Use contexts**: Set default PV for frequent conversations
-- **Map commands**: Create intuitive command mappings
-- **Document mappings**: Keep a list of your custom commands
-
-## Keyboard Shortcuts
-
-- `Ctrl+C` - Stop current operation or monitoring
-- `Tab` - Auto-completion (where supported)
-- `Enter` - Confirm selection
-- `Ctrl+D` - Exit CLI
+- Invalid configuration will result in configuration error messages
+- Network issues will be reported with appropriate error details
+- Invalid arguments will show usage information
+- API errors from AI providers will be displayed with troubleshooting tips
 
 ## Exit Codes
 
-- `0` - Success
-- `1` - General error
-- `2` - Configuration error
-- `3` - Connection error
-- `130` - Interrupted by user (Ctrl+C)
+- `0`: Success
+- `1`: General error
+- `2`: Usage error (invalid arguments)
+- `3`: Configuration error
+- `4`: API or network error
 
-## Getting Help
+## Tips and Best Practices
 
-```bash
-# General help
-sakaibot --help
-
-# Command-specific help
-sakaibot pv --help
-sakaibot monitor --help
-
-# Subcommand help
-sakaibot pv list --help
-```
-
-## See Also
-
-- [FEATURES.md](FEATURES.md) - Complete feature documentation
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture
-- [CONFIGURATION.md](CONFIGURATION.md) - Configuration guide
-- [DEVELOPMENT.md](DEVELOPMENT.md) - Developer documentation
+1. **Use the interactive menu** (`sakaibot menu`) if you're new to the CLI
+2. **Refresh your PV and group lists** regularly with `sakaibot pv refresh` and `sakaibot group refresh`
+3. **Test your AI configuration** with `sakaibot ai test` before relying on AI features
+4. **Use the status command** (`sakaibot status`) to verify your configuration
+5. **Set up authorized users** with `sakaibot auth add` to control who can use your bot's features

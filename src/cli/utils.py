@@ -25,7 +25,7 @@ def display_banner():
     """Display SakaiBot banner."""
     banner_text = """
 ╔═══════════════════════════════════════╗
-║          🤖 SakaiBot v2.0.0           ║
+║            SakaiBot v2.0.0            ║
 ║   Advanced Telegram Userbot with AI   ║
 ╚═══════════════════════════════════════╝
     """
@@ -33,19 +33,19 @@ def display_banner():
 
 def display_error(message: str):
     """Display error message."""
-    console.print(f"[red]✗ Error:[/red] {message}")
+    console.print(f"[red]Error:[/red] {message}")
 
 def display_success(message: str):
     """Display success message."""
-    console.print(f"[green]✓ Success:[/green] {message}")
+    console.print(f"[green]Success:[/green] {message}")
 
 def display_warning(message: str):
     """Display warning message."""
-    console.print(f"[yellow]⚠ Warning:[/yellow] {message}")
+    console.print(f"[yellow]Warning:[/yellow] {message}")
 
 def display_info(message: str):
     """Display info message."""
-    console.print(f"[blue]ℹ Info:[/blue] {message}")
+    console.print(f"[blue]Info:[/blue] {message}")
 
 async def get_telegram_client():
     """Get initialized Telegram client."""

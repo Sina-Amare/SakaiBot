@@ -17,7 +17,6 @@ class SettingsManager:
         self._logger = get_logger(self.__class__.__name__)
         
         self._default_settings = {
-            "selected_pv_for_categorization": None,
             "selected_target_group": None,
             "active_command_to_topic_map": {},
             "directly_authorized_pvs": []

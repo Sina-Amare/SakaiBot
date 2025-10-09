@@ -18,8 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.core.config import get_settings
 from src.core.settings import SettingsManager
 from src.utils.logging import get_logger
-from src.cli.menu_handlers.pv_handler import PVMenuHandler
-from src.cli.menu_handlers.ai_handler import AIMenuHandler
 from src.cli.menu_handlers.monitor_handler import MonitorMenuHandler
 from src.cli.menu_handlers.group_handler import GroupMenuHandler
 
@@ -63,14 +61,12 @@ class InteractiveMenu:
     def __init__(self):
         self.state = MenuState()
         self.running = True
-        self.pv_handler = PVMenuHandler(self.state)
-        self.ai_handler = AIMenuHandler(self.state)
         self.monitor_handler = MonitorMenuHandler(self.state)
         self.group_handler = GroupMenuHandler(self.state)
         
     def display_header(self, title: str, subtitle: str = ""):
         """Display a beautiful header."""
-        header_text = Text(f"🤖 {title}", style="bold cyan")
+        header_text = Text(f" {title}", style="bold cyan")
         if subtitle:
             header_text.append(f"\n{subtitle}", style="dim")
             
@@ -87,9 +83,10 @@ class InteractiveMenu:
         
         status_items = []
         
-        # AI Provider
-        ai_provider = f"AI: {self.state.config.llm_provider.title()}"
-        status_items.append(f"[green]{ai_provider}[/green]")
+        # AI Provider - only show if AI is enabled
+        if self.state.config.is_ai_enabled:
+            ai_provider = f"AI: {self.state.config.llm_provider.title()}"
+            status_items.append(f"[green]{ai_provider}[/green]")
         
         # Target Group
         target_group = settings.get('selected_target_group')
@@ -99,7 +96,7 @@ class InteractiveMenu:
         else:
             status_items.append("[yellow]Group: None[/yellow]")
             
-        # Authorized PVs
+        # Authorized users
         auth_count = len(settings.get('directly_authorized_pvs', []))
         status_items.append(f"[cyan]Auth: {auth_count}[/cyan]")
         
@@ -124,13 +121,11 @@ class InteractiveMenu:
         table.add_column("Description", style="dim", width=40)
         
         menu_items = [
-            ("1", "📱 Private Chats (PVs)", "Manage private conversations and analysis"),
-            ("2", "👥 Groups & Categories", "Set target groups and categorization"),
-            ("3", "🤖 AI Tools", "Translation, prompts, and AI configuration"),
-            ("4", "📊 Monitoring", "Start/stop monitoring and manage authorization"),
-            ("5", "⚙️  Settings", "View and modify bot configuration"),
+            ("1", "Groups & Categories", "Set target groups and categorization"),
+            ("2", "Monitoring", "Start/stop monitoring and manage authorization"),
+            ("3", "Settings", "View and modify bot configuration"),
             ("", "", ""),
-            ("0", "🚪 Exit", "Save settings and exit")
+            ("0", "Exit", "Save settings and exit")
         ]
         
         for option, title, desc in menu_items:
@@ -141,33 +136,37 @@ class InteractiveMenu:
                 
         console.print(table)
         
-    def display_pv_menu(self):
-        """Display PV management menu."""
-        self.display_header("Private Chats (PVs)", "Manage private conversations")
+    def display_monitor_menu(self):
+        """Display monitoring menu."""
+        self.display_header("Monitoring & Authorization", "Manage bot monitoring and authorized users")
         
         settings = self.state.get_user_settings()
-        default_pv = settings.get('selected_pv_for_categorization')
-        pv_context = default_pv.get('display_name', 'None') if default_pv else 'None'
+        monitoring_active = settings.get('is_monitoring_active', False)
+        monitor_status = "[green]ACTIVE[/green]" if monitoring_active else "[red]INACTIVE[/red]"
+        auth_count = len(settings.get('directly_authorized_pvs', []))
         
-        console.print(f"[dim]Current default PV: {pv_context}[/dim]")
+        console.print(f"[dim]Monitoring status: {monitor_status}[/dim]")
+        console.print(f"[dim]Authorized users: {auth_count}[/dim]")
         console.print()
         
-        table = Table(show_header=False, border_style="blue", padding=(0, 2))
-        table.add_column("Option", style="bold blue", width=4)
+        table = Table(show_header=False, border_style="yellow", padding=(0, 2))
+        table.add_column("Option", style="bold yellow", width=4)
         table.add_column("Action", style="bold white", width=30)
         table.add_column("Description", style="dim")
         
-        pv_items = [
-            ("1", "📋 List Cached PVs", "Show all cached private chats"),
-            ("2", "🔄 Refresh from Telegram", "Update PV list from Telegram"),
-            ("3", "🔍 Search PVs", "Search through cached PVs"),
-            ("4", "⚙️ Set Default Context", "Set default PV for analysis"),
-            ("5", "📊 Analyze Messages", "Analyze PV with Persian sarcasm! 😏"),
+        monitor_action = "Stop Monitoring" if monitoring_active else "Start Monitoring"
+        monitor_desc = "Stop global monitoring" if monitoring_active else "Start global monitoring"
+        
+        monitor_items = [
+            ("1", monitor_action, monitor_desc),
+            ("2", "Manage Authorized Users", "Add/remove authorized users"),
+            ("3", "View Monitor Status", "Detailed monitoring information"),
+            ("4", "Monitor Settings", "Configure monitoring options"),
             ("", "", ""),
-            ("0", "⬅️  Back to Main Menu", "")
+            ("0", "Back to Main Menu", "")
         ]
         
-        for option, action, desc in pv_items:
+        for option, action, desc in monitor_items:
             if option:
                 table.add_row(f"[{option}]", action, desc)
             else:
@@ -198,89 +197,15 @@ class InteractiveMenu:
         table.add_column("Description", style="dim")
         
         group_items = [
-            ("1", "🎯 Set Target Group", "Choose group for categorization"),
-            ("2", "🗂️  Manage Mappings", "Configure command-to-topic mappings"),
-            ("3", "📋 List Groups", "Show all available groups"),
-            ("4", "🔧 Test Categorization", "Test current setup"),
+            ("1", "Set Target Group", "Choose group for categorization"),
+            ("2", "Manage Mappings", "Configure command-to-topic mappings"),
+            ("3", "List Groups", "Show all available groups"),
+            ("4", "Test Categorization", "Test current setup"),
             ("", "", ""),
-            ("0", "⬅️  Back to Main Menu", "")
+            ("0", "Back to Main Menu", "")
         ]
         
         for option, action, desc in group_items:
-            if option:
-                table.add_row(f"[{option}]", action, desc)
-            else:
-                table.add_row("", "", "")
-                
-        console.print(table)
-        
-    def display_ai_menu(self):
-        """Display AI tools menu."""
-        self.display_header("AI Tools", "Translation, prompts, and configuration")
-        
-        ai_provider = self.state.config.llm_provider.title()
-        if self.state.config.llm_provider == "gemini":
-            model_info = f"{ai_provider} ({self.state.config.gemini_model})"
-        else:
-            model_info = f"{ai_provider} ({self.state.config.openrouter_model})"
-            
-        console.print(f"[dim]Current provider: {model_info}[/dim]")
-        console.print()
-        
-        table = Table(show_header=False, border_style="magenta", padding=(0, 2))
-        table.add_column("Option", style="bold magenta", width=4)
-        table.add_column("Action", style="bold white", width=30)
-        table.add_column("Description", style="dim")
-        
-        ai_items = [
-            ("1", "🧪 Test AI Connection", "Test current AI configuration"),
-            ("2", "🌐 Translate Text", "Translate with Persian phonetics"),
-            ("3", "💬 Custom Prompt", "Send custom prompt to AI"),
-            ("4", "📝 Persian Analysis Demo", "Try the new sarcastic analysis!"),
-            ("5", "⚙️ Configure Provider", "Switch AI provider or model"),
-            ("", "", ""),
-            ("0", "⬅️  Back to Main Menu", "")
-        ]
-        
-        for option, action, desc in ai_items:
-            if option:
-                table.add_row(f"[{option}]", action, desc)
-            else:
-                table.add_row("", "", "")
-                
-        console.print(table)
-        
-    def display_monitor_menu(self):
-        """Display monitoring menu."""
-        self.display_header("Monitoring & Authorization", "Manage bot monitoring and authorized users")
-        
-        settings = self.state.get_user_settings()
-        monitoring_active = settings.get('is_monitoring_active', False)
-        monitor_status = "[green]ACTIVE[/green]" if monitoring_active else "[red]INACTIVE[/red]"
-        auth_count = len(settings.get('directly_authorized_pvs', []))
-        
-        console.print(f"[dim]Monitoring status: {monitor_status}[/dim]")
-        console.print(f"[dim]Authorized users: {auth_count}[/dim]")
-        console.print()
-        
-        table = Table(show_header=False, border_style="yellow", padding=(0, 2))
-        table.add_column("Option", style="bold yellow", width=4)
-        table.add_column("Action", style="bold white", width=30)
-        table.add_column("Description", style="dim")
-        
-        monitor_action = "🛑 Stop Monitoring" if monitoring_active else "▶️  Start Monitoring"
-        monitor_desc = "Stop global monitoring" if monitoring_active else "Start global monitoring"
-        
-        monitor_items = [
-            ("1", monitor_action, monitor_desc),
-            ("2", "👥 Manage Authorized Users", "Add/remove authorized users"),
-            ("3", "📊 View Monitor Status", "Detailed monitoring information"),
-            ("4", "🔧 Monitor Settings", "Configure monitoring options"),
-            ("", "", ""),
-            ("0", "⬅️  Back to Main Menu", "")
-        ]
-        
-        for option, action, desc in monitor_items:
             if option:
                 table.add_row(f"[{option}]", action, desc)
             else:
@@ -298,13 +223,13 @@ class InteractiveMenu:
         table.add_column("Description", style="dim")
         
         settings_items = [
-            ("1", "📋 View Configuration", "Show current bot configuration"),
-            ("2", "🔧 Edit Settings", "Modify bot settings"),
-            ("3", "🗑️  Clear Cache", "Clear PV and group cache"),
-            ("4", "💾 Backup Settings", "Export settings to file"),
-            ("5", "📥 Restore Settings", "Import settings from file"),
+            ("1", "View Configuration", "Show current bot configuration"),
+            ("2", "Edit Settings", "Modify bot settings"),
+            ("3", "Clear Cache", "Clear group cache"),
+            ("4", "Backup Settings", "Export settings to file"),
+            ("5", "Restore Settings", "Import settings from file"),
             ("", "", ""),
-            ("0", "⬅️  Back to Main Menu", "")
+            ("0", "Back to Main Menu", "")
         ]
         
         for option, action, desc in settings_items:
@@ -333,34 +258,13 @@ class InteractiveMenu:
     async def handle_main_menu_choice(self, choice: str):
         """Handle main menu selections."""
         if choice == "1":
-            self.state.push_menu("pv")
-        elif choice == "2":
             self.state.push_menu("group")
-        elif choice == "3":
-            self.state.push_menu("ai")
-        elif choice == "4":
+        elif choice == "2":
             self.state.push_menu("monitor")
-        elif choice == "5":
+        elif choice == "3":
             self.state.push_menu("settings")
         elif choice == "0":
             await self.confirm_exit()
-        else:
-            console.print("[red]Invalid option. Please try again.[/red]")
-            
-    async def handle_pv_menu_choice(self, choice: str):
-        """Handle PV menu selections."""
-        if choice == "1":
-            await self.list_pvs()
-        elif choice == "2":
-            await self.refresh_pvs()
-        elif choice == "3":
-            await self.search_pvs()
-        elif choice == "4":
-            await self.set_default_pv()
-        elif choice == "5":
-            await self.analyze_pv_messages()
-        elif choice == "0":
-            self.state.pop_menu()
         else:
             console.print("[red]Invalid option. Please try again.[/red]")
             
@@ -374,23 +278,6 @@ class InteractiveMenu:
             await self.list_groups()
         elif choice == "4":
             await self.test_categorization()
-        elif choice == "0":
-            self.state.pop_menu()
-        else:
-            console.print("[red]Invalid option. Please try again.[/red]")
-            
-    async def handle_ai_menu_choice(self, choice: str):
-        """Handle AI menu selections."""
-        if choice == "1":
-            await self.test_ai_connection()
-        elif choice == "2":
-            await self.translate_text()
-        elif choice == "3":
-            await self.custom_prompt()
-        elif choice == "4":
-            await self.demo_persian_analysis()
-        elif choice == "5":
-            await self.configure_ai_provider()
         elif choice == "0":
             self.state.pop_menu()
         else:
@@ -435,34 +322,14 @@ class InteractiveMenu:
         # Save current settings
         try:
             # Settings are automatically saved by SettingsManager
-            console.print("[green]✓ Settings saved successfully[/green]")
+            console.print("[green]Settings saved successfully[/green]")
         except Exception as e:
             console.print(f"[red]Warning: Could not save settings: {e}[/red]")
             
-        console.print("[cyan]Thank you for using SakaiBot! 🤖[/cyan]")
+        console.print("[cyan]Thank you for using SakaiBot![/cyan]")
         self.running = False
         
     # Real menu action implementations using handlers
-    async def list_pvs(self):
-        """List private chats."""
-        await self.pv_handler.list_pvs()
-        
-    async def refresh_pvs(self):
-        """Refresh PV list from Telegram.""" 
-        await self.pv_handler.refresh_pvs()
-        
-    async def search_pvs(self):
-        """Search PVs."""
-        await self.pv_handler.search_pvs()
-        
-    async def set_default_pv(self):
-        """Set default PV context."""
-        await self.pv_handler.set_default_pv_context()
-        
-    async def analyze_pv_messages(self):
-        """Analyze PV messages with Persian sarcasm."""
-        await self.pv_handler.analyze_pv_messages()
-        
     async def set_target_group(self):
         """Set target group."""
         await self.group_handler.set_target_group()
@@ -478,26 +345,6 @@ class InteractiveMenu:
     async def test_categorization(self):
         """Test categorization setup."""
         await self.group_handler.quick_setup_wizard()
-        
-    async def test_ai_connection(self):
-        """Test AI connection."""
-        await self.ai_handler.test_ai_connection()
-        
-    async def translate_text(self):
-        """Translate text with Persian phonetics."""
-        await self.ai_handler.translate_text()
-        
-    async def custom_prompt(self):
-        """Send custom prompt."""
-        await self.ai_handler.custom_prompt()
-        
-    async def demo_persian_analysis(self):
-        """Demo Persian sarcastic analysis."""
-        await self.ai_handler.demo_persian_analysis()
-        
-    async def configure_ai_provider(self):
-        """Configure AI provider."""
-        await self.ai_handler.configure_ai_provider()
         
     async def toggle_monitoring(self):
         """Toggle monitoring on/off."""
@@ -517,33 +364,200 @@ class InteractiveMenu:
         
     async def view_configuration(self):
         """View current configuration."""
-        console.print("[yellow]View configuration feature coming soon![/yellow]")
+        try:
+            from src.core.config import get_settings
+            from rich.table import Table
+            
+            config = get_settings()
+            
+            # Create configuration table
+            table = Table(title="SakaiBot Configuration", show_header=True, header_style="bold cyan")
+            table.add_column("Category", style="cyan", width=20)
+            table.add_column("Setting", style="green", width=25)
+            table.add_column("Value", width=40)
+            
+            # Telegram settings
+            table.add_row("Telegram", "API ID", str(config.telegram_api_id))
+            table.add_row("", "API Hash", config.telegram_api_hash[:10] + "..." if len(config.telegram_api_hash) > 15 else "***")
+            table.add_row("", "Phone Number", config.telegram_phone_number)
+            table.add_row("", "Session Name", config.telegram_session_name)
+            
+            # LLM settings
+            table.add_row("LLM", "Provider", config.llm_provider.title())
+            
+            if config.llm_provider == "gemini":
+                table.add_row("", "Gemini Model", config.gemini_model)
+                if config.gemini_api_key:
+                    key_display = config.gemini_api_key[:10] + "..." if len(config.gemini_api_key) > 20 else "***"
+                    table.add_row("", "Gemini API Key", key_display)
+            elif config.llm_provider == "openrouter":
+                table.add_row("", "OpenRouter Model", config.openrouter_model)
+                if config.openrouter_api_key:
+                    key_display = config.openrouter_api_key[:10] + "..." if len(config.openrouter_api_key) > 20 else "***"
+                    table.add_row("", "OpenRouter API Key", key_display)
+            
+            # UserBot settings
+            table.add_row("UserBot", "Max Analyze Messages", str(config.userbot_max_analyze_messages))
+            
+            # Paths
+            if config.paths_ffmpeg_executable:
+                table.add_row("Paths", "FFmpeg", config.paths_ffmpeg_executable)
+            
+            # Environment
+            table.add_row("Environment", "Environment", config.environment)
+            table.add_row("", "Debug Mode", str(config.debug))
+            
+            console.print(table)
+            
+            # Show file locations
+            console.print("\n[bold cyan]Configuration Files:[/bold cyan]")
+            console.print(f"  • Main config: {Path('.env').absolute()}")
+            console.print(f"  • User settings: {Path('data/sakaibot_user_settings.json').absolute()}")
+            console.print(f" • Session: {Path('data/' + config.telegram_session_name + '.session').absolute()}")
+            
+        except Exception as e:
+            logger.error(f"Error viewing configuration: {e}", exc_info=True)
+            console.print(f"[red]Error: {e}[/red]")
+        
         input("\nPress Enter to continue...")
         
     async def edit_settings(self):
         """Edit settings."""
-        console.print("[yellow]Edit settings feature coming soon![/yellow]")
+        try:
+            import os
+            import platform
+            import subprocess
+            
+            env_path = Path(".env")
+            
+            if not env_path.exists():
+                console.print("[red].env file not found[/red]")
+                return
+            
+            # Try to open in default editor
+            if platform.system() == "Windows":
+                os.startfile(str(env_path))
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(["open", str(env_path)])
+            else:  # Linux
+                editor = os.environ.get("EDITOR", "nano")
+                subprocess.run([editor, str(env_path)])
+            
+            console.print("[green]Opened .env in editor[/green]")
+            console.print("[yellow]Restart the bot for changes to take effect[/yellow]")
+            
+        except Exception as e:
+            logger.error(f"Error editing settings: {e}", exc_info=True)
+            console.print(f"[red]Error: {e}[/red]")
+            console.print(f"[dim]You can manually edit: {Path('.env').absolute()}[/dim]")
+        
         input("\nPress Enter to continue...")
         
     async def clear_cache(self):
         """Clear cache."""
-        console.print("[yellow]Clear cache feature coming soon![/yellow]")
+        try:
+            from src.utils.cache import CacheManager
+            cache_manager = CacheManager()
+            
+            console.print("[yellow]This will clear all cached data including groups and settings.[/yellow]")
+            confirm = Prompt.ask("Type 'confirm' to continue or press Enter to cancel")
+            
+            if confirm.lower() == 'confirm':
+                cache_manager.clear_all_caches()
+                console.print("[green]✓ All caches cleared[/green]")
+            else:
+                console.print("[blue]Operation cancelled[/blue]")
+                
+        except Exception as e:
+            logger.error(f"Error clearing cache: {e}", exc_info=True)
+            console.print(f"[red]Error: {e}[/red]")
+        
         input("\nPress Enter to continue...")
         
     async def backup_settings(self):
         """Backup settings."""
-        console.print("[yellow]Backup settings feature coming soon![/yellow]")
+        try:
+            from datetime import datetime
+            import json
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_filename = f"data/backup_sakaibot_settings_{timestamp}.json"
+            backup_path = Path(backup_filename)
+            
+            settings = self.state.get_user_settings()
+            
+            # Ensure backup directory exists
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, ensure_ascii=False, indent=4)
+            
+            console.print(f"[green]✓ Settings backed up to: {backup_path}[/green]")
+            
+        except Exception as e:
+            logger.error(f"Error backing up settings: {e}", exc_info=True)
+            console.print(f"[red]Error: {e}[/red]")
+        
         input("\nPress Enter to continue...")
         
     async def restore_settings(self):
-        """Restore settings.""" 
-        console.print("[yellow]Restore settings feature coming soon![/yellow]")
+        """Restore settings."""
+        try:
+            from pathlib import Path
+            import json
+            from rich.filesize import decimal
+            from rich.prompt import Prompt
+            
+            # List backup files
+            data_dir = Path("data")
+            backup_files = list(data_dir.glob("backup_sakaibot_settings_*.json"))
+            
+            if not backup_files:
+                console.print("[yellow]No backup files found in data/ directory[/yellow]")
+                return
+            
+            console.print("[bold cyan]Available backup files:[/bold cyan]")
+            for i, file_path in enumerate(backup_files, 1):
+                size = decimal(file_path.stat().st_size)
+                console.print(f"  [{i}] {file_path.name} ({size})")
+            
+            choice = Prompt.ask("Enter the number of the backup to restore (or press Enter to cancel)")
+            
+            if not choice.isdigit():
+                console.print("[blue]Operation cancelled[/blue]")
+                return
+                
+            choice_idx = int(choice) - 1
+            if choice_idx < 0 or choice_idx >= len(backup_files):
+                console.print("[red]Invalid selection[/red]")
+                return
+                
+            backup_path = backup_files[choice_idx]
+            
+            # Load backup
+            with open(backup_path, 'r', encoding='utf-8') as f:
+                backup_data = json.load(f)
+            
+            # Confirm restoration
+            console.print(f"[yellow]This will overwrite current settings with backup from: {backup_path.name}[/yellow]")
+            confirm = Prompt.ask("Type 'confirm' to continue")
+            
+            if confirm.lower() == 'confirm':
+                self.state.save_user_settings(backup_data)
+                console.print("[green]✓ Settings restored successfully[/green]")
+            else:
+                console.print("[blue]Operation cancelled[/blue]")
+                
+        except Exception as e:
+            logger.error(f"Error restoring settings: {e}", exc_info=True)
+            console.print(f"[red]Error: {e}[/red]")
+        
         input("\nPress Enter to continue...")
         
     async def run(self):
         """Main menu loop."""
         console.clear()
-        console.print("[bold green]Welcome to SakaiBot Interactive Menu! 🤖[/bold green]")
+        console.print("[bold green]Welcome to SakaiBot Interactive Menu![/bold green]")
         console.print("[dim]Tip: Use Ctrl+C to go back, or select option 0[/dim]\n")
         
         while self.running:
@@ -556,20 +570,10 @@ class InteractiveMenu:
                     choice = self.get_user_choice("Select option")
                     await self.handle_main_menu_choice(choice)
                     
-                elif self.state.current_menu == "pv":
-                    self.display_pv_menu()
-                    choice = self.get_user_choice("Select option")
-                    await self.handle_pv_menu_choice(choice)
-                    
                 elif self.state.current_menu == "group":
                     self.display_group_menu()
                     choice = self.get_user_choice("Select option")
                     await self.handle_group_menu_choice(choice)
-                    
-                elif self.state.current_menu == "ai":
-                    self.display_ai_menu()
-                    choice = self.get_user_choice("Select option")
-                    await self.handle_ai_menu_choice(choice)
                     
                 elif self.state.current_menu == "monitor":
                     self.display_monitor_menu()

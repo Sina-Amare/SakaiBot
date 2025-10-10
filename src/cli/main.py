@@ -13,7 +13,10 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.cli.commands import group, auth, monitor, config
-from src.cli.utils import setup_environment, display_banner
+from src.cli.utils import (
+    setup_environment, display_banner,
+    normalize_command_mappings, normalize_selected_group
+)
 from src.cli.interactive import start_interactive_menu
 
 console = Console()
@@ -96,10 +99,24 @@ def show_status():
         table.add_row("AI Provider", ai_status, ai_details)
         
         # Categorization status
-        target_group = settings.get('selected_target_group')
-        mappings = settings.get('active_command_to_topic_map', {})
-        cat_status = "[green]Configured[/green]" if target_group and mappings else "[yellow]Partial[/yellow]"
-        cat_details = f"Group: {target_group if target_group else 'None'} | Mappings: {len(mappings)}"
+        target_group = normalize_selected_group(settings.get('selected_target_group'))
+        raw_mappings = settings.get('active_command_to_topic_map')
+        mappings = normalize_command_mappings(raw_mappings)
+
+        if target_group and mappings:
+            cat_status = "[green]Configured[/green]"
+        elif target_group:
+            cat_status = "[yellow]Partial[/yellow]"
+        else:
+            cat_status = "[red]Not configured[/red]"
+
+        group_label = 'None'
+        if isinstance(target_group, dict):
+            group_label = target_group.get('title') or f"ID {target_group.get('id')}"
+        elif target_group:
+            group_label = str(target_group)
+
+        cat_details = f"Group: {group_label} | Mappings: {len(mappings)}"
         
         table.add_row("Categorization", cat_status, cat_details)
         

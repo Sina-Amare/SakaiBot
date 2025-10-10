@@ -114,28 +114,160 @@ def confirm_action(message: str) -> bool:
     from rich.prompt import Confirm
     return Confirm.ask(message)
 
+def normalize_selected_group(
+    raw_group: Any,
+    groups_cache: Optional[List[Dict[str, Any]]] = None
+) -> Optional[Dict[str, Any]]:
+    """Normalize selected group data for consistent runtime usage.
+
+    Args:
+        raw_group: Value loaded from settings (can be dict, int, or None).
+        groups_cache: Optional cached group list to enrich metadata.
+
+    Returns:
+        A dictionary containing at least an 'id' key or None if unavailable.
+    """
+    if raw_group is None:
+        return None
+
+    normalized: Dict[str, Any]
+
+    if isinstance(raw_group, dict):
+        group_id = raw_group.get('id')
+        if group_id is None:
+            return None
+        normalized = dict(raw_group)
+    else:
+        try:
+            group_id = int(raw_group)
+        except (TypeError, ValueError):
+            return None
+        normalized = {'id': group_id}
+
+    if groups_cache:
+        for group in groups_cache:
+            if not group or not isinstance(group, dict):
+                continue
+            if group.get('id') == normalized['id']:
+                normalized.setdefault('title', group.get('title'))
+                normalized.setdefault('is_forum', group.get('is_forum'))
+                normalized.setdefault('username', group.get('username'))
+                normalized.setdefault('type', 'Forum' if group.get('is_forum') else 'Regular')
+                break
+
+    normalized.setdefault('title', f"Group {normalized['id']}")
+    if 'is_forum' in normalized:
+        normalized['type'] = normalized.get('type') or ('Forum' if normalized.get('is_forum') else 'Regular')
+    else:
+        normalized.setdefault('type', 'Unknown')
+
+    return normalized
+
+
+def normalize_command_mappings(raw_mappings: Any) -> Dict[Any, List[str]]:
+    """Normalize mapping data to the canonical topic_id -> [commands] structure.
+
+    Args:
+        raw_mappings: Value loaded from settings which may be None, a dict in legacy
+            command -> topic format, or already in the new format.
+
+    Returns:
+        A dictionary keyed by topic identifier (None for main chat) with lists of
+        command strings.
+    """
+    normalized: Dict[Any, List[str]] = {}
+
+    if not raw_mappings or not isinstance(raw_mappings, dict):
+        return normalized
+
+    values = list(raw_mappings.values())
+
+    # New format: topic_id -> list of commands (allowing None for topic_id).
+    try:
+        if values and all(isinstance(v, list) or v is None for v in values):
+            for topic_id, commands in raw_mappings.items():
+                if isinstance(commands, list):
+                    cleaned = [cmd.strip() for cmd in commands if isinstance(cmd, str) and cmd.strip()]
+                else:
+                    cleaned = []
+                if cleaned:
+                    normalized[topic_id] = cleaned
+            return normalized
+    except TypeError:
+        # Handle edge case where isinstance gets invalid arguments
+        pass
+
+    # Legacy format: command -> topic_id (int/None).
+    try:
+        if not values or all(isinstance(v, (int, type(None))) for v in values):
+            for command, topic_id in raw_mappings.items():
+                if not isinstance(command, str):
+                    continue
+                cleaned_command = command.strip()
+                if not cleaned_command:
+                    continue
+                normalized.setdefault(topic_id, [])
+                if cleaned_command not in normalized[topic_id]:
+                    normalized[topic_id].append(cleaned_command)
+            return normalized
+    except TypeError:
+        # Handle edge case where isinstance gets invalid arguments
+        pass
+
+    # Mixed/unknown formats: best effort sanitisation.
+    try:
+        for key, value in raw_mappings.items():
+            if isinstance(value, list):
+                cleaned = [cmd.strip() for cmd in value if isinstance(cmd, str) and cmd.strip()]
+                if cleaned:
+                    normalized[key] = cleaned
+            elif isinstance(value, (int, type(None))) and isinstance(key, str):
+                cleaned_command = key.strip()
+                if cleaned_command:
+                    normalized.setdefault(value, []).append(cleaned_command)
+    except TypeError:
+        # Handle edge case where isinstance gets invalid arguments
+        pass
+
+    return normalized
+
+
 def prompt_choice(message: str, choices: List[str], default: Optional[str] = None) -> str:
     """Prompt user to select from choices."""
     from rich.prompt import Prompt
     
-    # Display choices
+    if not choices:
+        display_error("No choices available")
+        return default if default else ""
+    
+    # Display choices with consistent numeric labels
     console.print(f"\n[bold]{message}[/bold]")
     for idx, choice in enumerate(choices, 1):
-        console.print(f"  {idx}. {choice}")
+        console.print(f"  [bold]{idx}[/bold]. {choice}")
     
     while True:
-        selection = Prompt.ask("Enter your choice", default=default)
+        selection = Prompt.ask("Enter your choice (number or exact match)", default=default)
+        
+        if not selection:
+            if default:
+                return default
+            else:
+                display_error("Selection cannot be empty")
+                continue
+        
         try:
+            # Try to parse as integer (numeric selection)
             idx = int(selection) - 1
             if 0 <= idx < len(choices):
                 return choices[idx]
             else:
                 display_error(f"Please enter a number between 1 and {len(choices)}")
         except ValueError:
-            # Check if it's a direct match
-            if selection in choices:
-                return selection
-            display_error("Invalid choice. Please enter a number or exact match.")
+            # Check if it's a direct match to one of the choices
+            for idx, choice in enumerate(choices):
+                if selection.lower() == choice.lower():
+                    return choice
+            display_error(f"Invalid choice. Please enter a number (1-{len(choices)}) or exact match.")
 
 def prompt_text(message: str, default: Optional[str] = None) -> str:
     """Prompt user for text input."""

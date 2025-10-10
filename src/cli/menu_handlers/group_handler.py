@@ -147,10 +147,11 @@ class GroupMenuHandler:
                 groups, _ = cache_manager.load_group_cache()
                 
                 selected_group = None
-                for group in groups or []:
-                    if group['id'] == settings['selected_target_group']:
-                        selected_group = group
-                        break
+                if groups and isinstance(groups, list):
+                    for group in groups:
+                        if group and isinstance(group, dict) and group.get('id') == settings['selected_target_group']:
+                            selected_group = group
+                            break
                 
                 if selected_group and selected_group.get('is_forum'):
                     console.print(f"[green]'{selected_group['title']}' is a forum group![/green]")

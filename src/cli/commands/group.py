@@ -176,22 +176,25 @@ async def _list_topics():
             with ProgressSpinner(f"Fetching topics for '{selected_group['title']}'..."):
                 topics = await telegram_utils.get_forum_topics(client, group_id)
             
-            if not topics:
+            # Ensure topics is a list to prevent NoneType errors
+            if not topics: # This check handles both None and empty list
                 display_info("No topics found in this forum.")
                 return
             
             # Display topics
-            table = Table(title=f"Topics in '{selected_group['title']}'", 
+            table = Table(title=f"Topics in '{selected_group['title']}'",
                          show_header=True, header_style="bold cyan")
             table.add_column("#", style="dim", width=6)
             table.add_column("Topic Title", style="cyan", width=40)
             table.add_column("Topic ID", style="yellow", width=15)
             
+            # At this point, 'topics' should be a non-empty list, but let's verify
             for idx, topic in enumerate(topics, 1):
-                table.add_row(str(idx), topic['title'], str(topic['id']))
+                if topic and isinstance(topic, dict) and 'title' in topic and 'id' in topic:
+                    table.add_row(str(idx), topic['title'], str(topic['id']))
             
             console.print(table)
-            display_success(f"Found {len(topics)} topics")
+            display_success(f"Found {len(topics) if topics else 0} topics")
             
         finally:
             if client_manager:
@@ -222,36 +225,63 @@ async def _manage_mappings(action: str):
         
         # For backward compatibility, convert old format to new format if needed
         old_mappings = settings.get('active_command_to_topic_map', {})
-        if old_mappings and isinstance(list(old_mappings.values())[0] if old_mappings else None, (int, type(None))):
+        # Ensure mappings is a dict to prevent type errors
+        mappings = old_mappings if isinstance(old_mappings, dict) else {}
+        
+        # Double-check that mappings is a dict to prevent type errors
+        if not isinstance(mappings, dict):
+            mappings = {}
+        
+        # Check if we have old format (command -> topic_id) or new format (topic_id -> [commands])
+        has_old_format = False
+        if mappings and len(mappings) > 0:
+            try:
+                # Get first value to check format
+                first_value = next(iter(mappings.values()))
+                # Check if the value is a simple type (int or None) indicating old format
+                if first_value is None or isinstance(first_value, int):
+                    # Old format: command_name -> topic_id
+                    has_old_format = True
+            except StopIteration:
+                # This shouldn't happen since we check len(mappings) > 0, but just in case
+                pass
+            except TypeError:
+                # Handle edge case where there's an issue with type checking
+                pass
+        
+        if has_old_format:
             # Convert old format (command -> topic_id) to new format (topic_id -> [commands])
             new_format = {}
-            for command, topic_id in old_mappings.items():
+            for command, topic_id in mappings.items():
                 if topic_id not in new_format:
                     new_format[topic_id] = []
                 new_format[topic_id].append(command)
             settings['active_command_to_topic_map'] = new_format
             mappings = new_format
-        else:
-            mappings = old_mappings  # Already in new format
         
         if action == 'list':
             if not mappings:
                 display_info("No command mappings defined.")
                 return
             
-            # Display mappings
+            # Display mappings with a numbered index for consistency
             table = Table(title="Command Mappings", show_header=True, header_style="bold cyan")
+            table.add_column("#", style="dim", width=6)
             table.add_column("Commands", style="cyan", width=30)
             table.add_column("Target", style="green", width=40)
             
-            for topic_id, commands in mappings.items():
+            for idx, (topic_id, commands) in enumerate(mappings.items(), 1):
                 if topic_id is None:
                     target = "Main Group Chat"
                 else:
                     target = f"Topic ID: {topic_id}"
                 
-                command_list = ", ".join([f"/{cmd}" for cmd in commands])
-                table.add_row(command_list, target)
+                # Safely join commands, handling potential None values
+                if commands and isinstance(commands, list):
+                    command_list = ", ".join([f"/{cmd}" for cmd in commands if cmd is not None])
+                else:
+                    command_list = "No commands"
+                table.add_row(str(idx), command_list, target)
             
             console.print(table)
             
@@ -264,10 +294,15 @@ async def _manage_mappings(action: str):
             
             # Check if command already exists
             existing_topic = None
-            for topic_id, commands in mappings.items():
-                if command in commands:
-                    existing_topic = topic_id
-                    break
+            try:
+                for topic_id, commands in mappings.items():
+                    if commands and isinstance(commands, list) and command in commands:
+                        existing_topic = topic_id
+                        break
+            except TypeError:
+                # Handle case where isinstance receives invalid arguments
+                display_warning("Invalid mapping data detected, resetting mappings")
+                mappings = {}
             
             if existing_topic is not None:
                 if existing_topic is None:
@@ -298,26 +333,39 @@ async def _manage_mappings(action: str):
                     telegram_utils = TelegramUtils()
                     
                     topics = await telegram_utils.get_forum_topics(client, group_id)
-                    
-                    if topics:
-                        choices = ["Main Group Chat"] + [t['title'] for t in topics]
-                        selection = prompt_choice("Select target for this command:", choices)
-                        
-                        if selection != "Main Group Chat":
-                            topic_idx = choices.index(selection) - 1
-                            topic_id = topics[topic_idx]['id']
+                    # Ensure topics is a list to prevent NoneType errors in subsequent logic
+                    if not topics: # This handles both None and empty list
+                        display_info("No topics found in this forum. Command will map to main group chat.")
+                        # topic_id remains None, which maps to main group chat
+                    else:
+                        # At this point, 'topics' is a guaranteed non-empty list with valid entries
+                        valid_topics = [t for t in topics if t and isinstance(t, dict) and 'title' in t and 'id' in t]
+                        if not valid_topics:
+                            display_info("No valid topics found in this forum. Command will map to main group chat.")
+                        else:
+                            choices = ["Main Group Chat"] + [t['title'] for t in valid_topics]
+                            selection = prompt_choice("Select target for this command:", choices)
+                            
+                            if selection != "Main Group Chat":
+                                topic_idx = choices.index(selection) - 1
+                                topic_id = valid_topics[topic_idx]['id']
                 finally:
                     if client_manager:
                         await client_manager.disconnect()
             
             # Remove command from any existing topic if it exists
-            for existing_topic_id, commands in mappings.items():
-                if command in commands:
-                    commands.remove(command)
-                    # Remove the topic key if it has no commands left
-                    if not commands:
-                        del mappings[existing_topic_id]
-                    break
+            try:
+                for existing_topic_id, commands in mappings.items():
+                    if commands and isinstance(commands, list) and command in commands:
+                        commands.remove(command)
+                        # Remove the topic key if it has no commands left
+                        if not commands:
+                            del mappings[existing_topic_id]
+                        break
+            except TypeError:
+                # Handle case where isinstance receives invalid arguments
+                display_warning("Invalid mapping data detected during cleanup, resetting mappings")
+                mappings = {}
             
             # Add command to the selected topic
             if topic_id not in mappings:
@@ -338,12 +386,14 @@ async def _manage_mappings(action: str):
             # Flatten the mappings to show all command-topic pairs for selection
             all_mappings = []
             for topic_id, commands in mappings.items():
-                for command in commands:
-                    if topic_id is None:
-                        target = "Main Group Chat"
-                    else:
-                        target = f"Topic ID: {topic_id}"
-                    all_mappings.append(f"/{command} → {target}")
+                if commands and isinstance(commands, list):
+                    for command in commands:
+                        if command is not None:  # Check if command is not None
+                            if topic_id is None:
+                                target = "Main Group Chat"
+                            else:
+                                target = f"Topic ID: {topic_id}"
+                            all_mappings.append(f"/{command} → {target}")
             
             if not all_mappings:
                 display_info("No mappings to remove.")
@@ -353,21 +403,23 @@ async def _manage_mappings(action: str):
             
             # Find the command and topic to remove
             for topic_id, commands in mappings.items():
-                for command in commands:
-                    if topic_id is None:
-                        target = "Main Group Chat"
+                if commands and isinstance(commands, list):
+                    for command in commands:
+                        if command is not None:
+                            if topic_id is None:
+                                target = "Main Group Chat"
+                            else:
+                                target = f"Topic ID: {topic_id}"
+                            
+                            if f"/{command} → {target}" == selection:
+                                commands.remove(command)
+                                # Remove the topic key if it has no commands left
+                                if not commands:
+                                    del mappings[topic_id]
+                                break
                     else:
-                        target = f"Topic ID: {topic_id}"
-                    
-                    if f"/{command} → {target}" == selection:
-                        commands.remove(command)
-                        # Remove the topic key if it has no commands left
-                        if not commands:
-                            del mappings[topic_id]
-                        break
-                else:
-                    continue
-                break
+                        continue
+                    break
             
             settings['active_command_to_topic_map'] = mappings
             settings_manager.save_user_settings(settings)
@@ -379,12 +431,18 @@ async def _manage_mappings(action: str):
                 display_info("No mappings to clear.")
                 return
             
-            if confirm_action(f"Clear all {len([cmd for cmds in mappings.values() for cmd in cmds])} mappings?"):
+            # Count total commands across all topics, handling potential None values in commands lists
+            total_commands = 0
+            for commands_list in mappings.values():
+                if commands_list and isinstance(commands_list, list):
+                    total_commands += len([cmd for cmd in commands_list if cmd is not None])
+            
+            if confirm_action(f"Clear all {total_commands} mappings?"):
                 settings['active_command_to_topic_map'] = {}
                 settings_manager.save_user_settings(settings)
                 display_success("All mappings cleared")
             else:
                 display_info("Operation cancelled")
-        
+            
     except Exception as e:
         display_error(f"Failed to manage mappings: {e}")

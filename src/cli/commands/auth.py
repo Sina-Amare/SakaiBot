@@ -90,8 +90,8 @@ async def _add_authorized(identifier: str):
             return
         
         results = cache_manager.search_pvs(pvs, identifier)
-        
-        if not results:
+        # Ensure results is a list to prevent NoneType errors
+        if not results: # This check handles both None and empty list
             display_error(f"No user found matching '{identifier}'")
             return
         
@@ -162,7 +162,7 @@ async def _remove_authorized(identifier: str):
         
         if pvs:
             results = cache_manager.search_pvs(pvs, identifier)
-            
+            # Ensure results is a list to prevent NoneType errors
             if results:
                 # Check which results are authorized
                 authorized_results = [pv for pv in results if pv['id'] in auth_pvs]

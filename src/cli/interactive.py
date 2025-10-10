@@ -97,7 +97,8 @@ class InteractiveMenu:
             status_items.append("[yellow]Group: None[/yellow]")
             
         # Authorized users
-        auth_count = len(settings.get('directly_authorized_pvs', []))
+        directly_authorized_pvs = settings.get('directly_authorized_pvs')
+        auth_count = len(directly_authorized_pvs) if directly_authorized_pvs and isinstance(directly_authorized_pvs, list) else 0
         status_items.append(f"[cyan]Auth: {auth_count}[/cyan]")
         
         # Monitoring
@@ -114,27 +115,13 @@ class InteractiveMenu:
         self.display_header("SakaiBot Interactive Menu", "Navigate with numbers, 0 to go back")
         self.display_status_bar()
         
-        # Create menu table
-        table = Table(show_header=False, border_style="cyan", padding=(0, 2))
-        table.add_column("Option", style="bold cyan", width=4)
-        table.add_column("Title", style="bold white", width=35)
-        table.add_column("Description", style="dim", width=40)
-        
-        menu_items = [
-            ("1", "Groups & Categories", "Set target groups and categorization"),
-            ("2", "Monitoring", "Start/stop monitoring and manage authorization"),
-            ("3", "Settings", "View and modify bot configuration"),
-            ("", "", ""),
-            ("0", "Exit", "Save settings and exit")
-        ]
-        
-        for option, title, desc in menu_items:
-            if option:
-                table.add_row(f"[{option}]", title, desc)
-            else:
-                table.add_row("", "", "")
-                
-        console.print(table)
+        console.print("[bold cyan]Main Menu:[/bold cyan]")
+        console.print(" [1] Groups & Categories  - Set target groups and categorization")
+        console.print(" [2] Monitoring           - Start/stop monitoring and manage authorization")
+        console.print(" [3] Settings              - View and modify bot configuration")
+        console.print("")
+        console.print(" [0] Exit                  - Save settings and exit")
+        console.print()
         
     def display_monitor_menu(self):
         """Display monitoring menu."""
@@ -143,36 +130,24 @@ class InteractiveMenu:
         settings = self.state.get_user_settings()
         monitoring_active = settings.get('is_monitoring_active', False)
         monitor_status = "[green]ACTIVE[/green]" if monitoring_active else "[red]INACTIVE[/red]"
-        auth_count = len(settings.get('directly_authorized_pvs', []))
+        
+        directly_authorized_pvs = settings.get('directly_authorized_pvs')
+        auth_count = len(directly_authorized_pvs) if directly_authorized_pvs and isinstance(directly_authorized_pvs, list) else 0
         
         console.print(f"[dim]Monitoring status: {monitor_status}[/dim]")
         console.print(f"[dim]Authorized users: {auth_count}[/dim]")
         console.print()
         
-        table = Table(show_header=False, border_style="yellow", padding=(0, 2))
-        table.add_column("Option", style="bold yellow", width=4)
-        table.add_column("Action", style="bold white", width=30)
-        table.add_column("Description", style="dim")
-        
-        monitor_action = "Stop Monitoring" if monitoring_active else "Start Monitoring"
+        console.print("[bold yellow]Monitoring Menu:[/bold yellow]")
+        monitor_action = "[1] Stop Monitoring" if monitoring_active else "[1] Start Monitoring"
         monitor_desc = "Stop global monitoring" if monitoring_active else "Start global monitoring"
-        
-        monitor_items = [
-            ("1", monitor_action, monitor_desc),
-            ("2", "Manage Authorized Users", "Add/remove authorized users"),
-            ("3", "View Monitor Status", "Detailed monitoring information"),
-            ("4", "Monitor Settings", "Configure monitoring options"),
-            ("", "", ""),
-            ("0", "Back to Main Menu", "")
-        ]
-        
-        for option, action, desc in monitor_items:
-            if option:
-                table.add_row(f"[{option}]", action, desc)
-            else:
-                table.add_row("", "", "")
-                
-        console.print(table)
+        console.print(f" {monitor_action}  - {monitor_desc}")
+        console.print(" [2] Manage Authorized Users  - Add/remove authorized users")
+        console.print(" [3] View Monitor Status        - Detailed monitoring information")
+        console.print(" [4] Monitor Settings           - Configure monitoring options")
+        console.print("")
+        console.print(" [0] Back to Main Menu          - Return to main menu")
+        console.print()
         
     def display_group_menu(self):
         """Display group management menu."""
@@ -185,78 +160,91 @@ class InteractiveMenu:
         else:
             group_info = "None selected"
             
-        mappings_count = len(settings.get('active_command_to_topic_map', {}))
-        
+        active_command_to_topic_map = settings.get('active_command_to_topic_map')
+        # Add safe check for NoneType
+        if active_command_to_topic_map and isinstance(active_command_to_topic_map, dict):
+            # Count total mappings safely
+            mappings_count = 0
+            for commands_list in active_command_to_topic_map.values():
+                if commands_list and isinstance(commands_list, list):
+                    mappings_count += len([cmd for cmd in commands_list if cmd is not None])
+        else:
+            mappings_count = 0
+            
         console.print(f"[dim]Target group: {group_info}[/dim]")
         console.print(f"[dim]Command mappings: {mappings_count}[/dim]")
         console.print()
         
-        table = Table(show_header=False, border_style="green", padding=(0, 2))
-        table.add_column("Option", style="bold green", width=4)
-        table.add_column("Action", style="bold white", width=30)
-        table.add_column("Description", style="dim")
-        
-        group_items = [
-            ("1", "Set Target Group", "Choose group for categorization"),
-            ("2", "Manage Mappings", "Configure command-to-topic mappings"),
-            ("3", "List Groups", "Show all available groups"),
-            ("4", "Test Categorization", "Test current setup"),
-            ("", "", ""),
-            ("0", "Back to Main Menu", "")
-        ]
-        
-        for option, action, desc in group_items:
-            if option:
-                table.add_row(f"[{option}]", action, desc)
-            else:
-                table.add_row("", "", "")
-                
-        console.print(table)
+        console.print("[bold green]Groups & Categories Menu:[/bold green]")
+        console.print(" [1] Set Target Group       - Choose group for categorization")
+        console.print(" [2] Manage Mappings         - Configure command-to-topic mappings")
+        console.print(" [3] List Groups             - Show all available groups")
+        console.print(" [4] Test Categorization     - Test current setup")
+        console.print("")
+        console.print(" [0] Back to Main Menu       - Return to main menu")
+        console.print()
         
     def display_settings_menu(self):
         """Display settings menu."""
         self.display_header("Settings", "View and modify bot configuration")
         
-        table = Table(show_header=False, border_style="cyan", padding=(0, 2))
-        table.add_column("Option", style="bold cyan", width=4)
-        table.add_column("Action", style="bold white", width=30)
-        table.add_column("Description", style="dim")
-        
-        settings_items = [
-            ("1", "View Configuration", "Show current bot configuration"),
-            ("2", "Edit Settings", "Modify bot settings"),
-            ("3", "Clear Cache", "Clear group cache"),
-            ("4", "Backup Settings", "Export settings to file"),
-            ("5", "Restore Settings", "Import settings from file"),
-            ("", "", ""),
-            ("0", "Back to Main Menu", "")
-        ]
-        
-        for option, action, desc in settings_items:
-            if option:
-                table.add_row(f"[{option}]", action, desc)
-            else:
-                table.add_row("", "", "")
-                
-        console.print(table)
+        console.print("[bold cyan]Settings Menu:[/bold cyan]")
+        console.print(" [1] View Configuration  - Show current bot configuration")
+        console.print(" [2] Edit Settings        - Modify bot settings")
+        console.print(" [3] Clear Cache          - Clear group cache")
+        console.print(" [4] Backup Settings      - Export settings to file")
+        console.print(" [5] Restore Settings     - Import settings from file")
+        console.print("")
+        console.print(" [0] Back to Main Menu     - Return to main menu")
+        console.print()
         
     def get_user_choice(self, prompt: str = "Enter your choice", valid_options: List[str] = None) -> str:
-        """Get user input with validation."""
+        """
+        Get user input with robust validation.
+
+        Args:
+            prompt: The prompt message to display.
+            valid_options: A list of strings representing valid choices.
+                           If None, any non-empty string is accepted.
+                           Empty string ("") is a valid option if provided in the list.
+
+        Returns:
+            The user's choice as a string, or '0' on EOFError or KeyboardInterrupt.
+        """
         while True:
             try:
                 choice = Prompt.ask(f"[bold cyan]{prompt}[/bold cyan]", default="0")
-                if valid_options and choice not in valid_options:
-                    console.print(f"[red]Invalid option. Please choose from: {', '.join(valid_options)}[/red]")
-                    continue
+
+                if valid_options:
+                    if choice not in valid_options:
+                        # Format valid options for display, e.g., ['1', '2', '3'] -> "1, 2, or 3"
+                        if len(valid_options) > 1:
+                            options_str = ", ".join(valid_options[:-1]) + ", or " + valid_options[-1]
+                        else:
+                            options_str = valid_options[0]
+                        console.print(f"[red]Invalid option. Please choose: {options_str}[/red]")
+                        continue
+                
                 return choice
             except KeyboardInterrupt:
-                console.print("\n[yellow]Use option 0 to go back or exit[/yellow]")
-                continue
+                # Treat Ctrl+C as a request to go back or exit.
+                # The main loop will handle this by catching the exception or by the
+                # returned value of '0', which most menu handlers use for "back/exit".
+                console.print("\n[yellow]Operation cancelled by user.[/yellow]")
+                return "0" # Signal to go back
             except EOFError:
-                return "0"
+                # End of input (e.g., piped input ended)
+                console.print("[yellow]End of input.[/yellow]")
+                return "0" # Default to back/exit action
                 
     async def handle_main_menu_choice(self, choice: str):
         """Handle main menu selections."""
+        # Valid options are derived from display_main_menu()
+        valid_options = ["1", "2", "3", "0"]
+        if choice not in valid_options:
+            console.print("[red]Invalid option. Please try again.[/red]")
+            return
+
         if choice == "1":
             self.state.push_menu("group")
         elif choice == "2":
@@ -265,11 +253,15 @@ class InteractiveMenu:
             self.state.push_menu("settings")
         elif choice == "0":
             await self.confirm_exit()
-        else:
-            console.print("[red]Invalid option. Please try again.[/red]")
             
     async def handle_group_menu_choice(self, choice: str):
         """Handle group menu selections."""
+        # Valid options are derived from display_group_menu()
+        valid_options = ["1", "2", "3", "4", "0"]
+        if choice not in valid_options:
+            console.print("[red]Invalid option. Please try again.[/red]")
+            return
+
         if choice == "1":
             await self.set_target_group()
         elif choice == "2":
@@ -280,11 +272,15 @@ class InteractiveMenu:
             await self.test_categorization()
         elif choice == "0":
             self.state.pop_menu()
-        else:
-            console.print("[red]Invalid option. Please try again.[/red]")
             
     async def handle_monitor_menu_choice(self, choice: str):
         """Handle monitor menu selections."""
+        # Valid options are derived from display_monitor_menu()
+        valid_options = ["1", "2", "3", "4", "0"]
+        if choice not in valid_options:
+            console.print("[red]Invalid option. Please try again.[/red]")
+            return
+
         if choice == "1":
             await self.toggle_monitoring()
         elif choice == "2":
@@ -295,11 +291,15 @@ class InteractiveMenu:
             await self.configure_monitor_settings()
         elif choice == "0":
             self.state.pop_menu()
-        else:
-            console.print("[red]Invalid option. Please try again.[/red]")
             
     async def handle_settings_menu_choice(self, choice: str):
         """Handle settings menu selections."""
+        # Valid options are derived from display_settings_menu()
+        valid_options = ["1", "2", "3", "4", "5", "0"]
+        if choice not in valid_options:
+            console.print("[red]Invalid option. Please try again.[/red]")
+            return
+
         if choice == "1":
             await self.view_configuration()
         elif choice == "2":
@@ -312,8 +312,6 @@ class InteractiveMenu:
             await self.restore_settings()
         elif choice == "0":
             self.state.pop_menu()
-        else:
-            console.print("[red]Invalid option. Please try again.[/red]")
             
     async def confirm_exit(self):
         """Confirm exit and save settings."""
@@ -562,6 +560,7 @@ class InteractiveMenu:
         
         while self.running:
             try:
+                # Always clear screen at the start of a loop iteration
                 console.clear()
                 
                 # Display appropriate menu based on current state
@@ -586,19 +585,22 @@ class InteractiveMenu:
                     await self.handle_settings_menu_choice(choice)
                     
             except KeyboardInterrupt:
+                # Ctrl+C pressed
                 if self.state.current_menu != "main":
                     self.state.pop_menu()
                     console.print("\n[yellow]Going back...[/yellow]")
                 else:
                     console.print("\n[yellow]Use option 0 to exit safely[/yellow]")
                     
-                await asyncio.sleep(1)
-                continue
+                await asyncio.sleep(1) # Brief pause to let user read the message
+                continue # Re-starts the loop, causing console.clear()
                 
             except Exception as e:
                 logger.error(f"Error in menu loop: {e}", exc_info=True)
                 console.print(f"[red]Error: {e}[/red]")
                 console.print("[yellow]Press Enter to continue...[/yellow]")
+                # The input() will pause. When Enter is pressed, the loop restarts
+                # and console.clear() will happen.
                 input()
 
 # Main function to start interactive menu

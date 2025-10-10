@@ -9,7 +9,7 @@ from ..utils import (
     get_telegram_client, get_cache_manager, get_settings_manager,
     format_group_table, display_error, display_success, display_info,
     display_warning, ProgressSpinner, prompt_choice, prompt_text,
-    confirm_action, console
+    confirm_action, normalize_command_mappings, console
 )
 
 @click.group()
@@ -17,10 +17,10 @@ def group():
     """Manage groups and categorization."""
     pass
 
-@group.command()
+@group.command(name='list')
 @click.option('--refresh', is_flag=True, help='Refresh cache before listing')
 @click.option('--all', 'show_all', is_flag=True, help='Show all groups (not just admin)')
-def list(refresh, show_all):
+def list_groups(refresh, show_all):
     """List all groups where you have admin rights."""
     asyncio.run(_list_groups(refresh, show_all))
 
@@ -212,53 +212,38 @@ def map(action):
     """Manage command to topic/group mappings."""
     asyncio.run(_manage_mappings(action))
 
+async def _load_and_normalize_mappings() -> tuple[dict, 'SettingsManager']:
+    """Load settings and normalize mappings, handling potential data corruption."""
+    settings_manager = await get_settings_manager()
+    settings = settings_manager.load_user_settings()
+    
+    raw_mappings = settings.get('active_command_to_topic_map', {})
+    
+    # The normalize_command_mappings function now handles TypeError internally
+    # and returns an empty dict if the data is invalid.
+    from ..utils import normalize_command_mappings
+    mappings = normalize_command_mappings(raw_mappings)
+    
+    # If normalization cleared the mappings, it implies the data was corrupt.
+    # Save the cleaned (empty) mappings back to the settings file.
+    if not mappings and raw_mappings:
+        display_warning("Invalid mapping data detected; mappings have been reset.")
+        settings['active_command_to_topic_map'] = {}
+        settings_manager.save_user_settings(settings)
+        
+    return mappings, settings_manager
+
 async def _manage_mappings(action: str):
     """Manage mappings implementation."""
     try:
-        settings_manager = await get_settings_manager()
+        mappings, settings_manager = await _load_and_normalize_mappings()
         settings = settings_manager.load_user_settings()
-        
+
         group_id = settings.get('selected_target_group')
-        if not group_id and action != 'list':
+        if not group_id and action not in ['list']:
             display_error("No target group set. Use 'sakaibot group set' first.")
             return
-        
-        # For backward compatibility, convert old format to new format if needed
-        old_mappings = settings.get('active_command_to_topic_map', {})
-        # Ensure mappings is a dict to prevent type errors
-        mappings = old_mappings if isinstance(old_mappings, dict) else {}
-        
-        # Double-check that mappings is a dict to prevent type errors
-        if not isinstance(mappings, dict):
-            mappings = {}
-        
-        # Check if we have old format (command -> topic_id) or new format (topic_id -> [commands])
-        has_old_format = False
-        if mappings and len(mappings) > 0:
-            try:
-                # Get first value to check format
-                first_value = next(iter(mappings.values()))
-                # Check if the value is a simple type (int or None) indicating old format
-                if first_value is None or isinstance(first_value, int):
-                    # Old format: command_name -> topic_id
-                    has_old_format = True
-            except StopIteration:
-                # This shouldn't happen since we check len(mappings) > 0, but just in case
-                pass
-            except TypeError:
-                # Handle edge case where there's an issue with type checking
-                pass
-        
-        if has_old_format:
-            # Convert old format (command -> topic_id) to new format (topic_id -> [commands])
-            new_format = {}
-            for command, topic_id in mappings.items():
-                if topic_id not in new_format:
-                    new_format[topic_id] = []
-                new_format[topic_id].append(command)
-            settings['active_command_to_topic_map'] = new_format
-            mappings = new_format
-        
+
         if action == 'list':
             if not mappings:
                 display_info("No command mappings defined.")
@@ -287,29 +272,28 @@ async def _manage_mappings(action: str):
             
         elif action == 'add':
             # Add new mapping
-            command = prompt_text("Enter command (without /)")
-            if not command:
+            command_input = prompt_text("Enter command (without /)")
+            if not command_input:
+                display_error("Command cannot be empty")
+                return
+            canonical_command = command_input.strip().lower().lstrip('/')
+            if not canonical_command:
                 display_error("Command cannot be empty")
                 return
             
             # Check if command already exists
             existing_topic = None
-            try:
-                for topic_id, commands in mappings.items():
-                    if commands and isinstance(commands, list) and command in commands:
-                        existing_topic = topic_id
-                        break
-            except TypeError:
-                # Handle case where isinstance receives invalid arguments
-                display_warning("Invalid mapping data detected, resetting mappings")
-                mappings = {}
+            for topic_id, commands in mappings.items():
+                if commands and isinstance(commands, list) and canonical_command in commands:
+                    existing_topic = topic_id
+                    break
             
             if existing_topic is not None:
                 if existing_topic is None:
                     target = "Main Group Chat"
                 else:
                     target = f"Topic ID {existing_topic}"
-                display_warning(f"Command /{command} already maps to {target}. It will be updated.")
+                display_warning(f"Command /{canonical_command} already maps to {target}. It will be updated.")
             
             # Check if forum group
             cache_manager = await get_cache_manager()
@@ -354,74 +338,69 @@ async def _manage_mappings(action: str):
                         await client_manager.disconnect()
             
             # Remove command from any existing topic if it exists
-            try:
-                for existing_topic_id, commands in mappings.items():
-                    if commands and isinstance(commands, list) and command in commands:
-                        commands.remove(command)
-                        # Remove the topic key if it has no commands left
-                        if not commands:
-                            del mappings[existing_topic_id]
-                        break
-            except TypeError:
-                # Handle case where isinstance receives invalid arguments
-                display_warning("Invalid mapping data detected during cleanup, resetting mappings")
-                mappings = {}
-            
+            for existing_topic_id, commands in list(mappings.items()):
+                if not commands or not isinstance(commands, list):
+                    continue
+                if canonical_command in commands:
+                    commands[:] = [cmd for cmd in commands if cmd != canonical_command]
+                    if not commands:
+                        mappings.pop(existing_topic_id, None)
+                    break
+
             # Add command to the selected topic
-            if topic_id not in mappings:
-                mappings[topic_id] = []
-            mappings[topic_id].append(command)
-            
-            settings['active_command_to_topic_map'] = mappings
+            # Ensure the key exists before appending
+            mappings.setdefault(topic_id, []).append(canonical_command)
+
+            normalized_mappings = normalize_command_mappings(mappings)
+            settings['active_command_to_topic_map'] = normalized_mappings
             settings_manager.save_user_settings(settings)
             
             target = "Main Group Chat" if topic_id is None else f"Topic ID {topic_id}"
-            display_success(f"Mapping added: /{command} → {target}")
+            display_success(f"Mapping added: /{canonical_command} -> {target}")
             
         elif action == 'remove':
             if not mappings:
                 display_info("No mappings to remove.")
                 return
             
-            # Flatten the mappings to show all command-topic pairs for selection
-            all_mappings = []
+            mapping_entries: List[Dict[str, Any]] = []
             for topic_id, commands in mappings.items():
-                if commands and isinstance(commands, list):
-                    for command in commands:
-                        if command is not None:  # Check if command is not None
-                            if topic_id is None:
-                                target = "Main Group Chat"
-                            else:
-                                target = f"Topic ID: {topic_id}"
-                            all_mappings.append(f"/{command} → {target}")
+                if not commands or not isinstance(commands, list):
+                    continue
+                for command in commands:
+                    if not isinstance(command, str) or not command:
+                        continue
+                    target_label = "Main Group Chat" if topic_id is None else f"Topic ID {topic_id}"
+                    mapping_entries.append({
+                        "topic_id": topic_id,
+                        "command": command,
+                        "label": f"/{command} -> {target_label}"
+                    })
             
-            if not all_mappings:
+            if not mapping_entries:
                 display_info("No mappings to remove.")
                 return
             
-            selection = prompt_choice("Select mapping to remove:", all_mappings)
+            selection = prompt_choice(
+                "Select mapping to remove:",
+                [entry["label"] for entry in mapping_entries]
+            )
             
-            # Find the command and topic to remove
-            for topic_id, commands in mappings.items():
-                if commands and isinstance(commands, list):
-                    for command in commands:
-                        if command is not None:
-                            if topic_id is None:
-                                target = "Main Group Chat"
-                            else:
-                                target = f"Topic ID: {topic_id}"
-                            
-                            if f"/{command} → {target}" == selection:
-                                commands.remove(command)
-                                # Remove the topic key if it has no commands left
-                                if not commands:
-                                    del mappings[topic_id]
-                                break
-                    else:
-                        continue
-                    break
+            selected_entry = next((entry for entry in mapping_entries if entry["label"] == selection), None)
+            if not selected_entry:
+                display_warning("Selected mapping could not be found. No changes made.")
+                return
             
-            settings['active_command_to_topic_map'] = mappings
+            topic_id = selected_entry["topic_id"]
+            command_to_remove = selected_entry["command"]
+            command_list = mappings.get(topic_id, [])
+            if isinstance(command_list, list):
+                command_list[:] = [cmd for cmd in command_list if cmd != command_to_remove]
+                if not command_list:
+                    mappings.pop(topic_id, None)
+            
+            normalized_mappings = normalize_command_mappings(mappings)
+            settings['active_command_to_topic_map'] = normalized_mappings
             settings_manager.save_user_settings(settings)
             
             display_success(f"Mapping removed: {selection}")

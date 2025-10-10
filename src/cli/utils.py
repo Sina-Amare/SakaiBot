@@ -176,6 +176,43 @@ def normalize_command_mappings(raw_mappings: Any) -> Dict[Any, List[str]]:
         command strings.
     """
     normalized: Dict[Any, List[str]] = {}
+    has_invalid_keys = False
+
+    def _normalize_topic_key(topic_key: Any) -> Optional[Any]:
+        """Convert persisted topic identifiers back to their runtime form."""
+        nonlocal has_invalid_keys
+        if topic_key is None:
+            return None
+        if isinstance(topic_key, int):
+            return topic_key
+        if isinstance(topic_key, str):
+            stripped = topic_key.strip()
+            if not stripped:
+                return None
+            lowered = stripped.lower()
+            if lowered in {"none", "null", "main", "main chat", "main group chat"}:
+                return None
+            try:
+                return int(stripped)
+            except ValueError:
+                has_invalid_keys = True
+                return None
+        has_invalid_keys = True
+        return None
+
+    def _clean_command_list(commands: List[Any]) -> List[str]:
+        """Return a deduplicated, lower-case list of commands."""
+        cleaned_commands: List[str] = []
+        seen: set[str] = set()
+        for cmd in commands:
+            if not isinstance(cmd, str):
+                continue
+            cleaned = cmd.strip().lower()
+            if not cleaned or cleaned in seen:
+                continue
+            seen.add(cleaned)
+            cleaned_commands.append(cleaned)
+        return cleaned_commands
 
     if not raw_mappings or not isinstance(raw_mappings, dict):
         return normalized
@@ -183,51 +220,68 @@ def normalize_command_mappings(raw_mappings: Any) -> Dict[Any, List[str]]:
     values = list(raw_mappings.values())
 
     # New format: topic_id -> list of commands (allowing None for topic_id).
-    try:
-        if values and all(isinstance(v, list) or v is None for v in values):
-            for topic_id, commands in raw_mappings.items():
-                if isinstance(commands, list):
-                    cleaned = [cmd.strip() for cmd in commands if isinstance(cmd, str) and cmd.strip()]
-                else:
-                    cleaned = []
-                if cleaned:
-                    normalized[topic_id] = cleaned
-            return normalized
-    except TypeError:
-        # Handle edge case where isinstance gets invalid arguments
-        pass
+    is_new_format = True
+    if values:
+        for v in values:
+            if v is not None and not isinstance(v, list):
+                is_new_format = False
+                break
+    
+    if is_new_format:
+        for topic_id, commands in raw_mappings.items():
+            if not isinstance(commands, list):
+                continue
+            cleaned_commands = _clean_command_list(commands)
+            normalized_topic = _normalize_topic_key(topic_id)
+            if normalized_topic is None and topic_id not in (None, "None", "null"):
+                # Skip invalid topics that we could not normalise.
+                continue
+            if cleaned_commands:
+                normalized[normalized_topic] = cleaned_commands
+        return normalized
 
     # Legacy format: command -> topic_id (int/None).
-    try:
-        if not values or all(isinstance(v, (int, type(None))) for v in values):
-            for command, topic_id in raw_mappings.items():
-                if not isinstance(command, str):
-                    continue
-                cleaned_command = command.strip()
-                if not cleaned_command:
-                    continue
-                normalized.setdefault(topic_id, [])
-                if cleaned_command not in normalized[topic_id]:
-                    normalized[topic_id].append(cleaned_command)
-            return normalized
-    except TypeError:
-        # Handle edge case where isinstance gets invalid arguments
-        pass
+    is_legacy_format = True
+    if values:
+        for v in values:
+            if v is not None and not isinstance(v, int):
+                is_legacy_format = False
+                break
+    
+    if is_legacy_format:
+        for command, topic_id in raw_mappings.items():
+            if not isinstance(command, str):
+                continue
+            cleaned_command = command.strip().lower()
+            if not cleaned_command:
+                continue
+            normalized_topic = _normalize_topic_key(topic_id)
+            if normalized_topic is None and topic_id not in (None, "None", "null"):
+                continue
+            normalized.setdefault(normalized_topic, [])
+            if cleaned_command not in normalized[normalized_topic]:
+                normalized[normalized_topic].append(cleaned_command)
+        return normalized
 
     # Mixed/unknown formats: best effort sanitisation.
     try:
         for key, value in raw_mappings.items():
+            normalized_topic = _normalize_topic_key(key if isinstance(value, list) else value)
             if isinstance(value, list):
-                cleaned = [cmd.strip() for cmd in value if isinstance(cmd, str) and cmd.strip()]
-                if cleaned:
-                    normalized[key] = cleaned
-            elif isinstance(value, (int, type(None))) and isinstance(key, str):
-                cleaned_command = key.strip()
-                if cleaned_command:
-                    normalized.setdefault(value, []).append(cleaned_command)
+                cleaned_commands = _clean_command_list(value)
+                if cleaned_commands and (normalized_topic is not None or key in (None, "None", "null")):
+                    normalized[normalized_topic] = cleaned_commands
+            elif isinstance(key, str):
+                cleaned_command = key.strip().lower()
+                if cleaned_command and (normalized_topic is not None or value in (None, "None", "null")):
+                    normalized.setdefault(normalized_topic, []).append(cleaned_command)
     except TypeError:
         # Handle edge case where isinstance gets invalid arguments
-        pass
+        display_warning("Invalid mapping data detected, resetting mappings")
+        return {}
+
+    if has_invalid_keys:
+        display_warning("Some topic mappings referenced invalid topic identifiers and were ignored.")
 
     return normalized
 

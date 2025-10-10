@@ -160,9 +160,12 @@ class InteractiveMenu:
         else:
             group_info = "None selected"
             
-        active_command_to_topic_map = settings.get('active_command_to_topic_map')
+        from .utils import normalize_command_mappings
+        active_command_to_topic_map = normalize_command_mappings(
+            settings.get('active_command_to_topic_map')
+        )
         # Add safe check for NoneType
-        if active_command_to_topic_map and isinstance(active_command_to_topic_map, dict):
+        if active_command_to_topic_map:
             # Count total mappings safely
             mappings_count = 0
             for commands_list in active_command_to_topic_map.values():

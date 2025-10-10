@@ -12,7 +12,7 @@ from rich.text import Text
 from ..utils import (
     get_telegram_client, get_settings_manager,
     display_error, display_success, display_info, display_warning,
-    console
+    normalize_command_mappings, console
 )
 
 # Global monitoring state
@@ -116,13 +116,15 @@ async def _start_monitoring(verbose: bool):
             if verbose:
                 console.print(f"[cyan]Owner command detected: {event.text[:50]}...[/cyan]")
             
+            replied_message = await event.message.get_reply_message() if event.message.is_reply else None
+            
             await event_handlers.process_command_logic(
                 message_to_process=event.message,
                 client=client,
                 current_chat_id_for_response=event.chat_id,
                 is_confirm_flow=False,
                 your_confirm_message=None,
-                actual_message_for_categorization_content=event.message,
+                actual_message_for_categorization_content=replied_message,
                 cli_state_ref={
                     'selected_target_group': cli_state.selected_target_group,
                     'active_command_to_topic_map': cli_state.active_command_to_topic_map,
@@ -232,7 +234,7 @@ async def _show_monitoring_status():
         
         # Categorization
         target_group = settings.get('selected_target_group')
-        mappings = settings.get('active_command_to_topic_map', {})
+        mappings = normalize_command_mappings(settings.get('active_command_to_topic_map', {}))
         
         if target_group and mappings:
             cat_status = "[green]✓ Ready[/green]"

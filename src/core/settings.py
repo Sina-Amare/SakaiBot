@@ -42,9 +42,17 @@ class SettingsManager:
                 loaded_value = settings_data.get(key, default_value)
                 
                 # Validate data types
-                if key == "active_command_to_topic_map" and not isinstance(loaded_value, dict):
-                    self._logger.warning(f"Loaded '{key}' is not a dict. Resetting to default")
-                    loaded_value = {}
+                if key == "active_command_to_topic_map":
+                    if not isinstance(loaded_value, dict):
+                        self._logger.warning(f"Loaded '{key}' is not a dict. Resetting to default")
+                        loaded_value = {}
+                    else:
+                        # Further validate the contents of the command map
+                        from ..cli.utils import normalize_command_mappings
+                        normalized = normalize_command_mappings(loaded_value)
+                        if normalized != loaded_value:
+                            self._logger.warning(f"Loaded '{key}' had an invalid format and was normalized.")
+                            loaded_value = normalized
                 elif key == "directly_authorized_pvs" and not isinstance(loaded_value, list):
                     self._logger.warning(f"Loaded '{key}' is not a list. Resetting to default")
                     loaded_value = []

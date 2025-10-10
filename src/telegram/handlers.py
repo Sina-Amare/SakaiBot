@@ -748,8 +748,24 @@ class EventHandlers:
         if not (message.is_reply and message.text and message.text.startswith('/')):
             return
         
-        categorization_group_id = cli_state_ref.get("selected_target_group", {}).get('id')
+        if actual_message_content is None:
+            try:
+                actual_message_content = await message.get_reply_message()
+            except Exception as fetch_err:
+                self._logger.warning(f"Unable to fetch replied message for categorization: {fetch_err}")
+                actual_message_content = None
+        
+        # Handle both old format (int) and new format (dict) for selected_target_group
+        selected_target_group = cli_state_ref.get("selected_target_group", {})
+        if isinstance(selected_target_group, dict):
+            categorization_group_id = selected_target_group.get('id')
+        else:
+            # Old format - selected_target_group is just the group ID
+            categorization_group_id = selected_target_group
         command_topic_map = cli_state_ref.get("active_command_to_topic_map", {})
+        if not isinstance(command_topic_map, dict):
+            self._logger.warning("Active command-to-topic map is malformed; skipping categorization.")
+            return
         
         if not categorization_group_id or not command_topic_map:
             self._logger.debug("Categorization target group or command map not set")
@@ -757,14 +773,34 @@ class EventHandlers:
         
         command_for_categorization = message.text[1:].lower().strip()
         
-        # Check if command exists in the mapping (new format)
+        # Check if command exists in the mapping (handles both new and legacy formats)
         target_topic_id = None
-        for topic_id, commands in command_topic_map.items():
-            if command_for_categorization in commands:
-                target_topic_id = topic_id
-                break
-        
-        if target_topic_id is not None or command_for_categorization in (cmd for cmds in command_topic_map.values() for cmd in cmds):
+        is_command_mapped = False
+
+        # New format: {topic_id: [commands]}
+        if any(isinstance(v, list) for v in command_topic_map.values()):
+            for topic_id, commands in command_topic_map.items():
+                if not isinstance(commands, list):
+                    continue
+                if isinstance(topic_id, str):
+                    try:
+                        topic_id_int = int(topic_id)
+                    except ValueError:
+                        self._logger.warning(f"Ignoring mapping with invalid topic identifier '{topic_id}'.")
+                        continue
+                else:
+                    topic_id_int = topic_id
+                if command_for_categorization in commands:
+                    target_topic_id = topic_id_int
+                    is_command_mapped = True
+                    break
+        # Legacy format: {command: topic_id}
+        else:
+            if command_for_categorization in command_topic_map:
+                target_topic_id = command_topic_map[command_for_categorization]
+                is_command_mapped = True
+
+        if is_command_mapped:
             self._logger.info(f"Processing categorization command '/{command_for_categorization}'")
             
             if not actual_message_content:

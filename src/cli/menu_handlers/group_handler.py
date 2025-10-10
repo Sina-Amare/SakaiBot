@@ -148,8 +148,13 @@ class GroupMenuHandler:
                 
                 selected_group = None
                 if groups and isinstance(groups, list):
+                    # Get the group ID - could be stored as int or dict
+                    target_group_id = settings['selected_target_group']
+                    if isinstance(target_group_id, dict):
+                        target_group_id = target_group_id.get('id')
+                    
                     for group in groups:
-                        if group and isinstance(group, dict) and group.get('id') == settings['selected_target_group']:
+                        if group and isinstance(group, dict) and group.get('id') == target_group_id:
                             selected_group = group
                             break
                 

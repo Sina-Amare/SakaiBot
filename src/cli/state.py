@@ -8,10 +8,25 @@ class CLIState:
     
     def __init__(self, config: Config):
         self.config = config
-        self.selected_target_group: Optional[Dict[str, Any]] = None
-        self.active_command_to_topic_map: Dict[str, Any] = {}
+        self._raw_selected_target_group: Optional[Any] = None
+        self._selected_target_group: Optional[Dict[str, Any]] = None
+        self._active_command_to_topic_map: Dict[Any, List[str]] = {}
         self.directly_authorized_pvs: List[Any] = []
         self.is_monitoring_active: bool = False
+    
+    @property
+    def selected_target_group(self) -> Optional[Dict[str, Any]]:
+        """Get normalized selected target group."""
+        from ..cli.utils import normalize_selected_group
+        if self._selected_target_group is None and self._raw_selected_target_group is not None:
+            self._selected_target_group = normalize_selected_group(self._raw_selected_target_group)
+        return self._selected_target_group
+    
+    @selected_target_group.setter
+    def selected_target_group(self, value: Optional[Any]):
+        """Set raw selected target group value."""
+        self._raw_selected_target_group = value
+        self._selected_target_group = None  # Reset cached normalized value
         
     @property
     def can_categorize(self) -> bool:
@@ -38,3 +53,14 @@ class CLIState:
             self.can_use_ai or 
             len(self.directly_authorized_pvs) > 0
         )
+    @property
+    def active_command_to_topic_map(self) -> Dict[Any, List[str]]:
+        """Get normalized command-to-topic mappings."""
+        return self._active_command_to_topic_map
+    
+    @active_command_to_topic_map.setter
+    def active_command_to_topic_map(self, value: Any):
+        """Normalise and set command-to-topic mappings."""
+        from .utils import normalize_command_mappings
+        self._active_command_to_topic_map = normalize_command_mappings(value)
+    

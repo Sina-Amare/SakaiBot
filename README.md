@@ -6,7 +6,7 @@ Advanced Telegram userbot with AI capabilities, message automation, and powerful
 
 - **🤖 AI Integration** - Multiple LLM providers (OpenRouter, Google Gemini)
 - **💬 Smart Commands** - Custom prompts, translations, conversation analysis
-- **🎤 Voice Processing** - Speech-to-text and text-to-speech
+- **🎤 Voice Processing** - Speech-to-text and text-to-speech (including high-quality Persian TTS)
 - **📨 Message Management** - Automated categorization and forwarding
 - **🔐 Security** - Multi-level authorization and confirmation flows
 - **🎨 Modern CLI** - Rich terminal interface with colors and progress indicators
@@ -64,6 +64,26 @@ sakaibot pv refresh           # Update from Telegram
 sakaibot ai test              # Test AI configuration
 sakaibot ai translate "Hello" fa  # Translate text
 sakaibot ai prompt "Explain Python"  # Custom prompt
+```
+
+### Text-to-Speech (TTS)
+
+The `/tts` command converts text to speech. It uses Microsoft's high-quality neural voices for free and reliable TTS.
+
+**Persian TTS:**
+
+To convert Persian text to speech, use the `/tts` command:
+
+```
+/tts سلام، حال شما چطوره؟
+```
+
+**Other Languages:**
+
+You can also specify a different language and voice:
+
+```
+/tts voice=en-US-JennyNeural Hello, how are you?
 ```
 
 ### Start Monitoring

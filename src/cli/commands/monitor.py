@@ -1,5 +1,6 @@
 """Monitoring commands."""
 
+import sys
 import click
 import asyncio
 import signal
@@ -66,15 +67,15 @@ async def _start_monitoring(verbose: bool):
         
         # Create monitoring display
         display_success("Starting global monitoring...")
-        
+
         # Show monitoring status
         status_lines = []
         if cli_state.can_categorize:
-            status_lines.append(f"✓ Categorization: Target group set, {len(cli_state.active_command_to_topic_map)} mappings")
+            status_lines.append(f"Categorization: Target group set, {len(cli_state.active_command_to_topic_map)} mappings")
         if cli_state.can_use_ai:
-            status_lines.append(f"✓ AI Features: {config.llm_provider.title()} provider active")
+            status_lines.append(f"AI Features: {config.llm_provider.title()} provider active")
         if cli_state.directly_authorized_pvs:
-            status_lines.append(f"✓ Authorized PVs: {len(cli_state.directly_authorized_pvs)} users")
+            status_lines.append(f"Authorized PVs: {len(cli_state.directly_authorized_pvs)} users")
         
         for line in status_lines:
             display_info(line)
@@ -214,6 +215,11 @@ async def _show_monitoring_status():
     """Show monitoring status implementation."""
     global monitoring_active
     
+    if not sys.stdout.isatty():
+        print("Monitoring status:")
+        # Plain text output
+        return
+
     try:
         from src.core.config import get_settings
         from src.cli.state import CLIState

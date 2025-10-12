@@ -113,13 +113,13 @@ Convert voice messages to text:
 - Reply to a voice message with `/stt`
 - The bot will transcribe the voice message and provide an AI summary
 
-#### `/tts` or `/speak` - Text-to-Speech
+#### `/tts` - Text-to-Speech
 
 Convert text to voice messages:
 
-- Usage: `/tts [params] <text>` or reply to a text message with `/tts [params]`
-- Parameters: `voice=<voice_id>`, `rate=<±N%>`, `volume=<±N%>`
-- Example: `/tts voice=en-US-JennyNeural rate=-10% Hello world`
+- Usage: `/tts <persian_text>` or reply to a text message with `/tts`.
+- The bot will convert the Persian text into a voice message.
+- Example: `/tts سلام، حال شما چطوره؟`
 
 ### Categorization Commands
 

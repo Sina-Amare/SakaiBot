@@ -134,25 +134,44 @@ class OpenRouterProvider(LLMProvider):
             response_text = None
             
             # Check if we have choices and extract content
-            if completion and hasattr(completion, 'choices') and completion.choices:
+            if completion and hasattr(completion, "choices") and completion.choices:
                 choice = completion.choices[0]
-                if hasattr(choice, 'message') and choice.message:
-                    if hasattr(choice.message, 'content') and choice.message.content:
-                        response_text = choice.message.content.strip()
-                        self._logger.info(f"Got response text: {len(response_text)} chars")
-                    else:
-                        self._logger.warning("Message content is None or empty")
+                message = getattr(choice, "message", None)
+                content = getattr(message, "content", None)
+
+                if isinstance(content, str):
+                    response_text = content.strip()
+                elif isinstance(content, list):
+                    extracted_parts = []
+                    for part in content:
+                        text_part = ""
+                        if hasattr(part, "text"):
+                            text_part = part.text
+                        elif isinstance(part, dict):
+                            text_part = part.get("text", "")
+                        if text_part:
+                            extracted_parts.append(text_part)
+                    if extracted_parts:
+                        response_text = "\n".join(extracted_parts).strip()
+                elif content is None and hasattr(choice, "delta"):
+                    delta_content = getattr(choice.delta, "content", None)
+                    if isinstance(delta_content, str):
+                        response_text = delta_content.strip()
+
+                if response_text:
+                    self._logger.info(f"Got response text: {len(response_text)} chars")
                 else:
-                    self._logger.warning("No message in choice")
+                    self._logger.warning("Message content is None or empty")
             else:
                 self._logger.warning("No choices in completion response")
             
-            # Provide fallback if no response
             if not response_text:
                 self._logger.error(f"Could not extract text from completion. Type: {type(completion)}")
                 if completion and hasattr(completion, 'model'):
                     self._logger.error(f"Model used: {completion.model}")
-                response_text = "I received your request but couldn't generate a proper response. The API may be experiencing issues or the content may have been filtered. Please try again."
+                raise AIProcessorError(
+                    "OpenRouter did not return any content for the request. The response may have been filtered or the model is unavailable."
+                )
             
             self._logger.info(
                 f"OpenRouter model '{self._model}' processing complete. Response length: {len(response_text)} chars"

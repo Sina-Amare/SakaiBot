@@ -4,11 +4,13 @@ import asyncio
 import os
 import re
 from typing import Dict, Any, Optional, List, Tuple
+import re
 from pathlib import Path
 
 from telethon import TelegramClient, events, functions
 from telethon.tl.types import Message
 from pydub import AudioSegment
+from hazm import Normalizer
 
 from ..core.constants import MAX_MESSAGE_LENGTH, CONFIRMATION_KEYWORD, DEFAULT_TTS_VOICE
 from ..core.exceptions import TelegramError, AIProcessorError
@@ -34,8 +36,29 @@ class EventHandlers:
         self._tts_processor = tts_processor
         self._ffmpeg_path = ffmpeg_path
         self._logger = get_logger(self.__class__.__name__)
+        self._normalizer = Normalizer()
+
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text for TTS processing."""
+        return self._normalizer.normalize(text)
     
     async def _setup_ffmpeg_path(self) -> Tuple[bool, str]:
+        """Setup FFmpeg path for audio processing."""
+        original_path = os.environ.get("PATH", "")
+        path_modified = False
+        
+        if self._ffmpeg_path and Path(self._ffmpeg_path).is_file():
+            ffmpeg_dir = str(Path(self._ffmpeg_path).parent)
+            if ffmpeg_dir not in original_path.split(os.pathsep):
+                self._logger.info(f"Adding '{ffmpeg_dir}' to PATH for pydub")
+                os.environ["PATH"] = ffmpeg_dir + os.pathsep + original_path
+                path_modified = True
+            else:
+                self._logger.info(f"FFmpeg directory '{ffmpeg_dir}' already in PATH")
+        else:
+            self._logger.info("FFmpeg path not configured. pydub will try to find ffmpeg in system PATH")
+        
+        return path_modified, original_path
         """Setup FFmpeg path for audio processing."""
         original_path = os.environ.get("PATH", "")
         path_modified = False
@@ -72,7 +95,7 @@ class EventHandlers:
         
         thinking_msg = await client.send_message(
             chat_id,
-            f"🎧 Processing voice message from {command_sender_info} (Step 1: Transcribing)...",
+            f"🎧 در حال پردازش پیام صوتی {command_sender_info} (گام ۱: تبدیل به متن)...",
             reply_to=reply_to_id
         )
         
@@ -108,23 +131,25 @@ class EventHandlers:
             # Update message with transcription
             await client.edit_message(
                 thinking_msg,
-                f"🎤 **Transcribed Text:**\n{transcribed_text}\n\n"
-                f"⏳ (Step 2: AI Summarization & Analysis)..."
+                f"📝 **متن پیاده‌سازی شده:**\n{transcribed_text}\n\n"
+                f"⏳ (گام ۲: خلاصه‌سازی و تحلیل هوش مصنوعی)..."
             )
             
+            summary_text = None
             # Generate AI summary if AI is configured
+            summary_prompt = (
+                "این متن نسخهٔ پیاده‌سازی شدهٔ یک پیام صوتی فارسی است. "
+                "در دو جملهٔ کوتاه، جمع‌بندی دقیق و مرتبطی ارائه بده که مکمل پیام باشد. "
+                "از فهرست و جزئیات اضافه پرهیز کن، فقط بگو گوینده چه می‌گوید یا چه هدفی دارد.\n\n"
+                f"متن پیاده‌سازی:\n{transcribed_text}"
+            )
+            system_message = (
+                "تو یک تحلیل‌گر حرفه‌ای گفتگوهای صوتی فارسی هستی. "
+                "همیشه پاسخ را به زبان فارسی و با لحن محترمانه بنویس. "
+                "اگر جایی حدس می‌زنی، شفاف بگو که حدس است و دلیل آن را کوتاه توضیح بده."
+            )
+
             if self._ai_processor.is_configured:
-                summary_prompt = (
-                    f"The following text was transcribed from a voice message. "
-                    f"Please provide a clear and concise summary of its main points "
-                    f"in a few short sentences (in Persian if the original voice was Persian, "
-                    f"otherwise in the detected language of the text):\n\n"
-                    f"---\n{transcribed_text}\n---\n\n"
-                    f"Summary:"
-                )
-                
-                system_message = "You are a helpful assistant that summarizes texts accurately and concisely."
-                
                 try:
                     summary_text = await self._ai_processor.execute_custom_prompt(
                         user_prompt=summary_prompt,
@@ -133,15 +158,32 @@ class EventHandlers:
                         temperature=0.5
                     )
                 except AIProcessorError as e:
-                    self._logger.error(f"AI summarization failed: {e}")
-                    summary_text = f"AI Error: {e}"
+                    self._logger.error(f"AI summarization failed via primary provider: {e}")
+                    summary_text = await self._generate_persian_summary_with_gemini(transcribed_text)
+                    if not summary_text:
+                        summary_text = f"AI Error: {e}"
             else:
-                summary_text = "AI features not configured for summarization."
+                summary_text = await self._generate_persian_summary_with_gemini(transcribed_text)
+                if not summary_text:
+                    summary_text = "AI features not configured for summarization."
             
+            if not summary_text or summary_text.startswith("AI Error"):
+                fallback_summary = await self._generate_persian_summary_with_gemini(transcribed_text)
+                if fallback_summary:
+                    summary_text = fallback_summary
+                elif not summary_text:
+                    summary_text = "خلاصه‌ای در دسترس نبود."
+
+            if summary_text:
+                cleaned_lines = [line.strip() for line in summary_text.splitlines() if line.strip()]
+                if cleaned_lines:
+                    summary_text = " ".join(cleaned_lines)
+                summary_text = self._trim_summary_text(summary_text)
+
             # Prepare final response
             final_response = (
-                f"🎤 **Transcribed Text:**\n{transcribed_text}\n\n"
-                f"🔍 **AI Summary & Analysis:**\n{summary_text}"
+                f"📝 **متن پیاده‌سازی شده:**\n{transcribed_text}\n\n"
+                f"🔍 **جمع‌بندی و تحلیل هوش مصنوعی:**\n{summary_text}"
             )
             
             # Truncate if too long
@@ -169,6 +211,78 @@ class EventHandlers:
             # Clean up temporary files
             clean_temp_files(downloaded_voice_path, converted_wav_path)
     
+    async def _generate_persian_summary_with_gemini(self, transcribed_text: str) -> Optional[str]:
+        """Fallback summarization using Google Gemini if available."""
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return None
+        
+        model_name = os.getenv("GEMINI_SUMMARY_MODEL", "gemini-1.5-flash-latest")
+        prompt = (
+            "متن پیاده‌سازی‌شده یک پیام صوتی فارسی در ادامه آمده است. "
+            "در یک پاراگراف کوتاه، جمع‌بندی روان و دقیق ارائه بده. "
+            "از تیتر یا بولت استفاده نکن و اگر بخشی مبهم است خیلی کوتاه در همان پاراگراف توضیح بده.\n\n"
+            f"{transcribed_text}"
+        )
+        
+        def _call_gemini() -> Optional[str]:
+            import google.generativeai as genai
+            
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            
+            candidate = getattr(response, "text", None)
+            if candidate and candidate.strip():
+                return candidate.strip()
+            
+            parts = getattr(response, "candidates", None)
+            if not parts:
+                return None
+            
+            try:
+                text_parts = []
+                for part in response.candidates:
+                    if hasattr(part, "content") and part.content:
+                        for item in part.content.parts:
+                            text_value = getattr(item, "text", None)
+                            if text_value:
+                                text_parts.append(text_value)
+                combined = " ".join(text_parts).strip()
+                return combined or None
+            except Exception:
+                return None
+        
+        try:
+            result = await asyncio.to_thread(_call_gemini)
+            if result:
+                return result
+        except Exception as exc:
+            self._logger.error(f"Gemini fallback summarization failed: {exc}", exc_info=True)
+        return None
+
+    def _trim_summary_text(self, text: str) -> str:
+        """Normalize summary text to two concise Persian sentences."""
+        normalized = (
+            text.replace("<|begin_of_sentence|>", "")
+            .replace("<|end_of_sentence|>", "")
+            .replace("<｜begin▁of▁sentence｜>", "")
+            .replace("<｜end▁of▁sentence｜>", "")
+        ).strip()
+        sentences = re.split(r"(?<=[.!؟])\s+", normalized)
+        kept: List[str] = []
+        blacklist = ("اگر", "خوشحال", "لطفاً اطلاعات بیشتر", "اگر نیاز")
+        for sentence in sentences:
+            s = sentence.strip()
+            if not s:
+                continue
+            if any(phrase in s for phrase in blacklist):
+                continue
+            kept.append(s)
+            if len(kept) == 2:
+                break
+        return " ".join(kept) if kept else normalized
+    
     async def _process_tts_command(
         self,
         event_message: Message,
@@ -187,7 +301,7 @@ class EventHandlers:
         
         thinking_msg = await client.send_message(
             chat_id,
-            f"🗣️ Converting text to speech for {command_sender_info} using Edge-TTS (Voice: {voice_id})...",
+            f"🗣️ در حال تبدیل متن به گفتار برای {command_sender_info}...",
             reply_to=reply_to_id
         )
         
@@ -207,17 +321,37 @@ class EventHandlers:
             if success and Path(temp_output_filename).exists():
                 self._logger.info(f"Speech generated successfully: {temp_output_filename}. Sending voice message")
                 
+                provider_used = getattr(self._tts_processor, "_last_provider", "unknown")
+                if provider_used == "huggingface":
+                    caption_provider = "Hugging Face FastSpeech2"
+                elif provider_used == "google_translate":
+                    caption_provider = "Google Translate"
+                else:
+                    caption_provider = "نامشخص"
+                
+                await client.edit_message(
+                    thinking_msg,
+                    f"✅ تبدیل متن به گفتار با موفقیت انجام شد (ارائه‌دهنده: {caption_provider})."
+                )
+                
                 await client.send_file(
                     chat_id,
                     temp_output_filename,
                     voice_note=True,
                     reply_to=reply_to_id,
-                    caption=f"🎤️ Speech for: \"{text_to_speak[:100]}{'...' if len(text_to_speak) > 100 else ''}\" (using Edge-TTS)"
+                    caption=(
+                        f"🎤️ خروجی گفتار برای متن:\n"
+                        f"\"{text_to_speak[:100]}{'...' if len(text_to_speak) > 100 else ''}\"\n"
+                        f"(تولید شده با {caption_provider})"
+                    )
                 )
                 
+                # Delete the status message after sending the voice note
                 await thinking_msg.delete()
             else:
-                error_msg = "Failed to generate speech file"
+                error_msg = getattr(self._tts_processor, "last_error", None)
+                if not error_msg:
+                    error_msg = "تبدیل متن به گفتار انجام نشد. لطفاً بعداً دوباره تلاش کنید."
                 self._logger.error(f"TTS Error: {error_msg}")
                 await client.edit_message(thinking_msg, f"⚠️ TTS Error: {error_msg}")
         
@@ -541,28 +675,28 @@ class EventHandlers:
         sender_info: str
     ) -> None:
         """Handle TTS command processing."""
+        print(f"TTS HANDLER RECEIVED MESSAGE: {message}")
         command_text = message.text.strip() if message.text else ""
-        
-        # Parse TTS parameters and text
-        params, text_to_speak = parse_command_with_params(command_text, "/tts")
-        if not text_to_speak:
-            params, text_to_speak = parse_command_with_params(command_text, "/speak")
-        
-        # Get voice parameters
-        voice = params.get("voice", DEFAULT_TTS_VOICE)
-        rate = params.get("rate", "+0%")
-        volume = params.get("volume", "+0%")
-        
-        # If no text provided, check if replying to a message
-        if not text_to_speak and message.is_reply:
+        text_to_speak = None
+        params = {}
+
+        if message.is_reply:
             replied_message = await message.get_reply_message()
             if replied_message and replied_message.text:
                 text_to_speak = replied_message.text.strip()
-        
+            # in a reply, the command text is just for parameters
+            params, _ = parse_command_with_params(command_text, "/tts")
+            if not _:
+                params, _ = parse_command_with_params(command_text, "/speak")
+        else:
+            params, text_to_speak = parse_command_with_params(command_text, "/tts")
+            if not text_to_speak:
+                params, text_to_speak = parse_command_with_params(command_text, "/speak")
+
         if not text_to_speak:
             await client.send_message(
                 chat_id,
-                "Usage: /tts [params] <text> OR reply with /tts [params]\n"
+                "Usage: /tts [params] <text> OR reply to a message with /tts [params]\n"
                 "Params: voice=<voice_id> rate=<±N%> volume=<±N%>\n"
                 f"Example: /tts voice=en-US-JennyNeural rate=-10% Hello world\n"
                 f"(Default Persian voice: {DEFAULT_TTS_VOICE})",
@@ -570,7 +704,15 @@ class EventHandlers:
                 parse_mode='md'
             )
             return
-        
+
+        # Get voice parameters
+        voice = params.get("voice", DEFAULT_TTS_VOICE)
+        rate = params.get("rate", "+0%")
+        volume = params.get("volume", "+0%")
+
+        # Normalize the text
+        normalized_text = self._normalize_text(text_to_speak)
+
         self._logger.info(
             f"Creating task for /tts command from '{sender_info}'. "
             f"Voice: {voice}, Rate: {rate}, Volume: {volume}"
@@ -578,7 +720,33 @@ class EventHandlers:
         
         asyncio.create_task(
             self._process_tts_command(
-                message, client, sender_info, text_to_speak, voice, rate, volume
+                message, client, sender_info, normalized_text, voice, rate, volume
+            )
+        )
+
+        if not text_to_speak:
+            await client.send_message(
+                chat_id,
+                "Usage: /tts [params] <text> OR reply to a message with /tts [params]\n"
+                "Params: voice=<voice_id> rate=<±N%> volume=<±N%>\n"
+                f"Example: /tts voice=en-US-JennyNeural rate=-10% Hello world\n"
+                f"(Default Persian voice: {DEFAULT_TTS_VOICE})",
+                reply_to=message.id,
+                parse_mode='md'
+            )
+            return
+
+        # TODO: Add text normalization logic here
+        normalized_text = self._normalize_text(text_to_speak)
+
+        self._logger.info(
+            f"Creating task for /tts command from '{sender_info}'. "
+            f"Voice: {voice}, Rate: {rate}, Volume: {volume}"
+        )
+        
+        asyncio.create_task(
+            self._process_tts_command(
+                message, client, sender_info, normalized_text, voice, rate, volume
             )
         )
     

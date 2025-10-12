@@ -38,6 +38,7 @@ dependencies = [
     "SpeechRecognition>=3.10.0",
     "pydub>=0.25.1",
     "azure-cognitiveservices-speech>=1.31.0",
+    "gTTS>=2.5.1",
 ]
 
 [project.optional-dependencies]

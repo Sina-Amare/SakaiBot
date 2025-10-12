@@ -3,6 +3,7 @@
 import os
 import sys
 from pathlib import Path
+import sys
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -23,6 +24,8 @@ def setup_environment(debug: bool = False, config_file: Optional[str] = None):
 
 def display_banner():
     """Display SakaiBot banner."""
+    if not sys.stdout.isatty():
+        return
     banner_text = """
 ╔═══════════════════════════════════════╗
 ║            SakaiBot v2.0.0            ║
@@ -33,18 +36,30 @@ def display_banner():
 
 def display_error(message: str):
     """Display error message."""
+    if not sys.stdout.isatty():
+        print(f"Error: {message}")
+        return
     console.print(f"[red]Error:[/red] {message}")
 
 def display_success(message: str):
     """Display success message."""
+    if not sys.stdout.isatty():
+        print(f"Success: {message}")
+        return
     console.print(f"[green]Success:[/green] {message}")
 
 def display_warning(message: str):
     """Display warning message."""
+    if not sys.stdout.isatty():
+        print(f"Warning: {message}")
+        return
     console.print(f"[yellow]Warning:[/yellow] {message}")
 
 def display_info(message: str):
     """Display info message."""
+    if not sys.stdout.isatty():
+        print(f"Info: {message}")
+        return
     console.print(f"[blue]Info:[/blue] {message}")
 
 async def get_telegram_client():

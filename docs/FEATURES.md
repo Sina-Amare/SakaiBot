@@ -32,11 +32,11 @@ SakaiBot supports multiple LLM providers for intelligent processing:
 - AI-powered transcription with context understanding
 - Support for multiple languages
 
-#### Text-to-Speech (TS)
+#### Text-to-Speech (TTS)
 
 - Convert text to voice messages
-- Use `/tts` or `/speak` commands
-- Customizable voice, rate, and volume parameters
+- Use the `/tts` command with Persian text.
+- Generates natural-sounding voice messages using a free, reliable engine.
 - Support for Persian and other languages
 
 ### 3. Message Management

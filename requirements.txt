@@ -11,7 +11,11 @@ SpeechRecognition>=3.10.0
 pydub
 
 # Text-to-Speech
-edge-tts>=6.1.0
+edge-tts
+pyttsx3
+
+# NLP
+hazm
 
 # Async utilities
 aiofiles>=23.0.0

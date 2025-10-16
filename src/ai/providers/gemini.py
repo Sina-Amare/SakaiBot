@@ -207,27 +207,24 @@ class GeminiProvider(LLMProvider):
         if not text:
             raise AIProcessorError("No text provided for translation")
         
-        # Build translation prompt with phonetic instructions
-        phonetic_instruction = TRANSLATION_PHONETIC_INSTRUCTION.format(target_language=target_language)
-        
+        # Build a clean translation prompt without sarcastic commentary
         if source_language.lower() == "auto":
             prompt = (
                 f"Detect the language of the following text and then translate it to '{target_language}'.\n"
-                f"{phonetic_instruction}\n\n"
+                f"Provide the Persian phonetic pronunciation for the translated text.\n\n"
                 f"Text to translate:\n\"{text}\"\n\n"
                 f"Output format:\n"
-                f"Detected Language: [language]\n"
-                f"Translation: [translated text]\n"
-                f"Phonetic: ([Persian phonetic pronunciation])"
+                f"[translated text] ([Persian phonetic pronunciation])\n\n"
+                f"Example: Hello (هِلو)"
             )
         else:
             prompt = (
                 f"Translate the following text from '{source_language}' to '{target_language}'.\n"
-                f"{phonetic_instruction}\n\n"
+                f"Provide the Persian phonetic pronunciation for the translated text.\n\n"
                 f"Text to translate:\n\"{text}\"\n\n"
                 f"Output format:\n"
-                f"Translation: [translated text]\n"
-                f"Phonetic: ([Persian phonetic pronunciation])"
+                f"[translated text] ([Persian phonetic pronunciation])\n\n"
+                f"Example: Hello (هِلو)"
             )
         
         self._logger.info(
@@ -235,11 +232,44 @@ class GeminiProvider(LLMProvider):
         )
         
         # Use lower temperature for translation accuracy
-        return await self.execute_prompt(
-            prompt, 
+        raw_response = await self.execute_prompt(
+            prompt,
             temperature=0.2,
-            system_message=TRANSLATION_SYSTEM_MESSAGE
+            system_message="You are a precise translation assistant. Provide only the translation and phonetic pronunciation in the requested format. No commentary or additional text."
         )
+        
+        # Clean the response to ensure it follows the format: "translated text (persian pronunciation)"
+        # Remove any extra text that might have been added
+        import re
+        # First, look for the pattern "translated text (pronunciation)" in the response
+        match = re.search(r'(.+?)\s*\(\s*(.+?)\s*\)', raw_response.strip(), re.DOTALL)
+        if match:
+            translated_text = match.group(1).strip()
+            pronunciation = match.group(2).strip()
+            # Extract just the content without prefixes like "Translation:", "Phonetic:", etc.
+            # Look for the actual translated text part
+            translation_match = re.search(r'Translation:\s*(.+?)(?:\s*\n|$)', raw_response)
+            phonetic_match = re.search(r'Phonetic:\s*\((.+?)\)', raw_response)
+            
+            if translation_match and phonetic_match:
+                clean_translation = translation_match.group(1).strip()
+                clean_pronunciation = phonetic_match.group(1).strip()
+                return f"{clean_translation} ({clean_pronunciation})"
+            else:
+                # If we have the match from the general pattern, return that
+                return f"{translated_text} ({pronunciation})"
+        else:
+            # If the response doesn't match the expected format, return it as is
+            # but try to extract the most relevant part
+            lines = raw_response.split('\n')
+            for line in lines:
+                line = line.strip()
+                if '(' in line and ')' in line and line.count('(') == line.count(')'):
+                    # This line likely contains the translation and pronunciation
+                    return line
+        
+        # If no proper format found, return the raw response
+        return raw_response
     
     async def analyze_messages(
         self,

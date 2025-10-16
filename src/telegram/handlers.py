@@ -138,15 +138,16 @@ class EventHandlers:
             summary_text = None
             # Generate AI summary if AI is configured
             summary_prompt = (
-                "این متن نسخهٔ پیاده‌سازی شدهٔ یک پیام صوتی فارسی است. "
-                "در دو جملهٔ کوتاه، جمع‌بندی دقیق و مرتبطی ارائه بده که مکمل پیام باشد. "
-                "از فهرست و جزئیات اضافه پرهیز کن، فقط بگو گوینده چه می‌گوید یا چه هدفی دارد.\n\n"
-                f"متن پیاده‌سازی:\n{transcribed_text}"
+                "متن زیر یک نسخهٔ پیاده‌سازی شدهٔ از یک پیام صوتی فارسی است. "
+                "لطفاً یک خلاصهٔ طبیعی و جامع از محتوای گفته‌شده ارائه دهید. "
+                "دقیقاً بگو چه چیزی گفته شده است و چه هدفی دارد، "
+                "نه تحلیل یا تفسیری از آن.\n\n"
+                f"متن اصلی:\n{transcribed_text}"
             )
             system_message = (
                 "تو یک تحلیل‌گر حرفه‌ای گفتگوهای صوتی فارسی هستی. "
-                "همیشه پاسخ را به زبان فارسی و با لحن محترمانه بنویس. "
-                "اگر جایی حدس می‌زنی، شفاف بگو که حدس است و دلیل آن را کوتاه توضیح بده."
+                "همیشه پاسخ را به زبان فارسی و با لحن طبیعی بنویس. "
+                "فقط خلاصهٔ محتوای گفته‌شده را بدون اضافه کردن تحلیل شخصی ارائه بده."
             )
 
             if self._ai_processor.is_configured:
@@ -405,18 +406,10 @@ class EventHandlers:
             
             await client.edit_message(thinking_msg, response)
             
-            # Send Persian completion message with Bill Burr style humor
+            # Send a simple completion message without humor
             from datetime import datetime
             time_str = datetime.now().strftime('%H:%M')
-            completion_messages = [
-                f"✅ تموم شد - {time_str}\nحالا برو یه کار مفید انجام بده 😏",
-                f"✅ اینم از این - {time_str}\nدیگه چی میخوای؟ شام درست کنم برات؟",
-                f"✅ بفرما، سرویستو دادم - {time_str}\nامیدوارم راضی باشی 🙄",
-                f"✅ Done - {time_str}\nیه تشکر خشک و خالی هم بد نیست ها",
-                f"✅ کارت انجام شد - {time_str}\nحالا میتونی بری به زندگیت ادامه بدی"
-            ]
-            import random
-            completion_msg = random.choice(completion_messages)
+            completion_msg = f"✅ انجام شد - {time_str}"
             
             # Send as a separate message for visibility
             await client.send_message(chat_id, completion_msg, reply_to=reply_to_id)
@@ -469,7 +462,37 @@ class EventHandlers:
                 source_language=source_lang_for_ai
             )
             if response and response.strip():
-                return response
+                # Clean the response to ensure it follows the format: "translated text (persian pronunciation)"
+                # Remove any extra commentary or text that might have been added
+                # First, look for the pattern "translated text (pronunciation)" in the response
+                match = re.search(r'(.+?)\s*\(\s*(.+?)\s*\)', response.strip(), re.DOTALL)
+                if match:
+                    translated_text = match.group(1).strip()
+                    pronunciation = match.group(2).strip()
+                    # Extract just the content without prefixes like "Translation:", "Phonetic:", etc.
+                    # Look for the actual translated text part
+                    translation_match = re.search(r'Translation:\s*(.+?)(?:\s*\n|$)', response)
+                    phonetic_match = re.search(r'Phonetic:\s*\((.+?)\)', response)
+                    
+                    if translation_match and phonetic_match:
+                        clean_translation = translation_match.group(1).strip()
+                        clean_pronunciation = phonetic_match.group(1).strip()
+                        return f"{clean_translation} ({clean_pronunciation})"
+                    else:
+                        # If we have the match from the general pattern, return that
+                        return f"{translated_text} ({pronunciation})"
+                else:
+                    # If the response doesn't match the expected format, return it as is
+                    # but try to extract the most relevant part
+                    lines = response.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if '(' in line and ')' in line and line.count('(') == line.count(')'):
+                            # This line likely contains the translation and pronunciation
+                            return line.strip()
+                
+                # If no proper format found, return the cleaned response
+                return response.strip()
             else:
                 self._logger.warning(f"Empty response from AI for translation. Response was: {response}")
                 return "⚠️ Translation failed - the AI couldn't generate a translation. Try with different text or language."
@@ -675,7 +698,7 @@ class EventHandlers:
         sender_info: str
     ) -> None:
         """Handle TTS command processing."""
-        print(f"TTS HANDLER RECEIVED MESSAGE: {message}")
+        self._logger.debug(f"TTS HANDLER RECEIVED MESSAGE: {message}")
         command_text = message.text.strip() if message.text else ""
         text_to_speak = None
         params = {}
@@ -710,33 +733,18 @@ class EventHandlers:
         rate = params.get("rate", "+0%")
         volume = params.get("volume", "+0%")
 
+        # Extract only the actual transcribed text when replying to STT results
+        # Remove any formatting like emojis (📝, 🔍) to make voice output natural
+        if message.is_reply and replied_message and replied_message.text:
+            # Remove formatting elements like emojis and markdown
+            import re
+            cleaned_text = re.sub(r'[📝🔍💬👤]', '', replied_message.text)
+            cleaned_text = re.sub(r'\*\*.*?\*\*', '', cleaned_text) # Remove bold formatting
+            cleaned_text = re.sub(r'#+\s*', '', cleaned_text)  # Remove headers
+            cleaned_text = re.sub(r'\s+', ' ', cleaned_text)  # Normalize whitespace
+            text_to_speak = cleaned_text.strip()
+
         # Normalize the text
-        normalized_text = self._normalize_text(text_to_speak)
-
-        self._logger.info(
-            f"Creating task for /tts command from '{sender_info}'. "
-            f"Voice: {voice}, Rate: {rate}, Volume: {volume}"
-        )
-        
-        asyncio.create_task(
-            self._process_tts_command(
-                message, client, sender_info, normalized_text, voice, rate, volume
-            )
-        )
-
-        if not text_to_speak:
-            await client.send_message(
-                chat_id,
-                "Usage: /tts [params] <text> OR reply to a message with /tts [params]\n"
-                "Params: voice=<voice_id> rate=<±N%> volume=<±N%>\n"
-                f"Example: /tts voice=en-US-JennyNeural rate=-10% Hello world\n"
-                f"(Default Persian voice: {DEFAULT_TTS_VOICE})",
-                reply_to=message.id,
-                parse_mode='md'
-            )
-            return
-
-        # TODO: Add text normalization logic here
         normalized_text = self._normalize_text(text_to_speak)
 
         self._logger.info(
@@ -825,29 +833,62 @@ class EventHandlers:
         """Parse translate command parameters."""
         command_parts = command_text[len("/translate="):].strip()
         
-        # Match patterns for translate command
-        match_with_text = re.match(r"([a-zA-Z\s]+?)(?:,([a-zA-Z\s]+?))?\s+(.+)", command_parts, re.DOTALL)
-        match_lang_only = re.match(r"([a-zA-Z\s]+?)(?:,([a-zA-Z\s]+?))?$", command_parts)
-        
+        # Match patterns for translate command - handle both "lang=text" and "lang text" formats
         target_language = None
         source_language = "auto"
         text_to_translate = None
         
-        if match_with_text:
-            target_language = match_with_text.group(1).strip()
-            if match_with_text.group(2):
-                source_language = match_with_text.group(2).strip()
-            text_to_translate = match_with_text.group(3).strip()
-        elif match_lang_only:
-            target_language = match_lang_only.group(1).strip()
-            if match_lang_only.group(2):
-                source_language = match_lang_only.group(2).strip()
+        # First try to match the pattern with "=" separator
+        match_with_equals = re.match(r"([a-zA-Z\s]+?)(?:,([a-zA-Z\s]+?))?\s*=\s*(.+)", command_parts, re.DOTALL)
+        if match_with_equals:
+            target_language = match_with_equals.group(1).strip()
+            if match_with_equals.group(2):
+                source_language = match_with_equals.group(2).strip()
+            text_to_translate = match_with_equals.group(3).strip()
+        else:
+            # If no "=" found, try the pattern with space separator
+            match_with_space = re.match(r"([a-zA-Z\s]+?)(?:,([a-zA-Z\s]+?))?\s+(.+)", command_parts, re.DOTALL)
+            if match_with_space:
+                target_language = match_with_space.group(1).strip()
+                if match_with_space.group(2):
+                    source_language = match_with_space.group(2).strip()
+                text_to_translate = match_with_space.group(3).strip()
+        
+        # For cases where only language is specified (when replying to a message)
+        match_lang_only = re.match(r"([a-zA-Z\s]+?)(?:,([a-zA-Z\s]+?))?$", command_parts)
+        
+        # If no text was matched from the main patterns, check if we only have language
+        if not target_language and not text_to_translate:
+            if match_lang_only:
+                target_language = match_lang_only.group(1).strip()
+                if match_lang_only.group(2):
+                    source_language = match_lang_only.group(2).strip()
         
         # If no text provided, check if replying to a message
         if not text_to_translate and message.is_reply:
             replied_msg = await message.get_reply_message()
             if replied_msg and replied_msg.text:
-                text_to_translate = replied_msg.text
+                original_text = replied_msg.text
+                
+                # Extract only the actual transcribed text when replying to STT results
+                # Remove formatting like emojis, labels, and AI analysis sections
+                # Extract text between "📝 متن پیاده‌سازی شده:" and "🔍 جمع‌بندی و تحلیل هوش مصنوعی:"
+                
+                # Look for STT result format: "📝 **متن پیاده‌سازی شده:**\n{transcribed_text}\n\n🔍 **جمع‌بندی و تحلیل هوش مصنوعی:**"
+                stt_pattern = r"📝\s*\*\*متن\s*پیاده‌سازی\s*شده:\*\*\s*\n(.*?)\s*\n\s*\n🔍\s*\*\*جمع‌بندی\s*و\s*تحلیل\s*هوش\s*مصنوعی:\*\*"
+                match = re.search(stt_pattern, original_text, re.DOTALL)
+                
+                if match:
+                    # Extract just the transcribed text part
+                    text_to_translate = match.group(1).strip()
+                    self._logger.info("Extracted transcribed text from STT result for translation")
+                else:
+                    # If not in STT format, clean the text by removing formatting
+                    cleaned_text = re.sub(r'[📝🔍💬👤]', '', original_text)
+                    cleaned_text = re.sub(r'\*\*.*?\*\*', '', cleaned_text)  # Remove bold formatting
+                    cleaned_text = re.sub(r'#+\s*', '', cleaned_text)  # Remove headers
+                    cleaned_text = re.sub(r'\s+', ' ', cleaned_text)  # Normalize whitespace
+                    text_to_translate = cleaned_text.strip()
         
         if target_language and text_to_translate:
             return {

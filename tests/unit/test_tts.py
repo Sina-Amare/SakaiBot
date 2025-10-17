@@ -1,8 +1,13 @@
+"""Unit tests for Text-to-Speech functionality."""
 
 import asyncio
 import os
 from pathlib import Path
 import unittest
+
+# Add src to path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.ai.tts import TextToSpeechProcessor
 

@@ -157,6 +157,12 @@ class OpenRouterProvider(LLMProvider):
                     delta_content = getattr(choice.delta, "content", None)
                     if isinstance(delta_content, str):
                         response_text = delta_content.strip()
+                # Additional check for safety filter responses
+                elif hasattr(choice, 'finish_reason') and choice.finish_reason:
+                    finish_reason = str(choice.finish_reason).lower()
+                    if 'content_filter' in finish_reason or 'safety' in finish_reason:
+                        self._logger.warning(f"Response blocked by content filter: {choice.finish_reason}")
+                        raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
 
                 if response_text:
                     self._logger.info(f"Got response text: {len(response_text)} chars")
@@ -164,6 +170,11 @@ class OpenRouterProvider(LLMProvider):
                     self._logger.warning("Message content is None or empty")
             else:
                 self._logger.warning("No choices in completion response")
+                # Check if the completion has other attributes that might indicate filtering
+                if hasattr(completion, 'usage') and completion.usage is None:
+                    # This might indicate a safety block
+                    self._logger.warning("Completion usage is None, possibly due to safety filtering")
+                    raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
             
             if not response_text:
                 self._logger.error(f"Could not extract text from completion. Type: {type(completion)}")
@@ -220,6 +231,7 @@ class OpenRouterProvider(LLMProvider):
         )
         
         # Use lower temperature for translation accuracy
+        # No max_tokens limit to allow full translation
         raw_response = await self.execute_prompt(
             prompt,
             temperature=0.2,

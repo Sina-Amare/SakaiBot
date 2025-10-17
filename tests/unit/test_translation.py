@@ -152,6 +152,23 @@ class TestEnhancedCommandParsing(unittest.TestCase):
                 self.assertEqual(text, expected_text)
                 self.assertEqual(len(errors), 0)
     
+    def test_format_4_lang_equals_lang_text(self):
+        """Test format: /translate=<target_lang>=<source_lang> <text> (Format 4 from documentation)"""
+        test_cases = [
+            ("en=fa سلام دنیا", "en", "fa", "سلام دنیا"),
+            ("fa=en Hello world", "fa", "en", "Hello world"),
+            ("de=es Hola mundo", "de", "es", "Hola mundo"),
+            ("fr=zh 你好世界", "fr", "zh", "你好世界")
+        ]
+        
+        for command, expected_target, expected_source, expected_text in test_cases:
+            with self.subTest(command=command):
+                target, source, text, errors = parse_enhanced_translate_command(command)
+                self.assertEqual(target, expected_target)
+                self.assertEqual(source, expected_source)
+                self.assertEqual(text, expected_text)
+                self.assertEqual(len(errors), 0)
+    
     def test_invalid_formats(self):
         """Test invalid command formats."""
         invalid_cases = [
@@ -185,7 +202,7 @@ class TestResponseFormatting(unittest.TestCase):
     def test_format_with_pronunciation(self):
         """Test formatting with pronunciation."""
         response = format_translation_response("Hello world", "هِلو ورلد")
-        self.assertEqual(response, "Hello world (هِلو ورلد)")
+        self.assertEqual(response, "Hello world\n pronunciation: (هِلو ورلد)")
     
     def test_format_without_pronunciation(self):
         """Test formatting without pronunciation."""

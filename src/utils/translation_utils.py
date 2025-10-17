@@ -106,63 +106,14 @@ def parse_enhanced_translate_command(command_text: str) -> Tuple[Optional[str], 
     # 1. /translate=<target_lang> <text>
     # 2. /translate=<target_lang>,<source_lang> <text>
     # 3. /translate=<target_lang>=<text>
-    # 4. /translate=<target_lang>,<source_lang>=<text>
+    # 4. /translate=<target_lang>=<source_lang> <text>
+    # 5. /translate=<target_lang>,<source_lang>=<text>
     
     target_language = None
     source_language = "auto"
     text_to_translate = None
     
-    # Format 2: /translate=<target_lang>,<source_lang> <text>
-    if ' ' in command_text and ',' in command_text and '=' not in command_text:
-        space_index = command_text.find(' ')
-        if space_index > 0:
-            language_part = command_text[:space_index]
-            text_to_translate = command_text[space_index + 1:].strip()
-            
-            if ',' in language_part:
-                target_source = language_part.split(',')
-                if len(target_source) == 2:
-                    target_language = target_source[0].strip()
-                    source_language = target_source[1].strip()
-                else:
-                    error_messages.append("Invalid language format. Use: target_lang,source_lang")
-            else:
-                target_language = language_part.strip()
-                source_language = "auto"
-            
-            # Validate languages
-            if target_language:
-                is_valid, std_target, suggestion = validate_language_code(target_language)
-                if not is_valid:
-                    error_messages.append(f"Invalid target language: {target_language}")
-                    if suggestion:
-                        error_messages.append(suggestion)
-            
-            if source_language and source_language.lower() != "auto":
-                is_valid, std_source, suggestion = validate_language_code(source_language)
-                if not is_valid:
-                    error_messages.append(f"Invalid source language: {source_language}")
-                    if suggestion:
-                        error_messages.append(suggestion)
-            
-            return target_language, source_language, text_to_translate, error_messages
-    
-    # Format 1: /translate=<target_lang> <text>
-    elif ' ' in command_text and '=' not in command_text:
-        parts = command_text.split(' ', 1)
-        target_language = parts[0].strip()
-        text_to_translate = parts[1].strip()
-        
-        # Validate target language
-        is_valid, std_target, suggestion = validate_language_code(target_language)
-        if not is_valid:
-            error_messages.append(f"Invalid target language: {target_language}")
-            if suggestion:
-                error_messages.append(suggestion)
-        
-        return target_language, source_language, text_to_translate, error_messages
-    
-    # Format 4: /translate=<target_lang>,<source_lang>=<text>
+    # Format 5: /translate=<target_lang>,<source_lang>=<text> (most specific - comma and equals)
     if '=' in command_text and ',' in command_text:
         # Find the first equals sign to split language part from text
         equals_index = command_text.find('=')
@@ -197,9 +148,80 @@ def parse_enhanced_translate_command(command_text: str) -> Tuple[Optional[str], 
             
             return target_language, source_language, text_to_translate, error_messages
     
-    # Format 3: /translate=<target_lang>=<text>
+    # Format 3: /translate=<target_lang>=<text> (specific with equals)
     elif '=' in command_text and command_text.count('=') == 1:
         parts = command_text.split('=', 1)
+        target_language = parts[0].strip()
+        remaining_text = parts[1].strip()
+        
+        # Check if the remaining text starts with a valid language code followed by space and more text
+        # This handles the case: /translate=<target_lang>=<source_lang> <text>
+        if ' ' in remaining_text:
+            potential_source, potential_text = remaining_text.split(' ', 1)
+            is_valid_source, std_source, _ = validate_language_code(potential_source)
+            if is_valid_source:
+                source_language = std_source
+                text_to_translate = potential_text.strip()
+            else:
+                text_to_translate = remaining_text
+        else:
+            text_to_translate = remaining_text
+        
+        # Validate target language
+        is_valid, std_target, suggestion = validate_language_code(target_language)
+        if not is_valid:
+            error_messages.append(f"Invalid target language: {target_language}")
+            if suggestion:
+                error_messages.append(suggestion)
+        
+        # Validate source language if it was detected
+        if source_language and source_language.lower() != "auto":
+            is_valid, std_source, suggestion = validate_language_code(source_language)
+            if not is_valid:
+                error_messages.append(f"Invalid source language: {source_language}")
+                if suggestion:
+                    error_messages.append(suggestion)
+        
+        return target_language, source_language, text_to_translate, error_messages
+    
+    # Format 2: /translate=<target_lang>,<source_lang> <text> (specific with comma and space)
+    elif ' ' in command_text and ',' in command_text:
+        space_index = command_text.find(' ')
+        if space_index > 0:
+            language_part = command_text[:space_index]
+            text_to_translate = command_text[space_index + 1:].strip()
+            
+            if ',' in language_part:
+                target_source = language_part.split(',')
+                if len(target_source) == 2:
+                    target_language = target_source[0].strip()
+                    source_language = target_source[1].strip()
+                else:
+                    error_messages.append("Invalid language format. Use: target_lang,source_lang")
+            else:
+                target_language = language_part.strip()
+                source_language = "auto"
+            
+            # Validate languages
+            if target_language:
+                is_valid, std_target, suggestion = validate_language_code(target_language)
+                if not is_valid:
+                    error_messages.append(f"Invalid target language: {target_language}")
+                    if suggestion:
+                        error_messages.append(suggestion)
+            
+            if source_language and source_language.lower() != "auto":
+                is_valid, std_source, suggestion = validate_language_code(source_language)
+                if not is_valid:
+                    error_messages.append(f"Invalid source language: {source_language}")
+                    if suggestion:
+                        error_messages.append(suggestion)
+            
+            return target_language, source_language, text_to_translate, error_messages
+    
+    # Format 1: /translate=<target_lang> <text> (simplest format)
+    elif ' ' in command_text:
+        parts = command_text.split(' ', 1)
         target_language = parts[0].strip()
         text_to_translate = parts[1].strip()
         
@@ -226,7 +248,7 @@ def format_translation_response(translated_text: str, pronunciation: Optional[st
         pronunciation: Optional Persian pronunciation
     
     Returns:
-        Formatted response in format "translation (pronunciation)"
+        Formatted response with translation and pronunciation on separate lines
     """
     if not translated_text or not translated_text.strip():
         return "No translation available"
@@ -235,8 +257,8 @@ def format_translation_response(translated_text: str, pronunciation: Optional[st
     translated_text = translated_text.strip()
     
     if pronunciation and pronunciation.strip():
-        # Format: "translation (pronunciation)"
-        return f"{translated_text} ({pronunciation.strip()})"
+        # Format with translation and pronunciation on separate lines for clarity
+        return f"{translated_text}\n pronunciation: ({pronunciation.strip()})"
     else:
         # If no pronunciation, return just the translation
         return translated_text

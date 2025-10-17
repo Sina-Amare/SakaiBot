@@ -42,7 +42,7 @@ class TestTranslationIntegration(unittest.TestCase):
         translation = "سلام دنیا"
         pronunciation = "سلام دنیا"
         formatted_response = format_translation_response(translation, pronunciation)
-        self.assertEqual(formatted_response, "سلام دنیا (سلام دنیا)")
+        self.assertEqual(formatted_response, "سلام دنیا\n pronunciation: (سلام دنیا)")
     
     def test_structured_response_extraction(self):
         """Test extraction from structured AI responses."""
@@ -56,27 +56,27 @@ Phonetic: (هلو ورلد)"""
         
         # Test formatting the extracted response
         formatted_response = format_translation_response(translation, pronunciation)
-        self.assertEqual(formatted_response, "Hello world (هلو ورلد)")
+        self.assertEqual(formatted_response, "Hello world\n pronunciation: (هلو ورلد)")
     
     def test_end_to_end_persian_translation(self):
         """Test end-to-end Persian translation workflow."""
-        # Test Persian command parsing
-        command = "fa=en سلام دنیا"
+        # Test Persian command parsing - translate Persian text to English
+        command = "en=fa سلام دنیا"  # Translate to English from Persian: سلام دنیا
         target, source, text, errors = parse_enhanced_translate_command(command)
         
-        self.assertEqual(target, "fa")
-        self.assertEqual(source, "en")
+        self.assertEqual(target, "en")
+        self.assertEqual(source, "fa")
         self.assertEqual(text, "سلام دنیا")
         self.assertEqual(len(errors), 0)
         
         # Test language validation
         is_valid, std_target, suggestion = validate_language_code(target)
         self.assertTrue(is_valid)
-        self.assertEqual(std_target, "fa")
+        self.assertEqual(std_target, "en")
         
         is_valid, std_source, suggestion = validate_language_code(source)
         self.assertTrue(is_valid)
-        self.assertEqual(std_source, "en")
+        self.assertEqual(std_source, "fa")
         
         # Simulate AI response
         ai_response = """Translation: Hello world
@@ -84,7 +84,7 @@ Phonetic: (هلو ورلد)"""
         
         translation, pronunciation = extract_translation_from_response(ai_response)
         formatted_response = format_translation_response(translation, pronunciation)
-        self.assertEqual(formatted_response, "Hello world (هلو ورلد)")
+        self.assertEqual(formatted_response, "Hello world\n pronunciation: (هلو ورلد)")
 
 
 if __name__ == '__main__':

@@ -95,6 +95,9 @@ class GeminiProvider(LLMProvider):
         else:
             full_prompt = user_prompt
         
+        # Log the exact prompt being sent for debugging
+        self._logger.debug(f"Sending prompt to Gemini: '{full_prompt[:100]}...'")
+        
         # Retry logic with exponential backoff
         max_retries = 3
         retry_delay = 1.0
@@ -105,24 +108,30 @@ class GeminiProvider(LLMProvider):
                 
                 self._logger.info(
                     f"Attempt {attempt + 1}: Sending prompt to Gemini '{self._model}'. "
-                    f"Prompt length: {len(full_prompt)} chars, Max tokens: {max_tokens}"
+                    f"Prompt length: {len(full_prompt)} chars"
                 )
                 
-                # Use asyncio to run the synchronous call with proper config
+                # Use asyncio to run the synchronous call with proper config and timeout
                 loop = asyncio.get_event_loop()
-                response = await loop.run_in_executor(
-                    None,
-                    lambda: client.models.generate_content(
-                        model=self._model,
-                        contents=full_prompt,
-                        config={
-                            "temperature": temperature,
-                            "max_output_tokens": max_tokens,
-                            "top_p": 0.95,
-                            "top_k": 40,
-                        }
+                try:
+                    response = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            lambda: client.models.generate_content(
+                                model=self._model,
+                                contents=full_prompt,
+                                config={
+                                    "temperature": temperature,
+                                    "top_p": 0.95,
+                                    "top_k": 40,
+                                }
+                            )
+                        ),
+                        timeout=300  # 5 minute timeout for LLM response
                     )
-                )
+                except asyncio.TimeoutError:
+                    self._logger.error(f"LLM response timed out after 5 minutes for model '{self._model}'")
+                    raise AIProcessorError("Request timed out. The LLM did not respond within the expected time. Try again later or with a shorter prompt.")
                 
                 # Debug log the response
                 self._logger.debug(f"Response type: {type(response)}")
@@ -143,17 +152,140 @@ class GeminiProvider(LLMProvider):
                     try:
                         if hasattr(response, 'candidates') and response.candidates:
                             for candidate in response.candidates:
-                                if hasattr(candidate, 'content') and candidate.content:
-                                    if hasattr(candidate.content, 'parts'):
-                                        for part in candidate.content.parts:
-                                            if hasattr(part, 'text') and part.text:
-                                                response_text = part.text.strip()
-                                                self._logger.info(f"Got text from candidate part: {len(response_text)} chars")
-                                                break
+                                # Check if candidate has content and content is not None
+                                if hasattr(candidate, 'content') and candidate.content is not None:
+                                    # Check if content has parts attribute and it's not None
+                                    if hasattr(candidate.content, 'parts') and candidate.content.parts is not None:
+                                        # Check if parts is iterable before trying to iterate
+                                        try:
+                                            # Verify that candidate.content.parts is iterable and not None
+                                            if candidate.content.parts is not None and hasattr(candidate.content.parts, '__iter__'):
+                                                for part in candidate.content.parts:
+                                                    if hasattr(part, 'text') and part.text:
+                                                        response_text = part.text.strip()
+                                                        self._logger.info(f"Got text from candidate part: {len(response_text)} chars")
+                                                        break
+                                            else:
+                                                self._logger.warning(f"candidate.content.parts is not iterable: {type(candidate.content.parts)}")
+                                        except TypeError as e:
+                                            # If parts is not iterable, it might be None or another non-iterable type
+                                            self._logger.warning(f"Content parts is not iterable: {e}, likely filtered by safety policies or technical issue")
+                                            # Check if this is a technical issue vs content filtering
+                                            if "NoneType" in str(e) or "not iterable" in str(e).lower():
+                                                # This is a technical issue, not content filtering
+                                                self._logger.error(f"Technical error in response processing: {e}")
+                                                # Continue to allow retry logic instead of raising content filtering error
+                                                continue
+                                            else:
+                                                raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
+                                elif hasattr(candidate, 'finish_reason'):
+                                    # Check if the candidate was blocked for safety reasons
+                                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason:
+                                        finish_reason = str(candidate.finish_reason).lower()
+                                        if 'safety' in finish_reason or 'blocked' in finish_reason:
+                                            self._logger.warning(f"Response blocked by safety filters: {candidate.finish_reason}")
+                                            raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
+                                
                                 if response_text:
                                     break
+                            
+                            # If no response text was found but there were candidates, check if it's a technical issue vs content filtering
+                            if not response_text and response.candidates:
+                                # Check if any candidate was blocked for safety reasons
+                                for candidate in response.candidates:
+                                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason:
+                                        finish_reason = str(candidate.finish_reason).lower()
+                                        if 'safety' in finish_reason or 'blocked' in finish_reason or 'finish_reason_safety' in finish_reason:
+                                            self._logger.warning(f"Response was filtered by safety policies: {candidate.finish_reason}")
+                                            raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
+                        
+                        # Fallback: Check if response has other attributes that might contain text
+                        if not response_text:
+                            # Try alternative extraction methods
+                            if hasattr(response, 'candidates') and response.candidates:
+                                for candidate in response.candidates:
+                                    # Handle case where content might be None but other fields exist
+                                    if hasattr(candidate, 'content') and candidate.content is None:
+                                        # This might be a safety block - check the candidate's finish reason
+                                        if hasattr(candidate, 'finish_reason') and candidate.finish_reason:
+                                            finish_reason = str(candidate.finish_reason).lower()
+                                            if 'safety' in finish_reason or 'blocked' in finish_reason:
+                                                self._logger.warning(f"Response blocked by safety filters: {candidate.finish_reason}")
+                                                raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
+                                        else:
+                                            # If content is None but no safety block, it's likely a technical issue
+                                            self._logger.warning(f"No content in candidate and no safety block detected - possible technical issue")
+                                            continue
+                                    # Handle case where content exists but has no parts
+                                    elif hasattr(candidate, 'content') and candidate.content is not None:
+                                        # Check if content has text attribute directly
+                                        if hasattr(candidate.content, 'text') and candidate.content.text:
+                                            response_text = candidate.content.text.strip()
+                                            self._logger.info(f"Got text from candidate content directly: {len(response_text)} chars")
+                                            break
+                                        # Try alternative access methods for content
+                                        elif hasattr(candidate.content, 'parts') and candidate.content.parts is not None:
+                                            # If parts exists but wasn't iterable earlier, try a different approach
+                                            try:
+                                                # Try to access parts as a list-like object
+                                                if isinstance(candidate.content.parts, (list, tuple)):
+                                                    for part in candidate.content.parts:
+                                                        if hasattr(part, 'text') and part.text:
+                                                            response_text = part.text.strip()
+                                                            self._logger.info(f"Got text from candidate parts list: {len(response_text)} chars")
+                                                            break
+                                            except Exception:
+                                                # If still failing, check for other possible structures
+                                                pass
+                    except TypeError as e:
+                        # Check if this is a safety/content filtering issue vs technical error
+                        error_str = str(e).lower()
+                        if "none" in error_str and ("content" in error_str or "parts" in error_str):
+                            # This is likely a technical issue accessing None content
+                            self._logger.warning(f"Technical error accessing response content: {e}")
+                            if attempt < max_retries - 1:
+                                self._logger.info(f"Retrying in {retry_delay} seconds...")
+                                await asyncio.sleep(retry_delay)
+                                retry_delay *= 2
+                            else:
+                                # Provide clearer error message for technical issues
+                                raise AIProcessorError(f"Technical error occurred while processing the response: {str(e)}. This appears to be a technical issue rather than content filtering.")
+                        elif "safety" in error_str or "filter" in error_str or "blocked" in error_str:
+                            # This is a content filtering issue
+                            self._logger.warning(f"Content filtered by AI provider - response was blocked: {e}")
+                            raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
+                        else:
+                            self._logger.warning(f"Error extracting from candidates: {e}")
+                            # If this is not the last attempt, retry
+                            if attempt < max_retries - 1:
+                                self._logger.info(f"Retrying in {retry_delay} seconds...")
+                                await asyncio.sleep(retry_delay)
+                                retry_delay *= 2
+                            else:
+                                raise AIProcessorError(f"Failed to extract response from AI provider: {e}")
                     except Exception as e:
                         self._logger.warning(f"Error extracting from candidates: {e}")
+                        # Log the actual response structure for debugging
+                        self._logger.debug(f"Full response structure: {dir(response) if response else 'None'}")
+                        if hasattr(response, '__dict__'):
+                            self._logger.debug(f"Response attributes: {response.__dict__}")
+                        
+                        # Check if this is a technical issue vs content filtering
+                        error_str = str(e).lower()
+                        if "safety" in error_str or "filter" in error_str or "blocked" in error_str or "finish_reason_safety" in error_str:
+                            # This is a content filtering issue
+                            self._logger.warning(f"Content was filtered by AI provider: {e}")
+                            raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
+                        else:
+                            # This is likely a technical issue, not content filtering
+                            self._logger.error(f"Technical error in response processing: {e}")
+                            if attempt < max_retries - 1:
+                                self._logger.info(f"Retrying in {retry_delay} seconds...")
+                                await asyncio.sleep(retry_delay)
+                                retry_delay *= 2
+                            else:
+                                # Provide clearer error message for technical issues
+                                raise AIProcessorError(f"Technical error occurred while processing the response: {str(e)}. This appears to be a technical issue rather than content filtering.")
                 
                 # Check for safety blocks or other issues
                 if not response_text:
@@ -207,6 +339,9 @@ class GeminiProvider(LLMProvider):
         if not text:
             raise AIProcessorError("No text provided for translation")
         
+        # Log the exact text being translated for debugging purposes
+        self._logger.debug(f"Translation request - Text: '{text[:100]}...', Target: {target_language}, Source: {source_language}")
+        
         # Build a clean translation prompt without sarcastic commentary
         if source_language.lower() == "auto":
             prompt = (
@@ -232,6 +367,7 @@ class GeminiProvider(LLMProvider):
         )
         
         # Use lower temperature for translation accuracy
+        # No max_tokens limit to allow full translation
         raw_response = await self.execute_prompt(
             prompt,
             temperature=0.2,

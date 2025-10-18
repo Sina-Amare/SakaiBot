@@ -10,7 +10,6 @@ from pathlib import Path
 from telethon import TelegramClient, events, functions
 from telethon.tl.types import Message
 from pydub import AudioSegment
-from hazm import Normalizer
 
 from ..core.constants import MAX_MESSAGE_LENGTH, CONFIRMATION_KEYWORD, DEFAULT_TTS_VOICE
 from ..core.exceptions import TelegramError, AIProcessorError
@@ -36,14 +35,22 @@ class EventHandlers:
         self._tts_processor = tts_processor
         self._ffmpeg_path = ffmpeg_path
         self._logger = get_logger(self.__class__.__name__)
-        self._normalizer = Normalizer()
+        # Removed Normalizer since hazm was removed from dependencies
 
     def _normalize_text(self, text: str) -> str:
         """Normalize text for TTS processing."""
-        return self._normalizer.normalize(text)
+        # Simple text normalization without hazm dependency
+        # Replace common Persian characters and clean up text
+        normalized = text.replace("\u200c", " ")  # Replace zero-width non-joiner with space
+        normalized = " ".join(normalized.split())  # Normalize whitespace
+        return normalized
     
     async def _setup_ffmpeg_path(self) -> Tuple[bool, str]:
         """Setup FFmpeg path for audio processing."""
+        import platform
+        from pydub import AudioSegment
+        from pydub.utils import which
+        
         original_path = os.environ.get("PATH", "")
         path_modified = False
         
@@ -55,22 +62,12 @@ class EventHandlers:
                 path_modified = True
             else:
                 self._logger.info(f"FFmpeg directory '{ffmpeg_dir}' already in PATH")
-        else:
-            self._logger.info("FFmpeg path not configured. pydub will try to find ffmpeg in system PATH")
-        
-        return path_modified, original_path
-        """Setup FFmpeg path for audio processing."""
-        original_path = os.environ.get("PATH", "")
-        path_modified = False
-        
-        if self._ffmpeg_path and Path(self._ffmpeg_path).is_file():
-            ffmpeg_dir = str(Path(self._ffmpeg_path).parent)
-            if ffmpeg_dir not in original_path.split(os.pathsep):
-                self._logger.info(f"Adding '{ffmpeg_dir}' to PATH for pydub")
-                os.environ["PATH"] = ffmpeg_dir + os.pathsep + original_path
-                path_modified = True
-            else:
-                self._logger.info(f"FFmpeg directory '{ffmpeg_dir}' already in PATH")
+            
+            # Explicitly set ffmpeg path for pydub on Windows
+            if platform.system() == "Windows":
+                AudioSegment.converter = self._ffmpeg_path
+                AudioSegment.ffmpeg = self._ffmpeg_path
+                self._logger.info(f"Set pydub converter path to: {self._ffmpeg_path}")
         else:
             self._logger.info("FFmpeg path not configured. pydub will try to find ffmpeg in system PATH")
         
@@ -453,7 +450,7 @@ class EventHandlers:
     ) -> str:
         """Handle /translate command."""
         if not text_for_ai or not target_language:
-            return "Usage: /translate=<lang>[,source_lang] [text] or reply with /translate=<lang>"
+            return "Usage: /translate=<lang>=<text> or reply with /translate=<lang>"
         
         try:
             response = await self._ai_processor.translate_text_with_phonetics(
@@ -462,36 +459,6 @@ class EventHandlers:
                 source_language=source_lang_for_ai
             )
             if response and response.strip():
-                # Clean the response to ensure it follows the format: "translated text (persian pronunciation)"
-                # Remove any extra commentary or text that might have been added
-                # First, look for the pattern "translated text (pronunciation)" in the response
-                match = re.search(r'(.+?)\s*\(\s*(.+?)\s*\)', response.strip(), re.DOTALL)
-                if match:
-                    translated_text = match.group(1).strip()
-                    pronunciation = match.group(2).strip()
-                    # Extract just the content without prefixes like "Translation:", "Phonetic:", etc.
-                    # Look for the actual translated text part
-                    translation_match = re.search(r'Translation:\s*(.+?)(?:\s*\n|$)', response)
-                    phonetic_match = re.search(r'Phonetic:\s*\((.+?)\)', response)
-                    
-                    if translation_match and phonetic_match:
-                        clean_translation = translation_match.group(1).strip()
-                        clean_pronunciation = phonetic_match.group(1).strip()
-                        return f"{clean_translation} ({clean_pronunciation})"
-                    else:
-                        # If we have the match from the general pattern, return that
-                        return f"{translated_text} ({pronunciation})"
-                else:
-                    # If the response doesn't match the expected format, return it as is
-                    # but try to extract the most relevant part
-                    lines = response.split('\n')
-                    for line in lines:
-                        line = line.strip()
-                        if '(' in line and ')' in line and line.count('(') == line.count(')'):
-                            # This line likely contains the translation and pronunciation
-                            return line.strip()
-                
-                # If no proper format found, return the cleaned response
                 return response.strip()
             else:
                 self._logger.warning(f"Empty response from AI for translation. Response was: {response}")
@@ -829,42 +796,20 @@ class EventHandlers:
     
     async def _parse_translate_command(
         self, message: Message, command_text: str
-    ) -> Optional[Dict[str, str]]:
-        """Parse translate command parameters."""
+    ) -> Optional[Dict[str, Any]]:
+        """Parse translate command parameters using the simplified approach."""
         command_parts = command_text[len("/translate="):].strip()
         
-        # Match patterns for translate command - handle both "lang=text" and "lang text" formats
-        target_language = None
-        source_language = "auto"
-        text_to_translate = None
+        # Use the simplified translation command parser
+        from ..utils.translation_utils import parse_translation_command
+        target_language, text_to_translate, errors = parse_translation_command(command_parts)
         
-        # First try to match the pattern with "=" separator
-        match_with_equals = re.match(r"([a-zA-Z\s]+?)(?:,([a-zA-Z\s]+?))?\s*=\s*(.+)", command_parts, re.DOTALL)
-        if match_with_equals:
-            target_language = match_with_equals.group(1).strip()
-            if match_with_equals.group(2):
-                source_language = match_with_equals.group(2).strip()
-            text_to_translate = match_with_equals.group(3).strip()
-        else:
-            # If no "=" found, try the pattern with space separator
-            match_with_space = re.match(r"([a-zA-Z\s]+?)(?:,([a-zA-Z\s]+?))?\s+(.+)", command_parts, re.DOTALL)
-            if match_with_space:
-                target_language = match_with_space.group(1).strip()
-                if match_with_space.group(2):
-                    source_language = match_with_space.group(2).strip()
-                text_to_translate = match_with_space.group(3).strip()
+        if errors:
+            for error in errors:
+                self._logger.warning(f"Translation command parsing error: {error}")
+            return None
         
-        # For cases where only language is specified (when replying to a message)
-        match_lang_only = re.match(r"([a-zA-Z\s]+?)(?:,([a-zA-Z\s]+?))?$", command_parts)
-        
-        # If no text was matched from the main patterns, check if we only have language
-        if not target_language and not text_to_translate:
-            if match_lang_only:
-                target_language = match_lang_only.group(1).strip()
-                if match_lang_only.group(2):
-                    source_language = match_lang_only.group(2).strip()
-        
-        # If no text provided, check if replying to a message
+        # If no text to translate, check if replying to a message
         if not text_to_translate and message.is_reply:
             replied_msg = await message.get_reply_message()
             if replied_msg and replied_msg.text:
@@ -875,7 +820,7 @@ class EventHandlers:
                 # Extract text between "📝 متن پیاده‌سازی شده:" and "🔍 جمع‌بندی و تحلیل هوش مصنوعی:"
                 
                 # Look for STT result format: "📝 **متن پیاده‌سازی شده:**\n{transcribed_text}\n\n🔍 **جمع‌بندی و تحلیل هوش مصنوعی:**"
-                stt_pattern = r"📝\s*\*\*متن\s*پیاده‌سازی\s*شده:\*\*\s*\n(.*?)\s*\n\s*\n🔍\s*\*\*جمع‌بندی\s*و\s*تحلیل\s*هوش\s*مصنوعی:\*\*"
+                stt_pattern = r"📝\s*\*متن\s*پیاده‌سازی\s*شده:\*\*\s*\n(.*?)\s*\n\s*\n🔍\s*\*\*جمع‌بندی\s*و\s*تحلیل\s*هوش\s*مصنوعی:\*\*"
                 match = re.search(stt_pattern, original_text, re.DOTALL)
                 
                 if match:
@@ -889,12 +834,15 @@ class EventHandlers:
                     cleaned_text = re.sub(r'#+\s*', '', cleaned_text)  # Remove headers
                     cleaned_text = re.sub(r'\s+', ' ', cleaned_text)  # Normalize whitespace
                     text_to_translate = cleaned_text.strip()
+            else:
+                # No text provided and no replied message with text
+                return None
         
-        if target_language and text_to_translate:
+        if target_language and (text_to_translate or message.is_reply):
             return {
                 "text_for_ai": text_to_translate,
                 "target_language": target_language,
-                "source_lang_for_ai": source_language
+                "source_lang_for_ai": "auto"
             }
         
         return None

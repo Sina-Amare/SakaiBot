@@ -9,6 +9,7 @@ from ..utils import (
     display_error, display_success, display_info, display_warning,
     prompt_choice, prompt_text, confirm_action, console
 )
+from src.telegram.user_verifier import TelegramUserVerifier
 
 @click.group()
 def auth():
@@ -34,7 +35,19 @@ async def _list_authorized():
         
         # Get PV details from cache
         cache_manager = await get_cache_manager()
-        pvs, _ = cache_manager.load_pv_cache()
+        cached_pvs, _ = cache_manager.load_pv_cache()
+        
+        # Get Telegram client for direct verification of users not in cache
+        from ..utils import get_telegram_client
+        client, client_manager = await get_telegram_client()
+        verifier = None  # Initialize verifier as None
+        if not client:
+            display_error("Failed to connect to Telegram. Showing cached data only.")
+            # Proceed with cached data only
+            cached_pvs = cached_pvs or []
+        else:
+            # Use the user verifier to get updated information for users not in cache
+            verifier = TelegramUserVerifier(client)
         
         # Create table
         table = Table(title="Authorized Users", show_header=True, header_style="bold cyan")
@@ -44,13 +57,23 @@ async def _list_authorized():
         table.add_column("User ID", style="yellow", width=15)
         
         for idx, pv_id in enumerate(auth_pvs, 1):
-            # Find PV details
+            # Find PV details in cache first
             pv_info = None
-            if pvs:
-                for pv in pvs:
+            if cached_pvs:
+                for pv in cached_pvs:
                     if pv['id'] == pv_id:
                         pv_info = pv
                         break
+            
+            # If not found in cache and we have a client, fetch directly from Telegram
+            if not pv_info and client and verifier:
+                try:
+                    user_info = await verifier.verify_user_by_identifier(str(pv_id))
+                    if user_info:
+                        pv_info = user_info
+                except Exception:
+                    # If direct fetch fails, continue with what we have
+                    pass
             
             if pv_info:
                 display_name = pv_info.get('display_name', 'N/A')
@@ -58,8 +81,9 @@ async def _list_authorized():
             else:
                 display_name = "Unknown"
                 username = "N/A"
+                pv_info = {'id': pv_id}
             
-            table.add_row(str(idx), display_name, username, str(pv_id))
+            table.add_row(str(idx), display_name, username, str(pv_info['id']))
         
         console.print(table)
         display_info(f"Total authorized users: {len(auth_pvs)}")
@@ -78,51 +102,37 @@ async def _add_authorized(identifier: str):
     try:
         settings_manager = await get_settings_manager()
         settings = settings_manager.load_user_settings()
-        
         auth_pvs = settings.get('directly_authorized_pvs', [])
         
-        # Search for PV
-        cache_manager = await get_cache_manager()
-        pvs, _ = cache_manager.load_pv_cache()
-        
-        if not pvs:
-            display_error("No PV cache found. Run 'sakaibot pv refresh' first.")
+        # Get Telegram client for direct verification
+        from ..utils import get_telegram_client
+        client, client_manager = await get_telegram_client()
+        if not client:
+            display_error("Failed to connect to Telegram. Cannot verify user.")
             return
+
+        # Use direct verification instead of cache
+        verifier = TelegramUserVerifier(client)
+        user_info = await verifier.verify_user_by_identifier(identifier)
         
-        results = cache_manager.search_pvs(pvs, identifier)
-        # Ensure results is a list to prevent NoneType errors
-        if not results: # This check handles both None and empty list
-            display_error(f"No user found matching '{identifier}'")
+        if not user_info:
+            display_error(f"No user found matching '{identifier}' in Telegram")
             return
-        
-        if len(results) == 1:
-            selected_pv = results[0]
-        else:
-            # Multiple matches
-            choices = []
-            for pv in results[:10]:
-                username = f"@{pv['username']}" if pv.get('username') else "N/A"
-                choice = f"{pv['display_name']} ({username}) - ID: {pv['id']}"
-                choices.append(choice)
-            
-            selection = prompt_choice("Multiple users found. Select one:", choices)
-            selected_idx = choices.index(selection)
-            selected_pv = results[selected_idx]
-        
+
         # Check if already authorized
-        if selected_pv['id'] in auth_pvs:
-            display_warning(f"{selected_pv['display_name']} is already authorized")
+        if user_info['id'] in auth_pvs:
+            display_warning(f"{user_info['display_name']} is already authorized")
             return
-        
+
         # Add to authorized list
-        auth_pvs.append(selected_pv['id'])
+        auth_pvs.append(user_info['id'])
         settings['directly_authorized_pvs'] = auth_pvs
         settings_manager.save_user_settings(settings)
-        
-        username = f"@{selected_pv['username']}" if selected_pv.get('username') else "N/A"
-        display_success(f"Authorized: {selected_pv['display_name']} ({username})")
+
+        username = user_info.get('username', 'N/A')
+        display_success(f"Authorized: {user_info['display_name']} ({username})")
         display_info(f"Total authorized users: {len(auth_pvs)}")
-        
+
     except Exception as e:
         display_error(f"Failed to add authorized user: {e}")
 
@@ -137,13 +147,12 @@ async def _remove_authorized(identifier: str):
     try:
         settings_manager = await get_settings_manager()
         settings = settings_manager.load_user_settings()
-        
         auth_pvs = settings.get('directly_authorized_pvs', [])
         
         if not auth_pvs:
             display_info("No authorized users to remove.")
             return
-        
+
         # Try to parse as ID first
         try:
             user_id = int(identifier)
@@ -155,47 +164,36 @@ async def _remove_authorized(identifier: str):
                 return
         except ValueError:
             pass
+
+        # Use direct verification to find the user by identifier
+        from ..utils import get_telegram_client
+        client, client_manager = await get_telegram_client()
+        if not client:
+            display_error("Failed to connect to Telegram. Cannot verify user.")
+            return
+
+        # Use direct verification instead of cache
+        verifier = TelegramUserVerifier(client)
+        user_info = await verifier.verify_user_by_identifier(identifier)
         
-        # Search in cache
-        cache_manager = await get_cache_manager()
-        pvs, _ = cache_manager.load_pv_cache()
-        
-        if pvs:
-            results = cache_manager.search_pvs(pvs, identifier)
-            # Ensure results is a list to prevent NoneType errors
-            if results:
-                # Check which results are authorized
-                authorized_results = [pv for pv in results if pv['id'] in auth_pvs]
-                
-                if not authorized_results:
-                    display_warning(f"No authorized users found matching '{identifier}'")
-                    return
-                
-                if len(authorized_results) == 1:
-                    selected_pv = authorized_results[0]
-                else:
-                    # Multiple matches
-                    choices = []
-                    for pv in authorized_results:
-                        username = f"@{pv['username']}" if pv.get('username') else "N/A"
-                        choice = f"{pv['display_name']} ({username}) - ID: {pv['id']}"
-                        choices.append(choice)
-                    
-                    selection = prompt_choice("Multiple authorized users found. Select one:", choices)
-                    selected_idx = choices.index(selection)
-                    selected_pv = authorized_results[selected_idx]
-                
-                auth_pvs.remove(selected_pv['id'])
-                settings['directly_authorized_pvs'] = auth_pvs
-                settings_manager.save_user_settings(settings)
-                
-                username = f"@{selected_pv['username']}" if selected_pv.get('username') else "N/A"
-                display_success(f"Removed authorization: {selected_pv['display_name']} ({username})")
-                display_info(f"Remaining authorized users: {len(auth_pvs)}")
-                return
-        
-        display_error(f"No authorized user found matching '{identifier}'")
-        
+        if not user_info:
+            display_error(f"No user found matching '{identifier}' in Telegram")
+            return
+
+        # Check if user is authorized
+        if user_info['id'] not in auth_pvs:
+            display_error(f"User {user_info['display_name']} is not authorized")
+            return
+
+        # Remove from authorized list
+        auth_pvs.remove(user_info['id'])
+        settings['directly_authorized_pvs'] = auth_pvs
+        settings_manager.save_user_settings(settings)
+
+        username = user_info.get('username', 'N/A')
+        display_success(f"Removed authorization: {user_info['display_name']} ({username})")
+        display_info(f"Remaining authorized users: {len(auth_pvs)}")
+
     except Exception as e:
         display_error(f"Failed to remove authorized user: {e}")
 
@@ -225,3 +223,32 @@ async def _clear_authorized():
         
     except Exception as e:
         display_error(f"Failed to clear authorized users: {e}")
+
+@auth.command()
+def refresh():
+    """Refresh PV cache from Telegram."""
+    asyncio.run(_refresh_cache())
+
+async def _refresh_cache():
+    """Refresh PV cache implementation."""
+    try:
+        from ..utils import get_telegram_client
+        from src.telegram.utils import TelegramUtils
+        from src.utils.cache import CacheManager
+
+        client, client_manager = await get_telegram_client()
+        if not client:
+            display_error("Failed to connect to Telegram. Cannot refresh cache.")
+            return
+
+        cache_manager = await get_cache_manager()
+        telegram_utils = TelegramUtils()
+        pvs = await cache_manager.get_pvs(client, telegram_utils, force_refresh=True)
+
+        if pvs:
+            display_success(f"Successfully refreshed PV cache with {len(pvs)} users")
+        else:
+            display_warning("No PVs found to cache")
+
+    except Exception as e:
+        display_error(f"Failed to refresh PV cache: {e}")

@@ -1,24 +1,27 @@
-"""Unit tests for translation functionality."""
+"""Unit tests for simplified translation functionality."""
 
 import unittest
 import sys
 import os
 from pathlib import Path
 
-# Add src to path
-project_root = Path(__file__).parent.parent.parent
+# Add src to path - fix the path calculation
+project_root = Path(__file__).parent.parent.parent  # Go up one more level to SakaiBot root
 src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
 
 # Import directly from the file to avoid package structure issues
 import importlib.util
 spec = importlib.util.spec_from_file_location("translation_utils", str(src_path / "utils" / "translation_utils.py"))
-translation_utils = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(translation_utils)
+if spec is not None and spec.loader is not None:
+    translation_utils = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(translation_utils)
+else:
+    raise ImportError("Could not load translation_utils module")
 
 # Use the imported functions
 validate_language_code = translation_utils.validate_language_code
-parse_enhanced_translate_command = translation_utils.parse_enhanced_translate_command
+parse_translation_command = translation_utils.parse_translation_command
 format_translation_response = translation_utils.format_translation_response
 extract_translation_from_response = translation_utils.extract_translation_from_response
 TranslationHistory = translation_utils.TranslationHistory
@@ -51,8 +54,7 @@ class TestLanguageCodeValidation(unittest.TestCase):
         valid_cases = [
             ("english", True, "en"),
             ("spanish", True, "es"),
-            ("farsi", True, "fa"),
-            ("persian", True, "fa")
+            ("persian", True, "fa")  # Only "persian" is a valid name, not "farsi" in our mapping
         ]
         
         for code, expected_valid, expected_std in valid_cases:
@@ -88,84 +90,38 @@ class TestLanguageCodeValidation(unittest.TestCase):
         self.assertIsNone(suggestion)
 
 
-class TestEnhancedCommandParsing(unittest.TestCase):
-    """Test enhanced translation command parsing."""
+class TestSimplifiedCommandParsing(unittest.TestCase):
+    """Test simplified translation command parsing for the two core use cases."""
     
-    def test_format_1_lang_text(self):
-        """Test format: /translate=<lang> <text>"""
-        test_cases = [
-            ("en Hello world", "en", "auto", "Hello world"),
-            ("fa سلام دنیا", "fa", "auto", "سلام دنیا")
-        ]
-        
-        for command, expected_target, expected_source, expected_text in test_cases:
-            with self.subTest(command=command):
-                target, source, text, errors = parse_enhanced_translate_command(command)
-                self.assertEqual(target, expected_target)
-                self.assertEqual(source, expected_source)
-                self.assertEqual(text, expected_text)
-                self.assertEqual(len(errors), 0)
-    
-    def test_format_2_lang_lang_text(self):
-        """Test format: /translate=<target_lang>,<source_lang> <text>"""
-        test_cases = [
-            ("en,fa Hello world", "en", "fa", "Hello world"),
-            ("fa,en سلام دنیا", "fa", "en", "سلام دنیا")
-        ]
-        
-        for command, expected_target, expected_source, expected_text in test_cases:
-            with self.subTest(command=command):
-                target, source, text, errors = parse_enhanced_translate_command(command)
-                self.assertEqual(target, expected_target)
-                self.assertEqual(source, expected_source)
-                self.assertEqual(text, expected_text)
-                self.assertEqual(len(errors), 0)
-    
-    def test_format_3_lang_equals_text(self):
+    def test_format_1_lang_equals_text(self):
         """Test format: /translate=<lang>=<text>"""
         test_cases = [
-            ("en=Hello world", "en", "auto", "Hello world"),
-            ("es=Hola mundo", "es", "auto", "Hola mundo"),
-            ("fa=سلام دنیا", "fa", "auto", "سلام دنیا")
+            ("en=Hello world", "en", "Hello world"),
+            ("fa=سلام دنیا", "fa", "سلام دنیا"),
+            ("de=Hallo Welt", "de", "Hallo Welt"),
+            ("ja=こんにちは世界", "ja", "こんにちは世界")
         ]
         
-        for command, expected_target, expected_source, expected_text in test_cases:
+        for command, expected_target, expected_text in test_cases:
             with self.subTest(command=command):
-                target, source, text, errors = parse_enhanced_translate_command(command)
+                target, text, errors = parse_translation_command(command)
                 self.assertEqual(target, expected_target)
-                self.assertEqual(source, expected_source)
                 self.assertEqual(text, expected_text)
                 self.assertEqual(len(errors), 0)
     
-    def test_format_4_lang_lang_equals_text(self):
-        """Test format: /translate=<target_lang>,<source_lang>=<text>"""
+    def test_format_2_lang_only(self):
+        """Test format: /translate=<lang> (for reply translation)"""
         test_cases = [
-            ("en,fa=Hello world", "en", "fa", "Hello world"),
-            ("fa,en=سلام دنیا", "fa", "en", "سلام دنیا")
+            ("en", "en", None),
+            ("fa", "fa", None),
+            ("de", "de", None),
+            ("ja", "ja", None)
         ]
         
-        for command, expected_target, expected_source, expected_text in test_cases:
+        for command, expected_target, expected_text in test_cases:
             with self.subTest(command=command):
-                target, source, text, errors = parse_enhanced_translate_command(command)
+                target, text, errors = parse_translation_command(command)
                 self.assertEqual(target, expected_target)
-                self.assertEqual(source, expected_source)
-                self.assertEqual(text, expected_text)
-                self.assertEqual(len(errors), 0)
-    
-    def test_format_4_lang_equals_lang_text(self):
-        """Test format: /translate=<target_lang>=<source_lang> <text> (Format 4 from documentation)"""
-        test_cases = [
-            ("en=fa سلام دنیا", "en", "fa", "سلام دنیا"),
-            ("fa=en Hello world", "fa", "en", "Hello world"),
-            ("de=es Hola mundo", "de", "es", "Hola mundo"),
-            ("fr=zh 你好世界", "fr", "zh", "你好世界")
-        ]
-        
-        for command, expected_target, expected_source, expected_text in test_cases:
-            with self.subTest(command=command):
-                target, source, text, errors = parse_enhanced_translate_command(command)
-                self.assertEqual(target, expected_target)
-                self.assertEqual(source, expected_source)
                 self.assertEqual(text, expected_text)
                 self.assertEqual(len(errors), 0)
     
@@ -173,25 +129,31 @@ class TestEnhancedCommandParsing(unittest.TestCase):
         """Test invalid command formats."""
         invalid_cases = [
             "",  # Empty
-            "en",  # Missing text
-            "en,fa",  # Missing text
+            "en",  # Missing text (but this is valid for reply translation)
+            "=Hello world",  # Missing language
+            "Hello world",  # Missing language and equals
         ]
         
         for command in invalid_cases:
             with self.subTest(command=command):
-                target, source, text, errors = parse_enhanced_translate_command(command)
-                self.assertIsNone(target)
-                self.assertIsNone(source)
-                self.assertIsNone(text)
-                self.assertGreater(len(errors), 0)
+                target, text, errors = parse_translation_command(command)
+                if command == "en":
+                    # This is valid for reply translation
+                    self.assertEqual(target, "en")
+                    self.assertIsNone(text)
+                    self.assertEqual(len(errors), 0)
+                else:
+                    # These should be invalid
+                    self.assertIsNone(target)
+                    self.assertIsNone(text)
+                    self.assertGreater(len(errors), 0)
     
     def test_language_validation_in_parsing(self):
         """Test that invalid language codes are caught during parsing."""
         # Invalid target language
-        target, source, text, errors = parse_enhanced_translate_command("invalid Hello world")
-        self.assertEqual(target, "invalid")
-        self.assertEqual(source, "auto")
-        self.assertEqual(text, "Hello world")
+        target, text, errors = parse_translation_command("invalid=Hello world")
+        self.assertIsNone(target)
+        self.assertIsNone(text)
         self.assertGreater(len(errors), 0)
         self.assertIn("Invalid target language", errors[0])
 
@@ -200,24 +162,29 @@ class TestResponseFormatting(unittest.TestCase):
     """Test translation response formatting."""
     
     def test_format_with_pronunciation(self):
-        """Test formatting with pronunciation."""
-        response = format_translation_response("Hello world", "هِلو ورلد")
-        self.assertEqual(response, "Hello world\n pronunciation: (هِلو ورلد)")
+        """Test formatting with pronunciation in required format."""
+        response = format_translation_response("Hello world", "هِلو وَرلد", "en")
+        expected = "Translation (English):\nHello world\nPronunciation:\nهِلو وَرلد\n-----------------------------"
+        self.assertEqual(response, expected)
     
-    def test_format_without_pronunciation(self):
-        """Test formatting without pronunciation."""
-        response = format_translation_response("Hello world", None)
-        self.assertEqual(response, "Hello world")
+    def test_format_with_different_languages(self):
+        """Test formatting with different target languages."""
+        # Japanese
+        response = format_translation_response("こんにちは世界", "کُن‌نی‌چی‌وا وَرُدو", "ja")
+        expected = "Translation (Japanese):\nこんにちは世界\nPronunciation:\nکُن‌نی‌چی‌وا وَرُدو\n-----------------------------"
+        self.assertEqual(response, expected)
         
-        response = format_translation_response("Hello world", "")
-        self.assertEqual(response, "Hello world")
+        # German
+        response = format_translation_response("Hallo Welt", "هالو ولت", "de")
+        expected = "Translation (German):\nHallo Welt\nPronunciation:\nهالو ولت\n-----------------------------"
+        self.assertEqual(response, expected)
     
     def test_format_empty_text(self):
         """Test formatting with empty text."""
-        response = format_translation_response("", "pronunciation")
+        response = format_translation_response("", "pronunciation", "en")
         self.assertEqual(response, "No translation available")
         
-        response = format_translation_response(None, "pronunciation")
+        response = format_translation_response(None, "pronunciation", "en")
         self.assertEqual(response, "No translation available")
 
 
@@ -244,13 +211,23 @@ Phonetic: (هِلو ورلد)"""
         response = "Just some translation text without structure"
         translation, pronunciation = extract_translation_from_response(response)
         self.assertEqual(translation, response)
-        self.assertIsNone(pronunciation)
+        self.assertEqual(pronunciation, "")
     
     def test_extract_empty_response(self):
         """Test extraction from empty response."""
         translation, pronunciation = extract_translation_from_response("")
         self.assertEqual(translation, "")
-        self.assertIsNone(pronunciation)
+        self.assertEqual(pronunciation, "")
+    
+    def test_extract_complex_structured_response(self):
+        """Test extraction from complex structured response."""
+        response = """Translation: Hello world
+Phonetic: (هِلو وَرلد)
+
+Additional information that should be ignored."""
+        translation, pronunciation = extract_translation_from_response(response)
+        self.assertEqual(translation, "Hello world")
+        self.assertEqual(pronunciation, "هِلو وَرلد")
 
 
 class TestTranslationHistory(unittest.TestCase):

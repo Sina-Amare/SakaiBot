@@ -154,9 +154,11 @@ class OpenRouterProvider(LLMProvider):
                     if extracted_parts:
                         response_text = "\n".join(extracted_parts).strip()
                 elif content is None and hasattr(choice, "delta"):
-                    delta_content = getattr(choice.delta, "content", None)
-                    if isinstance(delta_content, str):
-                        response_text = delta_content.strip()
+                    delta = getattr(choice, "delta", None)
+                    if delta is not None:
+                        delta_content = getattr(delta, "content", None)
+                        if isinstance(delta_content, str):
+                            response_text = delta_content.strip()
                 # Additional check for safety filter responses
                 elif hasattr(choice, 'finish_reason') and choice.finish_reason:
                     finish_reason = str(choice.finish_reason).lower()
@@ -202,32 +204,46 @@ class OpenRouterProvider(LLMProvider):
         target_language: str,
         source_language: str = "auto"
     ) -> str:
-        """Translate text using OpenRouter."""
+        """Translate text using OpenRouter with Persian phonetic support."""
         if not text:
             raise AIProcessorError("No text provided for translation")
+        
+        # Get the full language name for the prompt
+        from ...utils.translation_utils import get_language_name
+        target_language_name = get_language_name(target_language)
+        
+        # Log the exact text being translated for debugging purposes
+        self._logger.debug(f"Translation request - Text: '{text[:100]}...', Target: {target_language} ({target_language_name}), Source: {source_language}")
         
         # Build a clean translation prompt without sarcastic commentary
         if source_language.lower() == "auto":
             prompt = (
-                f"Detect the language of the following text and then translate it to '{target_language}'.\n"
+                f"Detect the language of the following text and then translate it to {target_language_name}.\n"
                 f"Provide the Persian phonetic pronunciation for the translated text.\n\n"
                 f"Text to translate:\n\"{text}\"\n\n"
                 f"Output format:\n"
-                f"[translated text] ([Persian phonetic pronunciation])\n\n"
-                f"Example: Hello (هِلو)"
+                f"Translation: [translated text]\n"
+                f"Phonetic: ([Persian phonetic pronunciation])\n\n"
+                f"Example:\n"
+                f"Translation: Hello world\n"
+                f"Phonetic: (هِلو وَرلد)"
             )
         else:
+            source_language_name = get_language_name(source_language)
             prompt = (
-                f"Translate the following text from '{source_language}' to '{target_language}'.\n"
+                f"Translate the following text from {source_language_name} to {target_language_name}.\n"
                 f"Provide the Persian phonetic pronunciation for the translated text.\n\n"
                 f"Text to translate:\n\"{text}\"\n\n"
                 f"Output format:\n"
-                f"[translated text] ([Persian phonetic pronunciation])\n\n"
-                f"Example: Hello (هِلو)"
+                f"Translation: [translated text]\n"
+                f"Phonetic: ([Persian phonetic pronunciation])\n\n"
+                f"Example:\n"
+                f"Translation: Hello world\n"
+                f"Phonetic: (هِلو وَرلد)"
             )
         
         self._logger.info(
-            f"Requesting translation for '{text[:50]}...' to {target_language} with phonetics."
+            f"Requesting translation for '{text[:50]}...' to {target_language_name} with phonetics."
         )
         
         # Use lower temperature for translation accuracy
@@ -238,38 +254,17 @@ class OpenRouterProvider(LLMProvider):
             system_message="You are a precise translation assistant. Provide only the translation and phonetic pronunciation in the requested format. No commentary or additional text."
         )
         
-        # Clean the response to ensure it follows the format: "translated text (persian pronunciation)"
-        # Remove any extra text that might have been added
-        import re
-        # First, look for the pattern "translated text (pronunciation)" in the response
-        match = re.search(r'(.+?)\s*\(\s*(.+?)\s*\)', raw_response.strip(), re.DOTALL)
-        if match:
-            translated_text = match.group(1).strip()
-            pronunciation = match.group(2).strip()
-            # Extract just the content without prefixes like "Translation:", "Phonetic:", etc.
-            # Look for the actual translated text part
-            translation_match = re.search(r'Translation:\s*(.+?)(?:\s*\n|$)', raw_response)
-            phonetic_match = re.search(r'Phonetic:\s*\((.+?)\)', raw_response)
-            
-            if translation_match and phonetic_match:
-                clean_translation = translation_match.group(1).strip()
-                clean_pronunciation = phonetic_match.group(1).strip()
-                return f"{clean_translation} ({clean_pronunciation})"
-            else:
-                # If we have the match from the general pattern, return that
-                return f"{translated_text} ({pronunciation})"
-        else:
-            # If the response doesn't match the expected format, return it as is
-            # but try to extract the most relevant part
-            lines = raw_response.split('\n')
-            for line in lines:
-                line = line.strip()
-                if '(' in line and ')' in line and line.count('(') == line.count(')'):
-                    # This line likely contains the translation and pronunciation
-                    return line
+        # Extract translation and pronunciation from the response
+        from ...utils.translation_utils import extract_translation_from_response
+        translation, pronunciation = extract_translation_from_response(raw_response)
         
-        # If no proper format found, return the raw response
-        return raw_response
+        if translation and pronunciation:
+            # Format the response with the required structure
+            from ...utils.translation_utils import format_translation_response
+            return format_translation_response(translation, pronunciation, target_language)
+        else:
+            # If extraction failed, return the raw response
+            return raw_response
     
     async def analyze_messages(
         self,

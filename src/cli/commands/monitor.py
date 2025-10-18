@@ -152,16 +152,23 @@ async def _start_monitoring(verbose: bool):
                     if verbose:
                         console.print(f"[green]Authorized command from {event.sender_id}: {event.text[:50]}...[/green]")
                     
-                    # Forward to owner for confirmation
-                    me = await client.get_me()
-                    forward_text = (
-                        f"🔔 **Command from authorized user:**\n"
-                        f"User: {event.sender_id}\n"
-                        f"Command: `{event.text}`\n\n"
-                        f"Reply with 'confirm' to execute."
-                    )
+                    # Process command directly without confirmation for authorized users
+                    replied_message = await event.message.get_reply_message() if event.message.is_reply else None
                     
-                    await client.send_message(me.id, forward_text)
+                    await event_handlers.process_command_logic(
+                        message_to_process=event.message,
+                        client=client,
+                        current_chat_id_for_response=event.chat_id,
+                        is_confirm_flow=False,
+                        your_confirm_message=None,
+                        actual_message_for_categorization_content=replied_message,
+                        cli_state_ref={
+                            'selected_target_group': cli_state.selected_target_group,
+                            'active_command_topic_map': cli_state.active_command_to_topic_map,
+                            'is_monitoring_active': True
+                        },
+                        is_direct_auth_user_command=True  # Mark as authorized user command
+                    )
                 
                 client.add_event_handler(auth_handler, auth_filter)
                 auth_handlers.append((auth_handler, auth_filter))

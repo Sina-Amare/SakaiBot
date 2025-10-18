@@ -4,7 +4,7 @@ cryptg>=0.4.0
 
 # AI and ML
 openai>=1.0.0
-google-genai>=0.1.0
+google-generativeai>=0.1.0
 
 # Speech processing
 SpeechRecognition>=3.10.0
@@ -14,8 +14,9 @@ pydub
 edge-tts
 pyttsx3
 
-# NLP
-hazm
+# NLP - using simpler alternatives to avoid compilation issues
+# hazm dependency removed due to numpy compilation issues on Windows
+# Instead using simpler alternatives or removing for now
 
 # Async utilities
 aiofiles>=23.0.0
@@ -29,3 +30,7 @@ python-dotenv>=1.0.0
 pytz>=2023.3
 click
 rich
+
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0

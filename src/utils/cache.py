@@ -132,7 +132,7 @@ class CacheManager:
     async def get_pvs(
         self,
         client,
-        telegram_utils: TelegramUtilsProtocol,
+        telegram_utils,
         force_refresh: bool = False,
         fetch_limit_on_refresh: int = DEFAULT_PV_FETCH_LIMIT_REFRESH,
         fetch_limit_on_initial: int = DEFAULT_PV_FETCH_LIMIT_INITIAL
@@ -208,7 +208,7 @@ class CacheManager:
     async def get_groups(
         self,
         client,
-        telegram_utils: TelegramUtilsProtocol,
+        telegram_utils,
         force_refresh: bool = False,
         require_admin_rights: bool = True
     ) -> List[Dict[str, Any]]:

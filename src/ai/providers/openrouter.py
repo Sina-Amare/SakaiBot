@@ -21,7 +21,8 @@ from ..persian_prompts import (
     VOICE_MESSAGE_SUMMARY_PROMPT,
     ANALYZE_GENERAL_PROMPT,
     ANALYZE_FUN_PROMPT,
-    ANALYZE_ROMANCE_PROMPT
+    ANALYZE_ROMANCE_PROMPT,
+    ANALYZE_FUN_SYSTEM_MESSAGE
 )
 
 
@@ -334,7 +335,7 @@ class OpenRouterProvider(LLMProvider):
             system_message = None
         elif analysis_type == "fun":
             prompt = ANALYZE_FUN_PROMPT.format(messages_text=messages_text)
-            system_message = None
+            system_message = ANALYZE_FUN_SYSTEM_MESSAGE
         elif analysis_type == "romance":
             prompt = ANALYZE_ROMANCE_PROMPT.format(messages_text=messages_text)
             system_message = None

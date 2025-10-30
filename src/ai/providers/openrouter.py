@@ -18,7 +18,10 @@ from ..persian_prompts import (
     CONVERSATION_ANALYSIS_SYSTEM_MESSAGE,
     QUESTION_ANSWER_PROMPT,
     QUESTION_ANSWER_SYSTEM_MESSAGE,
-    VOICE_MESSAGE_SUMMARY_PROMPT
+    VOICE_MESSAGE_SUMMARY_PROMPT,
+    ANALYZE_GENERAL_PROMPT,
+    ANALYZE_FUN_PROMPT,
+    ANALYZE_ROMANCE_PROMPT
 )
 
 
@@ -251,7 +254,7 @@ class OpenRouterProvider(LLMProvider):
         raw_response = await self.execute_prompt(
             prompt,
             temperature=0.2,
-            system_message="You are a precise translation assistant. Provide only the translation and phonetic pronunciation in the requested format. No commentary or additional text."
+            system_message=TRANSLATION_SYSTEM_MESSAGE
         )
         
         # Extract translation and pronunciation from the response
@@ -326,6 +329,15 @@ class OpenRouterProvider(LLMProvider):
                 actual_chat_messages=messages_text
             )
             system_message = CONVERSATION_ANALYSIS_SYSTEM_MESSAGE
+        elif analysis_type == "general":
+            prompt = ANALYZE_GENERAL_PROMPT.format(messages_text=messages_text)
+            system_message = None
+        elif analysis_type == "fun":
+            prompt = ANALYZE_FUN_PROMPT.format(messages_text=messages_text)
+            system_message = None
+        elif analysis_type == "romance":
+            prompt = ANALYZE_ROMANCE_PROMPT.format(messages_text=messages_text)
+            system_message = None
         elif analysis_type == "voice_summary":
             # Summary for voice messages
             prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(

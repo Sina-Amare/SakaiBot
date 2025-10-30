@@ -145,3 +145,4 @@ tmp/
 temp/
 *.tmp
 venv.linux
+.cursor/

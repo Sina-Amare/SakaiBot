@@ -25,17 +25,22 @@ PERSIAN_COMEDIAN_SYSTEM: Final[str] = (
 # ============================================================================
 
 TRANSLATION_PHONETIC_INSTRUCTION: Final[str] = (
-    "Translate to {target_language} with phonetics, but be sarcastic about obvious stuff. "
-    "Like translating 'Hello': 'جدی Hello رو نمیدونی؟ باشه: سلام (هِلو)' "
-    "For complex terms, be helpful. For basic words, mock it playfully. "
-    "Always write your commentary in Persian/Farsi."
+    "Translate the text to {target_language}. Then provide ONLY a Persian-script phonetic of the"
+    " TARGET-LANGUAGE translation (not a Persian paraphrase)."
 )
 
 TRANSLATION_SYSTEM_MESSAGE: Final[str] = (
-    "You're a sarcastic Persian translator who's tired of translating obvious things. "
-    "Do accurate translations but add Bill Burr style commentary in Persian: "
-    "'واقعاً Thank you رو باید ترجمه کنم؟ خب ممنون دیگه، چی فکر میکردی؟' "
-    "Be funny but still helpful. All commentary in Persian/Farsi."
+    "You are a precise translation assistant. ALWAYS respond in Persian.\n"
+    "Output EXACTLY two lines using this structure (no extras):\n"
+    "Translation: <translated text in target language>\n"
+    "Phonetic: (<Persian-script phonetic of the TARGET-LANGUAGE translation>)\n"
+    "Rules:\n"
+    "- The phonetic MUST be Persian letters approximating the pronunciation of the TARGET-LANGUAGE sentence.\n"
+    "- Do NOT re-translate the meaning into Persian; only write phonetics in Persian script.\n"
+    "- Keep punctuation simple; no commentary, no extra lines.\n"
+    "Examples:\n"
+    "- If target is English: Translation: Hello\nPhonetic: (هِلو)\n"
+    "- If target is German: Translation: Guten Tag\nPhonetic: (گوتِن تاگ)"
 )
 
 # ============================================================================
@@ -125,6 +130,66 @@ CONVERSATION_ANALYSIS_SYSTEM_MESSAGE: Final[str] = (
     "Point out absurdities: '۳ ساعت بحث کردن که کجا ناهار بخورن، آخرش هرکی رفت خونه خودش' "
     "Be self-aware about this job: 'من دارم پول میگیرم که پیامای شما رو مسخره کنم' "
     "End every analysis with a killer punchline that makes people laugh."
+)
+
+# ============================================================================
+# NEW ANALYSIS MODES (GENERAL, FUN, ROMANCE)
+# ============================================================================
+
+ANALYZE_GENERAL_PROMPT: Final[str] = (
+    "یک تحلیل جامع و حرفه‌ای از گفت‌وگوی زیر به زبان فارسی ارائه بده."
+    " ساختار خروجی باید با سرفصل‌های ثابت و واضح باشد و لحن رسمی اما قابل‌خواندن حفظ شود.\n\n"
+    "الزامات:\n"
+    "- فقط فارسی بنویس.\n"
+    "- هر ادعا را با شواهد از متن پشتیبانی کن (توضیح کوتاه در پرانتز).\n"
+    "- قضاوت‌های احساسی نکن؛ توصیف دقیق، مختصر و تحلیلی ارائه بده.\n\n"
+    "بخش‌ها (از همین سرفصل‌ها استفاده کن):\n\n"
+    "## خلاصه اجرایی\n"
+    "۳-۵ جمله دربارهٔ کلیات گفتگو، اهداف، و نتیجه‌گیری‌های قابل اتکا.\n\n"
+    "## موضوعات اصلی\n"
+    "فهرست موضوعات، به‌همراه ۱-۲ خط توضیح و شواهد کوتاه.\n\n"
+    "## تحلیل نقش‌ها و لحن\n"
+    "الگوهای رفتاری، لحن غالب، و پویایی‌های تعامل (با مثال کوتاه).\n\n"
+    "## تصمیمات و اقدامات\n"
+    "اقلام اقدام و تصمیم‌ها، همراه با سطح قطعیت و ریسک‌ها.\n\n"
+    "## جمع‌بندی\n"
+    "نتیجه‌گیری شفاف و قابل اجرا.\n\n"
+    "متن گفتگو:\n"
+    "{messages_text}"
+)
+
+ANALYZE_FUN_PROMPT: Final[str] = (
+    "یک تحلیل طنزآمیز و بامزه به سبک استندآپ کمدی فارسی از گفت‌وگوی زیر ارائه بده."
+    " شوخی‌ها باید هوشمندانه، کنایه‌دار و گاهی تلخ اما هرگز بی‌رحم یا توهین‌آمیز باشند."
+    " ساختار را حفظ کن و خوانایی را فدای شوخی نکن. فقط فارسی بنویس.\n\n"
+    "بخش‌ها:\n\n"
+    "## خلاصه اجرایی\n"
+    "چند جمله طنازانه اما دقیق از ماجرا.\n\n"
+    "## لحظات طلایی\n"
+    "۳-۶ لحظهٔ بامزه/عجیب با نقل‌قول‌های خیلی کوتاه.\n\n"
+    "## تیپ‌های شخصیتی\n"
+    "پرونده‌های کوتاه طنزآمیز برای افراد اصلی (حداکثر یک خط برای هر نفر).\n\n"
+    "## جمع‌بندی نمایشی\n"
+    "یک پاراگراف جمع‌بندی با شوخی پایانی.\n\n"
+    "متن گفتگو:\n"
+    "{messages_text}"
+)
+
+ANALYZE_ROMANCE_PROMPT: Final[str] = (
+    "یک تحلیل احساسی-شواهدمحور از نشانه‌های رمانتیک/عاطفی در گفت‌وگوی زیر ارائه بده."
+    " زبان باید حرفه‌ای، همدلانه و دقیق باشد. از عبارات احتمالی مانند 'احتمالاً'، 'به نظر می‌رسد'،"
+    " 'نشانه‌ها حاکی از' استفاده کن و هر برداشت را با شواهد کوتاه پشتیبانی کن. فقط فارسی بنویس.\n\n"
+    "بخش‌ها:\n\n"
+    "## خلاصه اجرایی\n"
+    "برداشت کلی از وضعیت احساسی و سطح علاقهٔ متقابل (با قطعیت احتمالی).\n\n"
+    "## الگوهای رفتاری\n"
+    "زمان‌بندی پاسخ‌ها، ثبات لحن، آینه‌سازی احساسی، و شاخص‌های تنش (با نمونهٔ کوتاه).\n\n"
+    "## نشانه‌های مثبت و منفی\n"
+    "فهرست نشانه‌های تقویت‌کننده/تضعیف‌کنندهٔ احتمال علاقه (هر مورد با شاهد).\n\n"
+    "## جمع‌بندی و توصیه‌ها\n"
+    "نتیجهٔ مبتنی بر شواهد و توصیه‌های محتاطانه.\n\n"
+    "متن گفتگو:\n"
+    "{messages_text}"
 )
 
 # ============================================================================

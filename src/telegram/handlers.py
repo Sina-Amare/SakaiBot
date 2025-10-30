@@ -470,7 +470,8 @@ class EventHandlers:
         self,
         client: TelegramClient,
         chat_id: int,
-        num_messages: int
+        num_messages: int,
+        analysis_mode: str = "general"
     ) -> str:
         """Handle /analyze command."""
         try:
@@ -498,7 +499,10 @@ class EventHandlers:
             if not messages_data:
                 return "No text messages found in the specified history to analyze."
             
-            response = await self._ai_processor.analyze_conversation_messages(messages_data)
+            response = await self._ai_processor.analyze_conversation_messages(
+                messages_data,
+                analysis_mode=analysis_mode
+            )
             if response and response.strip():
                 return response
             else:
@@ -763,14 +767,21 @@ class EventHandlers:
                 )
                 return
         
-        elif command_text.lower().startswith("/analyze="):
+        elif command_text.lower().startswith("/analyze=") or command_text.lower().startswith("/analyze "):
             command_type = "/analyze"
             command_args = self._parse_analyze_command(command_text, cli_state_ref)
+            if command_args and isinstance(command_args, dict) and command_args.get("error") == "unknown_mode":
+                await client.send_message(
+                    chat_id,
+                    "حالت تحلیل نامعتبر است. حالت‌های مجاز: general, fun, romance",
+                    reply_to=message.id
+                )
+                return
             if not command_args:
                 max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
                 await client.send_message(
                     chat_id,
-                    f"Usage: /analyze=<number_between_1_and_{max_limit}>",
+                    f"Usage: /analyze=<number_between_1_and_{max_limit}> یا /analyze=<mode>=<number> (mode: fun, romance, general)",
                     reply_to=message.id
                 )
                 return
@@ -849,21 +860,59 @@ class EventHandlers:
     
     def _parse_analyze_command(
         self, command_text: str, cli_state_ref: Dict[str, Any]
-    ) -> Optional[Dict[str, int]]:
-        """Parse analyze command parameters."""
+    ) -> Optional[Dict[str, Any]]:
+        """Parse analyze command parameters with optional mode.
+
+        Supported:
+          /analyze=<N>
+          /analyze=fun=<N>
+          /analyze=romance=<N>
+          /analyze <N>
+        """
         try:
-            num_messages_str = command_text[len("/analyze="):].strip()
-            if not num_messages_str.isdigit():
-                return None
-            
-            num_messages = int(num_messages_str)
+            text = command_text.strip()
             max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
-            
-            if not (1 <= num_messages <= max_limit):
+
+            # Backward compatibility: '/analyze 5000'
+            if text.lower().startswith("/analyze "):
+                tail = text[len("/analyze "):].strip()
+                if tail.isdigit():
+                    n = int(tail)
+                    if 1 <= n <= max_limit:
+                        return {"num_messages": n, "analysis_mode": "general"}
                 return None
-            
-            return {"num_messages": num_messages}
-        except ValueError:
+
+            # Must start with '/analyze='
+            if not text.lower().startswith("/analyze="):
+                return None
+
+            payload = text[len("/analyze="):]
+            parts = payload.split("=")
+
+            mode = "general"
+            num_part = None
+
+            if len(parts) == 1:
+                # /analyze=<N>
+                num_part = parts[0]
+            elif len(parts) >= 2:
+                # /analyze=<mode>=<N>
+                mode_candidate = parts[0].strip().lower()
+                num_part = parts[1].strip()
+                if mode_candidate in ("fun", "romance", "general"):
+                    mode = mode_candidate
+                else:
+                    return {"error": "unknown_mode"}
+
+            if not num_part or not num_part.isdigit():
+                return None
+
+            n = int(num_part)
+            if not (1 <= n <= max_limit):
+                return None
+
+            return {"num_messages": n, "analysis_mode": mode}
+        except Exception:
             return None
     
     def _parse_tellme_command(

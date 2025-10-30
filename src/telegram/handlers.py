@@ -295,7 +295,7 @@ class EventHandlers:
         chat_id = event_message.chat_id
         reply_to_id = event_message.id
         
-        temp_output_filename = f"temp_tts_output_{event_message.id}_{event_message.date.timestamp()}.mp3"
+        temp_output_filename = f"temp_tts_output_{event_message.id}_{event_message.date.timestamp()}.wav"
         
         thinking_msg = await client.send_message(
             chat_id,
@@ -319,13 +319,7 @@ class EventHandlers:
             if success and Path(temp_output_filename).exists():
                 self._logger.info(f"Speech generated successfully: {temp_output_filename}. Sending voice message")
                 
-                provider_used = getattr(self._tts_processor, "_last_provider", "unknown")
-                if provider_used == "huggingface":
-                    caption_provider = "Hugging Face FastSpeech2"
-                elif provider_used == "google_translate":
-                    caption_provider = "Google Translate"
-                else:
-                    caption_provider = "نامشخص"
+                caption_provider = "Google GenAI TTS"
                 
                 await client.edit_message(
                     thinking_msg,

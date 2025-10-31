@@ -718,6 +718,9 @@ class EventHandlers:
             f"Voice: {voice}, Text length: {len(normalized_text)} chars"
         )
         
+        # Calculate queue position BEFORE adding (position = current queue size + 1)
+        queue_position = tts_queue.queue_size + 1
+        
         # Add request to TTS queue instead of processing directly
         request_id = await tts_queue.add_request(
             text=normalized_text,
@@ -726,11 +729,11 @@ class EventHandlers:
             voice=voice
         )
         
-        # Send queue status message
+        # Send queue status message with correct initial position
         queue_status_msg = await client.send_message(
             chat_id,
             f"🗣️ در حال تبدیل متن به گفتار برای {sender_info}...\n"
-            f"📋 وضعیت: در صف (مکان: {tts_queue.queue_size})\n"
+            f"📋 وضعیت: در صف (مکان: {queue_position})\n"
             f"🔊 صدای مورد نظر: {voice}",
             reply_to=message.id
         )
@@ -751,6 +754,9 @@ class EventHandlers:
         original_message_id: int
     ) -> None:
         """Monitor TTS request and send result when ready."""
+        update_counter = 0
+        last_position = None
+        
         try:
             while True:
                 request = tts_queue.get_request_status(request_id)
@@ -793,6 +799,29 @@ class EventHandlers:
                     # Clean up the failed request
                     tts_queue.cleanup_request(request_id)
                     break
+                
+                elif request.status == TTSStatus.PROCESSING:
+                    # Update status to show processing
+                    await client.edit_message(
+                        status_message,
+                        f"⚙️ در حال پردازش...\n"
+                        f"🔊 صدای مورد نظر: {request.voice or 'Kore'}"
+                    )
+                
+                elif request.status == TTSStatus.PENDING:
+                    # Update position periodically (every 2 seconds)
+                    update_counter += 1
+                    if update_counter % 2 == 0:
+                        current_position = tts_queue.get_request_position(request_id)
+                        if current_position != last_position:
+                            last_position = current_position
+                            if current_position:
+                                await client.edit_message(
+                                    status_message,
+                                    f"🗣️ در حال تبدیل متن به گفتار...\n"
+                                    f"📋 وضعیت: در صف (مکان: {current_position})\n"
+                                    f"🔊 صدای مورد نظر: {request.voice or 'Kore'}"
+                                )
                 
                 # Update status periodically
                 await asyncio.sleep(1)

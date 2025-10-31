@@ -66,7 +66,10 @@ class TTSQueue:
         
         # Start processing if not already running
         if not self._is_processing:
+            self._logger.debug("Starting queue processing")
             asyncio.create_task(self._process_queue())
+        else:
+            self._logger.debug(f"Queue already processing. Current queue size: {self._queue.qsize()}")
         
         return request_id
     
@@ -88,27 +91,35 @@ class TTSQueue:
                     
                     async with semaphore:
                         await self._process_single_request(request)
+                    
+                    # Mark task as done after processing
+                    self._queue.task_done()
                         
                 except asyncio.TimeoutError:
-                    # Check if queue is empty and no more items are expected
+                    # Check if queue is empty
                     if self._queue.empty():
-                        break
+                        # Wait a bit more to see if new items arrive
+                        await asyncio.sleep(0.5)
+                        if self._queue.empty():
+                            break
                     continue
                 except Exception as e:
                     self._logger.error(f"Error processing TTS queue: {e}", exc_info=True)
-                    break
+                    # Continue processing other requests even if one fails
+                    continue
         finally:
             self._is_processing = False
+            self._logger.debug("Queue processing stopped")
     
     async def _process_single_request(self, request: TTSRequest):
         """Process a single TTS request."""
         request_id = request.request_id
-        self._logger.info(f"Processing TTS request {request_id}")
+        self._logger.info(f"Processing TTS request {request_id} (text length: {len(request.text)} chars)")
         
         try:
             # Update status to processing
             request.status = TTSStatus.PROCESSING
-            self._logger.info(f"Generating speech for request {request_id}")
+            self._logger.debug(f"Request {request_id} status set to PROCESSING")
             
             # Generate speech file
             audio_file = await self._processor.generate_speech_file(
@@ -133,6 +144,34 @@ class TTSQueue:
     def get_request_status(self, request_id: str) -> Optional[TTSRequest]:
         """Get the status of a TTS request."""
         return self._requests.get(request_id)
+    
+    def get_request_position(self, request_id: str) -> Optional[int]:
+        """Get the position of a request in the queue (1-based).
+        
+        Returns None if request is not pending, otherwise returns its position.
+        Position is calculated based on pending requests in insertion order.
+        """
+        request = self._requests.get(request_id)
+        if not request:
+            return None
+        
+        if request.status != TTSStatus.PENDING:
+            return None
+        
+        # Count pending requests before this one (dict maintains insertion order in Python 3.7+)
+        position = 1
+        for req in self._requests.values():
+            if req.status == TTSStatus.PENDING:
+                if req.request_id == request_id:
+                    return position
+                position += 1
+        
+        return None
+    
+    def get_pending_count(self) -> int:
+        """Get the number of pending requests in the queue."""
+        return len([req for req in self._requests.values() 
+                   if req.status == TTSStatus.PENDING])
     
     def get_completed_audio(self, request_id: str) -> Optional[str]:
         """Get the audio file path for a completed request."""

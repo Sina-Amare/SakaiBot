@@ -1,8 +1,7 @@
 """
-Persian (Farsi) Prompts for SakaiBot - Professional Edition
-=============================================================
-This module contains professionally crafted Persian language prompts that instruct
-the LLM to generate outputs with witty, sarcastic humor inspired by adult comedies.
+Persian (Farsi) Prompts for SakaiBot
+=====================================
+This module contains Persian language prompts and system messages for LLM operations.
 """
 
 from typing import Final
@@ -24,11 +23,6 @@ PERSIAN_COMEDIAN_SYSTEM: Final[str] = (
 # TRANSLATION PROMPTS
 # ============================================================================
 
-TRANSLATION_PHONETIC_INSTRUCTION: Final[str] = (
-    "Translate the text to {target_language}. Then provide ONLY a Persian-script phonetic of the"
-    " TARGET-LANGUAGE translation (not a Persian paraphrase)."
-)
-
 TRANSLATION_SYSTEM_MESSAGE: Final[str] = (
     "You are a precise translation assistant. ALWAYS respond in Persian.\n"
     "Output EXACTLY two lines using this structure (no extras):\n"
@@ -44,7 +38,7 @@ TRANSLATION_SYSTEM_MESSAGE: Final[str] = (
 )
 
 # ============================================================================
-# CONVERSATION ANALYSIS - MAIN PERSIAN PROMPT
+# CONVERSATION ANALYSIS PROMPTS
 # ============================================================================
 
 CONVERSATION_ANALYSIS_PROMPT: Final[str] = (
@@ -133,7 +127,7 @@ CONVERSATION_ANALYSIS_SYSTEM_MESSAGE: Final[str] = (
 )
 
 # ============================================================================
-# NEW ANALYSIS MODES (GENERAL, FUN, ROMANCE)
+# ANALYSIS MODES (GENERAL, FUN, ROMANCE)
 # ============================================================================
 
 ANALYZE_GENERAL_PROMPT: Final[str] = (
@@ -254,188 +248,3 @@ VOICE_MESSAGE_SUMMARY_PROMPT: Final[str] = (
     "- Mention any action items or requests\n"
     "- Add brief commentary on communication style if notable"
 )
-
-VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE: Final[str] = (
-    "You are summarizing voice messages with the efficiency of someone who values their time "
-    "and the humor of someone who finds amusement in human communication patterns. "
-    "Write in Persian, be accurate but entertaining, and don't hesitate to point out when "
-    "someone could have just texted 'OK' instead of recording a 3-minute voice note."
-)
-
-# ============================================================================
-# CUSTOM PROMPT EXECUTION
-# ============================================================================
-
-CUSTOM_PROMPT_SYSTEM_MESSAGE: Final[str] = (
-    "You are an AI assistant with personality inspired by witty adult comedies. "
-    "Think of yourself as having the intelligence of JARVIS, the sarcasm of Chandler Bing, "
-    "and the directness of Rosa Diaz. Respond in Persian by default unless asked otherwise. "
-    "Be helpful and accurate, but express yourself with dry wit and observational humor. "
-    "Point out absurdities when you see them, but always provide the requested assistance."
-)
-
-# ============================================================================
-# ENHANCED SYSTEM INSTRUCTIONS FOR SPECIFIC SCENARIOS
-# ============================================================================
-
-ARGUMENT_ANALYSIS_INSTRUCTION: Final[str] = (
-    "The conversation appears to contain disagreement or conflict. "
-    "Analyze it like a reality show narrator who finds drama entertaining but maintains neutrality. "
-    "Point out logical fallacies, contradictions, and moments where people talked past each other. "
-    "Use phrases like 'قسمت امروز: وقتی همه حق با من بودن رو فکر می‌کردن'"
-)
-
-MEETING_ANALYSIS_INSTRUCTION: Final[str] = (
-    "This appears to be a work meeting or planning session. "
-    "Channel your inner corporate cynicism while analyzing. "
-    "Note any buzzwords, unclear action items, or instances of 'aggressive agreement' where "
-    "everyone says yes but nobody knows what they're agreeing to. "
-    "Predict which decisions will be revisited in the next meeting."
-)
-
-CASUAL_CHAT_INSTRUCTION: Final[str] = (
-    "This is casual conversation. Analyze it like an anthropologist studying modern communication. "
-    "Note patterns like topic-jumping, emoji overuse, or the fascinating human tendency to have "
-    "full conversations while saying absolutely nothing of substance. "
-    "Find humor in the mundane without being condescending."
-)
-
-ROMANCE_DETECTION_INSTRUCTION: Final[str] = (
-    "Romantic undertones detected. Analyze with the knowing eye of someone who has seen every "
-    "romantic comedy. Point out classic patterns, mixed signals, and communication styles. "
-    "Be witty but respectful - imagine you're the friend who sees everything but keeps it light."
-)
-
-# ============================================================================
-# PERSIAN TTS VOICES
-# ============================================================================
-
-PERSIAN_TTS_VOICES = {
-    "default": "fa-IR-DilaraNeural",
-    "female": "fa-IR-DilaraNeural",
-    "male": "fa-IR-FaridNeural",
-    "sarcastic": "fa-IR-DilaraNeural"  # Best for delivering sarcastic lines
-}
-
-# ============================================================================
-# SPEECH RECOGNITION
-# ============================================================================
-
-PERSIAN_STT_LANGUAGE: Final[str] = "fa-IR"
-
-# ============================================================================
-# PERSIAN COMMANDS
-# ============================================================================
-
-PERSIAN_COMMANDS = {
-    "help": ["راهنما", "کمک", "help"],
-    "translate": ["ترجمه", "translate"],
-    "analyze": ["تحلیل", "آنالیز", "analyze"],
-    "summarize": ["خلاصه", "چکیده", "summarize"],
-    "voice": ["صدا", "ویس", "voice"],
-    "settings": ["تنظیمات", "settings"],
-    "start": ["شروع", "start"],
-    "stop": ["توقف", "پایان", "stop"],
-    "status": ["وضعیت", "status"],
-    "list": ["لیست", "فهرست", "list"]
-}
-
-# ============================================================================
-# ERROR MESSAGES (Professional)
-# ============================================================================
-
-PERSIAN_ERROR_MESSAGES = {
-    "no_api_key": "کلید API پیکربندی نشده است.",
-    "no_model": "مدل AI مشخص نشده است.",
-    "no_messages": "پیامی برای پردازش وجود ندارد.",
-    "api_error": "خطا در ارتباط با API: {error}",
-    "file_not_found": "فایل مورد نظر یافت نشد: {file}",
-    "transcription_failed": "تبدیل صدا به متن با شکست مواجه شد.",
-    "tts_failed": "تبدیل متن به صدا با شکست مواجه شد.",
-    "invalid_command": "دستور نامعتبر است.",
-    "permission_denied": "دسترسی رد شد.",
-    "timeout": "زمان انتظار به پایان رسید.",
-    "rate_limit": "محدودیت نرخ درخواست. لطفاً کمی صبر کنید.",
-    "insufficient_data": "داده کافی برای پردازش وجود ندارد.",
-    "network_error": "خطای شبکه. اتصال اینترنت را بررسی کنید."
-}
-
-# ============================================================================
-# SUCCESS MESSAGES (Professional)
-# ============================================================================
-
-PERSIAN_SUCCESS_MESSAGES = {
-    "api_configured": "API با موفقیت پیکربندی شد.",
-    "file_saved": "فایل ذخیره شد: {file}",
-    "transcription_complete": "تبدیل صدا به متن انجام شد.",
-    "tts_complete": "تبدیل متن به صدا انجام شد.",
-    "analysis_complete": "تحلیل کامل شد.",
-    "translation_complete": "ترجمه انجام شد.",
-    "command_executed": "دستور اجرا شد.",
-    "settings_updated": "تنظیمات به‌روزرسانی شد.",
-    "cache_cleared": "حافظه پنهان پاک شد.",
-    "session_started": "نشست آغاز شد.",
-    "monitoring_active": "پایش فعال است."
-}
-
-# ============================================================================
-# UI MESSAGES (Professional)
-# ============================================================================
-
-PERSIAN_UI_MESSAGES = {
-    "welcome": "به ساکای‌بات خوش آمدید",
-    "select_option": "یک گزینه را انتخاب کنید:",
-    "enter_text": "متن خود را وارد کنید:",
-    "processing": "در حال پردازش...",
-    "please_wait": "لطفاً منتظر بمانید...",
-    "confirm": "آیا مطمئن هستید؟",
-    "yes": "بله",
-    "no": "خیر",
-    "cancel": "انصراف",
-    "back": "بازگشت",
-    "exit": "خروج",
-    "loading": "در حال بارگذاری...",
-    "saving": "در حال ذخیره‌سازی...",
-    "done": "انجام شد",
-    "error": "خطا",
-    "warning": "هشدار",
-    "info": "اطلاعات"
-}
-
-# ============================================================================
-# RESPONSE STYLE MODIFIERS
-# ============================================================================
-
-STYLE_MODIFIERS = {
-    "extra_sarcastic": (
-        "Increase sarcasm level. Channel your inner Daria Morgendorffer or April Ludgate. "
-        "Every observation should drip with dry wit."
-    ),
-    "professional_sarcastic": (
-        "Maintain professionalism while adding subtle sarcasm. "
-        "Think Jim Halpert's camera looks translated to text."
-    ),
-    "minimal_sarcasm": (
-        "Reduce sarcasm for sensitive topics. "
-        "Be witty but kind, like a supportive friend who still keeps it real."
-    ),
-    "maximum_chaos": (
-        "For when the conversation itself is chaotic. "
-        "Match the energy with observations about the beautiful disaster you're analyzing."
-    )
-}
-
-# ============================================================================
-# CONTEXTUAL OBSERVATIONS
-# ============================================================================
-
-CONTEXTUAL_OBSERVATIONS = {
-    "all_caps": "توجه: اگر همه با حروف بزرگ تایپ کرده‌اند، یا خیلی عصبانی هستند یا کلید Caps Lock گیر کرده.",
-    "no_response": "سکوت در پاسخ: گاهی بهترین جواب، عدم پاسخ است. یا اینترنت قطع بوده.",
-    "emoji_spam": "استفاده مفرط از ایموجی مشاهده شد. تحلیل احساسی: پیچیده‌تر از حد انتظار.",
-    "topic_jumping": "پرش موضوعی: از قیمت گوجه به معنای زندگی در سه پیام.",
-    "everyone_agrees": "همه موافقند: یا معجزه رخ داده یا کسی به حرف‌های بقیه گوش نمی‌دهد.",
-    "technical_discussion": "بحث فنی: جایی که همه تخصص دارند ولی هیچکس مطمئن نیست.",
-    "planning_meeting": "جلسه برنامه‌ریزی: محل تولد کارهایی که هرگز انجام نخواهند شد.",
-    "deadline_approaching": "ددلاین نزدیک است: ناگهان همه فعال و کارآمد شده‌اند. موقتاً."
-}

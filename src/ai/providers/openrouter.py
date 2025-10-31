@@ -12,7 +12,6 @@ from ...core.constants import OPENROUTER_HEADERS
 from ...core.exceptions import AIProcessorError
 from ...utils.logging import get_logger
 from ..persian_prompts import (
-    TRANSLATION_PHONETIC_INSTRUCTION,
     TRANSLATION_SYSTEM_MESSAGE,
     CONVERSATION_ANALYSIS_PROMPT,
     CONVERSATION_ANALYSIS_SYSTEM_MESSAGE,

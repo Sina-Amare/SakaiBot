@@ -9,6 +9,13 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
+# Ensure .env is loaded before reading environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not available, rely on Pydantic Settings or system env
+
 from ..core.constants import DEFAULT_TTS_VOICE
 from ..utils.logging import get_logger
 
@@ -42,9 +49,21 @@ class TextToSpeechProcessor:
     async def _synthesize_with_gemini(self, text: str, voice_name: str) -> Optional[bytes]:
         self._logger.info("Generating TTS via Google GenAI (Gemini) TTS.")
         # Try TTS-specific key first, fallback to general Gemini key
-        api_key = os.getenv("GEMINI_API_KEY_TTS") or os.getenv("GEMINI_API_KEY")
+        # Also try common typos/variations
+        api_key = (
+            os.getenv("GEMINI_API_KEY_TTS") or 
+            os.getenv("GEMINI_API__KEY_TTS") or  # Handle double underscore typo
+            os.getenv("GEMINI_API_KEY")
+        )
+        
+        # Debug logging
+        has_tts_key = bool(os.getenv("GEMINI_API_KEY_TTS") or os.getenv("GEMINI_API__KEY_TTS"))
+        has_gemini_key = bool(os.getenv("GEMINI_API_KEY"))
+        self._logger.debug(f"TTS key check: TTS-specific={has_tts_key}, General={has_gemini_key}")
+        
         if not api_key:
             self._last_error = "کلید GEMINI_API_KEY_TTS یا GEMINI_API_KEY تنظیم نشده است."
+            self._logger.error("No Gemini API key found for TTS. Check .env file.")
             return None
 
         def _call_genai() -> Optional[bytes]:

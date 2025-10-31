@@ -118,50 +118,108 @@ pip install -e ".[dev]"
 
 ### Step 4: Configure Environment
 
-Create a `.env` file in the project root:
+Create a `.env` file from the example:
 
 ```bash
-cp .env.example .env  # If .env.example exists
-# Or create manually
+cp .env.example .env
 ```
 
-Edit `.env` with your credentials (see [Configuration](#configuration)).
+Edit `.env` with your credentials. See [Configuration](#configuration) for detailed instructions and [First-Time Setup](#first-time-setup) below.
 
 ## Configuration
 
-Create a `.env` file in the project root with the following variables:
+Create a `.env` file in the project root. You can copy from the example:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your actual credentials.
 
 ### Required Configuration
 
 ```env
-# Telegram API Credentials
-TELEGRAM_API_ID=your_api_id
-TELEGRAM_API_HASH=your_api_hash
+# Telegram API Credentials (get from https://my.telegram.org)
+TELEGRAM_API_ID=12345678
+TELEGRAM_API_HASH=your_api_hash_here
 TELEGRAM_PHONE_NUMBER=+1234567890
 
-# AI Provider (choose one)
-LLM_PROVIDER=gemini  # or 'openrouter'
-GEMINI_API_KEY=your_gemini_key
-# OR
-OPENROUTER_API_KEY=your_openrouter_key
+# LLM Provider Selection (required - choose 'gemini' or 'openrouter')
+LLM_PROVIDER=gemini
+
+# AI Provider API Key (required - set the one matching your LLM_PROVIDER)
+# For Gemini:
+GEMINI_API_KEY=your_gemini_api_key_here
+# OR for OpenRouter:
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 ```
 
 ### Optional Configuration
 
 ```env
-# TTS-specific API key (uses main GEMINI_API_KEY if not set)
-GEMINI_API_KEY_TTS=your_tts_specific_key
+# Telegram Session Settings
+TELEGRAM_SESSION_NAME=sakaibot_session  # Default: sakaibot_session
+                                          # Session files are stored in data/
 
-# Logging
-LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
+# Google Gemini Configuration (if LLM_PROVIDER=gemini)
+GEMINI_API_KEY_TTS=your_tts_specific_key  # Optional: TTS-specific key (priority over GEMINI_API_KEY)
+GEMINI_MODEL=gemini-2.5-flash              # Default: gemini-2.5-flash
 
-# Application paths
-DATA_DIR=./data
-CACHE_DIR=./cache
-LOG_DIR=./logs
+# OpenRouter Configuration (if LLM_PROVIDER=openrouter)
+OPENROUTER_MODEL=google/gemini-2.5-flash  # Default: google/gemini-2.5-flash
+
+# UserBot Configuration
+USERBOT_MAX_ANALYZE_MESSAGES=10000  # Default: 10000, Range: 1-10000
+                                     # Maximum number of messages to analyze in one operation
+
+# Paths Configuration
+PATHS_FFMPEG_EXECUTABLE=/usr/local/bin/ffmpeg  # Optional: Path to FFmpeg executable
+                                                # Required for audio processing features
+                                                # Windows example: C:\\ffmpeg\\bin\\ffmpeg.exe
+
+# Environment Settings
+ENVIRONMENT=production  # Options: production, development (Default: production)
+DEBUG=false             # Enable debug mode (Default: false)
 ```
 
-> **Note**: See the documentation in `docs/` for detailed configuration options.
+### Configuration Files
+
+The bot stores configuration and data in the following locations:
+
+- **Configuration**: `.env` (project root)
+- **User Settings**: `data/sakaibot_user_settings.json`
+- **Session Files**: `data/*.session` (created automatically after first login)
+- **Cache**: `cache/` directory (group and PV caches)
+- **Logs**: `logs/` directory
+
+### First-Time Setup
+
+1. **Get Telegram API Credentials**:
+   - Visit [my.telegram.org](https://my.telegram.org)
+   - Log in with your phone number
+   - Go to "API development tools"
+   - Create an application to get your `api_id` and `api_hash`
+
+2. **Get AI Provider API Key**:
+   - **For Gemini**: Visit [Google AI Studio](https://makersuite.google.com/app/apikey) to get a Gemini API key
+   - **For OpenRouter**: Visit [OpenRouter](https://openrouter.ai/) to get an API key
+
+3. **Create `.env` File**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your credentials
+   ```
+
+4. **Validate Configuration**:
+   ```bash
+   sakaibot config validate
+   ```
+
+5. **Initial Login**:
+   - Run `sakaibot monitor start` or `sakaibot menu`
+   - You'll be prompted for your Telegram verification code
+   - Enter the code sent to your Telegram account
+   - Session file will be saved for future use
 
 ## Usage
 
@@ -175,77 +233,213 @@ sakaibot status
 
 # Show help
 sakaibot --help
+
+# Start interactive menu
+sakaibot menu
 ```
 
 ### Basic Commands
 
-#### Status Check
+#### Status and Information
 
 ```bash
+# Show current bot status and configuration
 sakaibot status
+
+# Start interactive menu system
+sakaibot menu
 ```
 
-#### Private Chat Management
+### Group Management
+
+Manage groups and message categorization:
 
 ```bash
-# List all private chats
-sakaibot pv list
+# List all groups (admin groups by default)
+sakaibot group list
 
-# Search contacts
-sakaibot pv search "john"
+# List all groups including non-admin
+sakaibot group list --all
 
-# Refresh chat list from Telegram
-sakaibot pv refresh
+# Refresh group cache from Telegram
+sakaibot group list --refresh
+
+# Set target group for message categorization
+sakaibot group set
+
+# Set specific group by ID or name
+sakaibot group set "Group Name"
+
+# Clear target group
+sakaibot group set --clear
+
+# List topics in forum group (if target group is a forum)
+sakaibot group topics
+
+# Manage command to topic/group mappings
+sakaibot group map              # List mappings
+sakaibot group map --add        # Add new mapping
+sakaibot group map --remove     # Remove a mapping
+sakaibot group map --clear      # Clear all mappings
 ```
 
-#### AI Commands
+### Authorization Management
+
+Manage authorized users who can send commands:
 
 ```bash
-# Test AI configuration
-sakaibot ai test
+# List all authorized users
+sakaibot auth list
 
-# Translate text
-sakaibot ai translate "Hello" fa
+# Add authorized user by username, ID, or display name
+sakaibot auth add username
+sakaibot auth add 123456789
+sakaibot auth add "Display Name"
 
-# Custom prompt
-sakaibot ai prompt "Explain Python decorators"
+# Remove authorized user
+sakaibot auth remove username
+
+# Clear all authorized users
+sakaibot auth clear
+
+# Refresh private chat cache from Telegram
+sakaibot auth refresh
 ```
 
-#### Monitoring
+### Monitoring
+
+Control message monitoring and command processing:
 
 ```bash
-# Start message monitoring
+# Start message monitoring (required for Telegram commands)
 sakaibot monitor start
 
-# Stop monitoring
+# Start with verbose output
+sakaibot monitor start --verbose
+
+# Stop monitoring (Ctrl+C also works)
 sakaibot monitor stop
+
+# Check monitoring status
+sakaibot monitor status
+```
+
+### Configuration Management
+
+Manage bot configuration:
+
+```bash
+# Display current configuration
+sakaibot config show
+
+# Show full configuration including API keys
+sakaibot config show --all
+
+# Validate configuration settings
+sakaibot config validate
+
+# Open configuration file in default editor
+sakaibot config edit
+
+# Show example configuration
+sakaibot config example
 ```
 
 ### Telegram Commands
 
-Once monitoring is active, you can use commands in Telegram:
+Once monitoring is started (`sakaibot monitor start`), you can use the following commands in Telegram. Commands must be sent by you (the bot owner) or by authorized users (see `sakaibot auth`).
 
 #### Text-to-Speech (TTS)
 
 Convert text to speech using Google Gemini TTS:
 
 ```text
+# Basic usage - send text directly
 /tts سلام، حال شما چطوره؟
+
+# Reply to a message to convert it to speech
+/tts  # (as a reply to any message)
+
+# Specify voice
+/tts voice=Kore Hello, how are you?
+
+# Alias command (same as /tts)
+/speak Hello world
 ```
 
-With voice selection:
+**Available voices**: Kore, Puck, Fenrir, Zephyr, Orus (default), and more. See [Google Gemini TTS documentation](https://ai.google.dev/gemini-api/docs/speech-generation) for the full list.
+
+#### Custom Prompts
+
+Ask custom questions or give instructions to the AI:
 
 ```text
-/tts voice=Kore Hello, how are you?
-```
+# Ask a question
+/prompt=What is the capital of France?
 
-**Available voices**: Kore, Puck, Fenrir, Zephyr, and more. See [Google Gemini TTS documentation](https://ai.google.dev/gemini-api/docs/speech-generation) for the full list.
+# Give an instruction
+/prompt=Explain quantum computing in simple terms
+
+# Use with Persian text
+/prompt=پایتخت ایران چیست؟
+```
 
 #### Translation
 
+Translate text between languages:
+
 ```text
-/translate Hello fa
+# Translate to target language (auto-detect source)
+/translate=fa Hello world
+
+# Translate with explicit source language
+/translate=fa,en Hello world
+
+# Reply to a message to translate it
+/translate=fa  # (as a reply to any message)
+
+# Multiple target languages
+/translate=fa,es,fr Hello world
 ```
+
+Supported language codes: ISO 639-1 codes (e.g., `fa`, `en`, `es`, `fr`, `de`, `ar`).
+
+#### Message Analysis
+
+Analyze conversation history with AI:
+
+```text
+# Analyze last N messages (default: general mode)
+/analyze=100
+
+# Analyze with specific mode
+/analyze=fun=500      # Fun/humorous analysis
+/analyze=romance=200  # Romance-focused analysis
+/analyze=general=1000 # General conversation analysis
+
+# Legacy format (still supported)
+/analyze 500
+```
+
+**Modes**: `general` (default), `fun`, `romance`
+
+**Limits**: Maximum messages analyzed is controlled by `USERBOT_MAX_ANALYZE_MESSAGES` (default: 10000)
+
+#### Ask About Messages
+
+Get AI insights about specific messages:
+
+```text
+# Ask about last N messages
+/tellme=50=What topics are being discussed?
+
+# Ask in Persian
+/tellme=100=نتیجه‌گیری کلی این مکالمه چیست؟
+```
+
+**Usage**: `/tellme=<number_of_messages>=<your_question>`
+
+The bot will analyze the specified number of recent messages and answer your question about them.
 
 ## Development
 

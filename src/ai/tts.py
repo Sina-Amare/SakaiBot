@@ -18,10 +18,11 @@ except ImportError:
 
 from ..core.constants import DEFAULT_TTS_VOICE
 from ..utils.logging import get_logger
+from .providers.tts_gemini import synthesize_speech as gemini_synthesize_speech
 
 
 class TextToSpeechProcessor:
-    """Handles text-to-speech conversion via Google GenAI TTS (Gemini)."""
+    """Handles text-to-speech conversion with multiple provider support."""
 
     def __init__(self) -> None:
         self._logger = get_logger(self.__class__.__name__)
@@ -58,131 +59,18 @@ class TextToSpeechProcessor:
         # Old voice names - default to Kore
         return "Kore"
 
-    def _write_wav(self, filename: str, pcm: bytes, channels: int = 1, rate: int = 24000, sample_width: int = 2) -> None:
-        import wave
-        with wave.open(filename, "wb") as wf:
-            wf.setnchannels(channels)
-            wf.setsampwidth(sample_width)
-            wf.setframerate(rate)
-            wf.writeframes(pcm)
-
-    def _decode_audio_inline(self, part) -> Optional[bytes]:
-        """Decode audio data from inline_data part (handles base64 and raw bytes)."""
-        try:
-            inline = getattr(part, "inline_data", None)
-            if not inline:
-                return None
-            
-            mime = getattr(inline, "mime_type", None)
-            data = getattr(inline, "data", None)
-            
-            if not data:
-                return None
-            
-            # Prefer WAV if provided; otherwise try base64 decode
-            if mime in ("audio/wav", "audio/x-wav"):
-                return data
-            
-            try:
-                import base64
-                return base64.b64decode(data)
-            except Exception:
-                return data
-        except Exception:
-            return None
-
-    async def _synthesize_with_gemini(self, text: str, voice_name: str) -> tuple[Optional[bytes], Optional[str]]:
+    async def _synthesize_with_gemini(self, text: str, voice_name: str, output_file: str) -> bool:
+        """Synthesize speech using Gemini TTS provider."""
         self._logger.info("Generating TTS via Google GenAI (Gemini) TTS.")
-        # Try TTS-specific key first, fallback to general Gemini key
-        # Also try common typos/variations
-        api_key = (
-            os.getenv("GEMINI_API_KEY_TTS") or 
-            os.getenv("GEMINI_API__KEY_TTS") or  # Handle double underscore typo
-            os.getenv("GEMINI_API_KEY")
-        )
         
-        # Debug logging
-        has_tts_key = bool(os.getenv("GEMINI_API_KEY_TTS") or os.getenv("GEMINI_API__KEY_TTS"))
-        has_gemini_key = bool(os.getenv("GEMINI_API_KEY"))
-        self._logger.debug(f"TTS key check: TTS-specific={has_tts_key}, General={has_gemini_key}")
+        def _call_gemini() -> bool:
+            success, error_msg = gemini_synthesize_speech(text, output_file, voice_name)
+            if not success and error_msg:
+                self._logger.error(f"Gemini TTS error: {error_msg}")
+                self._last_error = error_msg
+            return success
         
-        if not api_key:
-            self._last_error = "کلید GEMINI_API_KEY_TTS یا GEMINI_API_KEY تنظیم نشده است."
-            self._logger.error("No Gemini API key found for TTS. Check .env file.")
-            return None, None
-
-        def _call_genai() -> tuple[Optional[bytes], Optional[str]]:
-            try:
-                from google import genai
-                from google.genai import types
-
-                # Pass API key directly to client (matches working code pattern)
-                client = genai.Client(api_key=api_key)
-                
-                cfg = types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                voice_name=voice_name
-                            )
-                        )
-                    ),
-                )
-                
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash-preview-tts",
-                    contents=text,
-                    config=cfg,
-                )
-                
-                # Extract audio with robust null checks (matches working code)
-                candidates = getattr(response, "candidates", None) or []
-                if not candidates:
-                    raise RuntimeError("No candidates returned from Gemini TTS")
-                
-                content = getattr(candidates[0], "content", None)
-                if not content:
-                    raise RuntimeError("No content in candidate response")
-                
-                parts = getattr(content, "parts", None) or []
-                if not parts:
-                    raise RuntimeError("No parts in content")
-                
-                # Find the audio part with inline_data
-                audio_part = None
-                for p in parts:
-                    inline = getattr(p, "inline_data", None)
-                    if inline is not None:
-                        audio_part = inline
-                        break
-                
-                if audio_part is None:
-                    raise RuntimeError("No inline audio data part in response")
-                
-                raw_data = getattr(audio_part, "data", None)
-                mime_type = getattr(audio_part, "mime_type", None) or ""
-                
-                if raw_data is None:
-                    raise RuntimeError("Audio inline_data.data is missing")
-                
-                # Handle both bytes and base64-encoded strings
-                if isinstance(raw_data, (bytes, bytearray)):
-                    audio_bytes = bytes(raw_data)
-                else:
-                    try:
-                        import base64
-                        audio_bytes = base64.b64decode(raw_data)
-                    except Exception:
-                        audio_bytes = raw_data
-                
-                return audio_bytes, mime_type
-                
-            except Exception as e:
-                self._logger.error(f"GenAI TTS call failed: {e}", exc_info=True)
-                return None, None
-
-        return await asyncio.to_thread(_call_genai)
+        return await asyncio.to_thread(_call_gemini)
 
     async def text_to_speech(
         self,
@@ -192,7 +80,7 @@ class TextToSpeechProcessor:
         rate: str = "+0%",
         volume: str = "+0%",
     ) -> bool:
-        """Convert text to speech using Google GenAI TTS (writes WAV)."""
+        """Convert text to speech using Gemini TTS provider."""
         if not text_to_speak:
             self._logger.warning("No text provided to speak")
             return False
@@ -201,22 +89,13 @@ class TextToSpeechProcessor:
 
         try:
             voice_name = self._resolve_voice(voice)
-            audio_bytes, mime_type = await self._synthesize_with_gemini(text_to_speak, voice_name)
-            if not audio_bytes:
+            success = await self._synthesize_with_gemini(text_to_speak, voice_name, output_filename)
+            
+            if not success:
                 if not self._last_error:
                     self._last_error = "تولید گفتار با سرویس گوگل انجام نشد."
                 return False
 
-            # Write audio file - if WAV, write directly; otherwise wrap PCM in WAV
-            mime_lower = (mime_type or "").lower()
-            if mime_lower in {"audio/wav", "audio/x-wav", "audio/wave"}:
-                # Already WAV, write as-is
-                with open(output_filename, "wb") as f:
-                    f.write(audio_bytes)
-            else:
-                # PCM or other format - wrap in WAV container
-                self._write_wav(output_filename, audio_bytes)
-            
             return True
         except Exception as e:
             self._logger.error(f"TTS error: {e}", exc_info=True)

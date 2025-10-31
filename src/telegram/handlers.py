@@ -16,6 +16,7 @@ from ..core.exceptions import TelegramError, AIProcessorError
 from ..ai.processor import AIProcessor
 from ..ai.stt import SpeechToTextProcessor
 from ..ai.tts import TextToSpeechProcessor
+from ..ai.tts_queue import tts_queue, TTSStatus
 from ..utils.logging import get_logger
 from ..utils.helpers import clean_temp_files, parse_command_with_params
 
@@ -662,7 +663,7 @@ class EventHandlers:
         chat_id: int,
         sender_info: str
     ) -> None:
-        """Handle TTS command processing."""
+        """Handle TTS command processing with queue support for reply messages."""
         self._logger.debug(f"TTS HANDLER RECEIVED MESSAGE: {message}")
         command_text = message.text.strip() if message.text else ""
         text_to_speak = None
@@ -705,7 +706,7 @@ class EventHandlers:
             import re
             cleaned_text = re.sub(r'[📝🔍💬👤]', '', replied_message.text)
             cleaned_text = re.sub(r'\*\*.*?\*\*', '', cleaned_text) # Remove bold formatting
-            cleaned_text = re.sub(r'#+\s*', '', cleaned_text)  # Remove headers
+            cleaned_text = re.sub(r'#+\s*', '', cleaned_text) # Remove headers
             cleaned_text = re.sub(r'\s+', ' ', cleaned_text)  # Normalize whitespace
             text_to_speak = cleaned_text.strip()
 
@@ -713,15 +714,98 @@ class EventHandlers:
         normalized_text = self._normalize_text(text_to_speak)
 
         self._logger.info(
-            f"Creating task for /tts command from '{sender_info}'. "
-            f"Voice: {voice}, Rate: {rate}, Volume: {volume}"
+            f"Adding TTS request to queue from '{sender_info}'. "
+            f"Voice: {voice}, Text length: {len(normalized_text)} chars"
         )
         
+        # Add request to TTS queue instead of processing directly
+        request_id = await tts_queue.add_request(
+            text=normalized_text,
+            chat_id=chat_id,
+            message_id=message.id,
+            voice=voice
+        )
+        
+        # Send queue status message
+        queue_status_msg = await client.send_message(
+            chat_id,
+            f"🗣️ در حال تبدیل متن به گفتار برای {sender_info}...\n"
+            f"📋 وضعیت: در صف (مکان: {tts_queue.queue_size})\n"
+            f"🔊 صدای مورد نظر: {voice}",
+            reply_to=message.id
+        )
+        
+        # Monitor the request and send result when ready
         asyncio.create_task(
-            self._process_tts_command(
-                message, client, sender_info, normalized_text, voice, rate, volume
+            self._monitor_tts_request(
+                request_id, queue_status_msg, client, chat_id, message.id
             )
         )
+    
+    async def _monitor_tts_request(
+        self,
+        request_id: str,
+        status_message: Message,
+        client: TelegramClient,
+        chat_id: int,
+        original_message_id: int
+    ) -> None:
+        """Monitor TTS request and send result when ready."""
+        try:
+            while True:
+                request = tts_queue.get_request_status(request_id)
+                if not request:
+                    break
+                
+                if request.status == TTSStatus.COMPLETED:
+                    # Send the completed audio
+                    audio_file = tts_queue.get_completed_audio(request_id)
+                    if audio_file:
+                        await client.edit_message(
+                            status_message,
+                            f"✅ تبدیل متن به گفتار با موفقیت انجام شد. در حال ارسال..."
+                        )
+                        
+                        await client.send_file(
+                            chat_id,
+                            audio_file,
+                            voice_note=True,
+                            reply_to=original_message_id,
+                            caption=(
+                                f"🎤️ خروجی گفتار برای متن:\n"
+                                f"\"{request.text[:100]}{'...' if len(request.text) > 100 else ''}\"\n"
+                                f"(تولید شده با Gemini TTS)"
+                            )
+                        )
+                        
+                        await status_message.delete()
+                    
+                    # Clean up the completed request
+                    tts_queue.cleanup_request(request_id)
+                    break
+                
+                elif request.status == TTSStatus.FAILED:
+                    await client.edit_message(
+                        status_message,
+                        f"⚠️ TTS Error: {request.error_message or 'Failed to generate audio'}"
+                    )
+                    
+                    # Clean up the failed request
+                    tts_queue.cleanup_request(request_id)
+                    break
+                
+                # Update status periodically
+                await asyncio.sleep(1)
+                
+        except Exception as e:
+            self._logger.error(f"Error monitoring TTS request {request_id}: {e}", exc_info=True)
+            try:
+                await client.edit_message(
+                    status_message,
+                    f"TTS Error: An unexpected error occurred - {e}"
+                )
+            except Exception:
+                pass
     
     async def _handle_other_ai_commands(
         self,

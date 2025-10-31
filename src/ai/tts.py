@@ -32,10 +32,30 @@ class TextToSpeechProcessor:
         return self._last_error
 
     def _resolve_voice(self, requested_voice: Optional[str]) -> str:
-        # Pass through requested voice if provided; otherwise default to a known prebuilt voice
-        # Note: Google GenAI voices like 'Kore' are language/model dependent.
-        if requested_voice and requested_voice.strip():
-            return requested_voice.strip()
+        """Resolve voice name to a valid Google GenAI voice.
+        
+        Valid voices: achernar, achird, algenib, algieba, alnilam, aoede, autonoe, 
+        callirrhoe, charon, despina, enceladus, erinome, fenrir, gacrux, iapetus, 
+        kore, laomedeia, leda, orus, puck, pulcherrima, rasalgethi, sadachbia, 
+        sadaltager, schedar, sulafat, umbriel, vindemiatrix, zephyr, zubenelgenubi
+        """
+        if not requested_voice or not requested_voice.strip():
+            return "Kore"
+        
+        voice = requested_voice.strip()
+        
+        # Map old Microsoft/Edge TTS voice names to Google GenAI voices
+        # If it's already a valid Google voice, pass it through
+        if voice.lower() in [
+            'achernar', 'achird', 'algenib', 'algieba', 'alnilam', 'aoede', 
+            'autonoe', 'callirrhoe', 'charon', 'despina', 'enceladus', 'erinome', 
+            'fenrir', 'gacrux', 'iapetus', 'kore', 'laomedeia', 'leda', 'orus', 
+            'puck', 'pulcherrima', 'rasalgethi', 'sadachbia', 'sadaltager', 
+            'schedar', 'sulafat', 'umbriel', 'vindemiatrix', 'zephyr', 'zubenelgenubi'
+        ]:
+            return voice.lower()
+        
+        # Old voice names - default to Kore
         return "Kore"
 
     def _write_wav(self, filename: str, pcm: bytes, channels: int = 1, rate: int = 24000, sample_width: int = 2) -> None:
@@ -101,7 +121,7 @@ class TextToSpeechProcessor:
     async def text_to_speech(
         self,
         text_to_speak: str,
-        voice: str = "fa-IR-DilaraNeural",
+        voice: Optional[str] = None,
         output_filename: str = "temp_tts_output.wav",
         rate: str = "+0%",
         volume: str = "+0%",

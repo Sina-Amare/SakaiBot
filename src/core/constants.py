@@ -26,7 +26,7 @@ DEFAULT_MAX_ANALYZE_MESSAGES: Final[int] = 10000
 MAX_OUTPUT_TOKENS: Final[int] = 100000
 DEFAULT_OPENROUTER_MODEL: Final[str] = "google/gemini-2.5-flash"
 DEFAULT_GEMINI_MODEL: Final[str] = "gemini-2.5-flash"
-DEFAULT_TTS_VOICE: Final[str] = "fa-IR-DilaraNeural"
+DEFAULT_TTS_VOICE: Final[str] = "Kore"  # Google GenAI TTS voice
 CONFIRMATION_KEYWORD: Final[str] = "confirm"
 
 # Logging Constants

@@ -207,6 +207,7 @@ LLM_PROVIDER=gemini  # or openrouter
 
 # Google Gemini Configuration
 GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_API_KEY_TTS=your_gemini_tts_api_key_here  # Optional: TTS-specific key (priority over GEMINI_API_KEY)
 GEMINI_MODEL=gemini-2.5-flash
 
 # OpenRouter Configuration (Alternative)

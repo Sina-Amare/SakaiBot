@@ -68,7 +68,7 @@ sakaibot ai prompt "Explain Python"  # Custom prompt
 
 ### Text-to-Speech (TTS)
 
-The `/tts` command converts text to speech. It uses Microsoft's high-quality neural voices for free and reliable TTS.
+The `/tts` command converts text to speech using Google Gemini TTS. It supports automatic language detection and high-quality neural voices.
 
 **Persian TTS:**
 
@@ -80,11 +80,13 @@ To convert Persian text to speech, use the `/tts` command:
 
 **Other Languages:**
 
-You can also specify a different language and voice:
+The TTS automatically detects the language. You can also specify a voice:
 
 ```
-/tts voice=en-US-JennyNeural Hello, how are you?
+/tts voice=Kore Hello, how are you?
 ```
+
+Available voices: Kore, Puck, Fenrir, Zephyr, and more. See [Google Gemini TTS documentation](https://ai.google.dev/gemini-api/docs/speech-generation) for the full list.
 
 ### Start Monitoring
 
@@ -120,6 +122,7 @@ TELEGRAM_PHONE_NUMBER=+1234567890
 # AI Provider (choose one)
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_key
+GEMINI_API_KEY_TTS=your_gemini_tts_key  # Optional: TTS-specific key
 # or
 LLM_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_openrouter_key

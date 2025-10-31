@@ -60,10 +60,7 @@ setup(
             "mypy>=1.5.0",
             "pre-commit>=3.3.0",
         ],
-        "optional": [
-            "assemblyai>=0.17.0",
-            "elevenlabs>=0.2.0",
-        ],
+        "optional": [],
     },
     entry_points={
         "console_scripts": [

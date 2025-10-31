@@ -53,12 +53,10 @@ SakaiBot is a modern Telegram userbot with AI-assisted workflows, voice processi
 - `stt.py`
   - Google Web Speech API via `SpeechRecognition` to transcribe WAV audio (`fa-IR` default).
 - `tts.py`
-  - Multi-provider TTS fallbacks with Persian focus:
-    - Primary: `edge-tts` (free, reliable for supported voices).
-    - Local offline: `pyttsx3` (WAV -> MP3 via `pydub`).
-    - Optional: HuggingFace Inference API (if `HUGGINGFACE_API_TOKEN` exists).
-    - Fallback: Google Translate public endpoint (chunked, stitched with `pydub`).
-  - `generate_speech_file()` returns a temp MP3 path for Telegram upload.
+  - Google Gemini TTS integration via `providers/tts_gemini.py`.
+  - Supports automatic language detection and high-quality neural voices.
+  - Uses official Google Gemini TTS API pattern (see: https://ai.google.dev/gemini-api/docs/speech-generation).
+  - `generate_speech_file()` returns a temp WAV path for Telegram upload.
 - `persian_prompts.py`
   - Prompt templates, system messages, and formats for Persian outputs (translations, analysis, Q&A, voice summary).
 
@@ -118,7 +116,7 @@ SakaiBot is a modern Telegram userbot with AI-assisted workflows, voice processi
 
 ### Voice Flows
 - STT: Download voice → convert to WAV (FFmpeg/pydub) → Google Web Speech (`fa-IR`) → optional AI summary fallback (Gemini env key) → return combined transcription and summary.
-- TTS: Normalize text → edge-tts → fallback to pyttsx3 → optional HuggingFace → Google Translate TTS → upload as voice-note; captions mention provider when applicable.
+- TTS: Normalize text → Google Gemini TTS → upload as voice-note; captions mention provider.
 
 ---
 
@@ -187,7 +185,7 @@ SakaiBot is a modern Telegram userbot with AI-assisted workflows, voice processi
 
 ## Operational Tips & Troubleshooting
 - If STT fails: verify FFmpeg availability and `pydub` can find converters; ensure WAV conversion works.
-- If TTS fails: try shorter text; confirm network access; optionally set `HUGGINGFACE_API_TOKEN`; check edge-tts voice id; verify system voices for `pyttsx3`.
+- If TTS fails: verify `GEMINI_API_KEY_TTS` or `GEMINI_API_KEY` is set in `.env`; check network access; ensure `google-genai` package is installed.
 - If AI blocked: verify API keys, provider selection, and model names; inspect logs for safety filter blocks.
 - On Windows, setting `PATHS_FFMPEG_EXECUTABLE` improves media conversion reliability.
 - Use `sakaibot status` and `sakaibot monitor status` to diagnose readiness.

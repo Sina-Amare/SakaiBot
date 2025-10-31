@@ -38,6 +38,10 @@ def wave_file(filename: str, pcm: bytes, channels: int = 1, rate: int = 24000, s
         wf.writeframes(pcm)
 
 
+# Global client instance to reuse (created lazily)
+_client_instance: Optional[genai.Client] = None
+
+
 def synthesize_speech(
     text: str, 
     output_file: str = "output.wav", 
@@ -54,9 +58,10 @@ def synthesize_speech(
     Returns:
         Tuple of (success: bool, error_message: Optional[str])
     """
+    global _client_instance
     logger = get_logger("GeminiTTS")
     
-    if not text:
+    if not text or not text.strip():
         return False, "Empty text provided for synthesis"
 
     if not GOOGLE_API_KEY:
@@ -92,8 +97,10 @@ def synthesize_speech(
 
     for attempt in range(MAX_RETRIES):
         try:
-            # Initialize client with API key (exact pattern from official docs)
-            client = genai.Client(api_key=GOOGLE_API_KEY)
+            # Reuse client instance if available, otherwise create new one
+            if _client_instance is None:
+                _client_instance = genai.Client(api_key=GOOGLE_API_KEY)
+            client = _client_instance
             
             # Generate content with TTS (exact pattern from official docs)
             response = client.models.generate_content(
@@ -114,11 +121,42 @@ def synthesize_speech(
             # Extract audio data (exact pattern from official snippet)
             # response.candidates[0].content.parts[0].inline_data.data
             if not hasattr(response, 'candidates') or not response.candidates:
+                logger.error(f"No candidates in response. Response type: {type(response)}, attributes: {dir(response)}")
                 raise RuntimeError("No candidates returned from Gemini TTS")
             
             candidate = response.candidates[0]
-            if not hasattr(candidate, 'content') or not candidate.content:
-                raise RuntimeError("No content in candidate response")
+            logger.debug(f"Candidate type: {type(candidate)}, has content: {hasattr(candidate, 'content')}")
+            
+            if not hasattr(candidate, 'content'):
+                logger.error(f"Candidate has no 'content' attribute. Candidate attributes: {dir(candidate)}")
+                raise RuntimeError("No content attribute in candidate response")
+            
+            if not candidate.content:
+                # Log more details about what we got
+                finish_reason = getattr(candidate, 'finish_reason', None)
+                safety_ratings = getattr(candidate, 'safety_ratings', None)
+                error_msg_parts = []
+                
+                if finish_reason:
+                    error_msg_parts.append(f"Finish reason: {finish_reason}")
+                
+                if safety_ratings:
+                    error_msg_parts.append(f"Safety ratings: {safety_ratings}")
+                
+                logger.error(
+                    f"Candidate content is None. "
+                    f"Finish reason: {finish_reason}, "
+                    f"Safety ratings: {safety_ratings}, "
+                    f"Candidate attributes: {[attr for attr in dir(candidate) if not attr.startswith('_')]}"
+                )
+                
+                # Build detailed error message
+                if finish_reason:
+                    error_msg = f"No content in candidate response. Finish reason: {finish_reason}"
+                    if safety_ratings:
+                        error_msg += f", Safety: {safety_ratings}"
+                    raise RuntimeError(error_msg)
+                raise RuntimeError("No content in candidate response (content is None)")
             
             if not hasattr(candidate.content, 'parts') or not candidate.content.parts:
                 raise RuntimeError("No parts in content")

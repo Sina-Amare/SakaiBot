@@ -117,6 +117,9 @@ class TTSQueue:
         self._logger.info(f"Processing TTS request {request_id} (text length: {len(request.text)} chars)")
         
         try:
+            # Small delay to avoid rate limiting when processing multiple requests quickly
+            await asyncio.sleep(0.5)
+            
             # Update status to processing
             request.status = TTSStatus.PROCESSING
             self._logger.debug(f"Request {request_id} status set to PROCESSING")

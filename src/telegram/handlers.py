@@ -741,7 +741,7 @@ class EventHandlers:
         # Monitor the request and send result when ready
         asyncio.create_task(
             self._monitor_tts_request(
-                request_id, queue_status_msg, client, chat_id, message.id
+                request_id, queue_status_msg, client, chat_id, message
             )
         )
     
@@ -766,9 +766,13 @@ class EventHandlers:
         status_message: Message,
         client: TelegramClient,
         chat_id: int,
-        original_message_id: int
+        original_message: Message
     ) -> None:
-        """Monitor TTS request and send result when ready."""
+        """Monitor TTS request and send result when ready.
+        
+        When TTS completes, deletes both the original command message and status message,
+        then sends only the voice message to keep chat clean.
+        """
         update_counter = 0
         last_position = None
         last_status_text = None
@@ -788,11 +792,11 @@ class EventHandlers:
                             await self._safe_edit_message(status_message, success_text, client)
                             last_status_text = success_text
                         
+                        # Send voice message
                         await client.send_file(
                             chat_id,
                             audio_file,
                             voice_note=True,
-                            reply_to=original_message_id,
                             caption=(
                                 f"🎤️ خروجی گفتار برای متن:\n"
                                 f"\"{request.text[:100]}{'...' if len(request.text) > 100 else ''}\"\n"
@@ -800,7 +804,16 @@ class EventHandlers:
                             )
                         )
                         
-                        await status_message.delete()
+                        # Delete both original command message and status message
+                        try:
+                            await original_message.delete()
+                        except Exception as e:
+                            self._logger.debug(f"Could not delete original command message: {e}")
+                        
+                        try:
+                            await status_message.delete()
+                        except Exception as e:
+                            self._logger.debug(f"Could not delete status message: {e}")
                     
                     # Clean up the completed request
                     tts_queue.cleanup_request(request_id)
@@ -811,6 +824,12 @@ class EventHandlers:
                     if last_status_text != error_text:
                         await self._safe_edit_message(status_message, error_text, client)
                         last_status_text = error_text
+                    
+                    # Delete original command message on error (keep error message)
+                    try:
+                        await original_message.delete()
+                    except Exception as e:
+                        self._logger.debug(f"Could not delete original command message on error: {e}")
                     
                     # Clean up the failed request
                     tts_queue.cleanup_request(request_id)

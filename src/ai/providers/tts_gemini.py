@@ -1,7 +1,10 @@
-"""Gemini TTS Provider for SakaiBot."""
+"""Gemini TTS Provider for SakaiBot.
+
+Uses the official Google Gemini TTS API pattern from:
+https://ai.google.dev/gemini-api/docs/speech-generation
+"""
 
 import os
-import base64
 import time
 from typing import Optional, Tuple
 import wave
@@ -26,24 +29,13 @@ from ...core.tts_config import (
 )
 
 
-def _decode_audio_inline(part) -> Optional[bytes]:
-    """Decode audio data from inline_data part (handles base64 and raw bytes)."""
-    try:
-        if getattr(part, "inline_data", None):
-            mime = getattr(part.inline_data, "mime_type", None)
-            data = getattr(part.inline_data, "data", None)
-            if not data:
-                return None
-            # Prefer WAV if provided; otherwise try base64 decode
-            if mime in ("audio/wav", "audio/x-wav"):
-                return data
-            try:
-                return base64.b64decode(data)
-            except Exception:
-                return data
-    except Exception:
-        return None
-    return None
+def wave_file(filename: str, pcm: bytes, channels: int = 1, rate: int = 24000, sample_width: int = 2) -> None:
+    """Set up the wave file to save the output."""
+    with wave.open(filename, "wb") as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(sample_width)
+        wf.setframerate(rate)
+        wf.writeframes(pcm)
 
 
 def synthesize_speech(
@@ -100,71 +92,50 @@ def synthesize_speech(
 
     for attempt in range(MAX_RETRIES):
         try:
-            # Initialize client with API key
+            # Initialize client with API key (exact pattern from official docs)
             client = genai.Client(api_key=GOOGLE_API_KEY)
             
-            # Configure generation with speech settings
-            cfg = types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name=selected_voice
-                        )
-                    )
-                ),
-            )
-
-            # Generate content with TTS
+            # Generate content with TTS (exact pattern from official docs)
             response = client.models.generate_content(
                 model=TTS_MODEL,
                 contents=text,
-                config=cfg,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=selected_voice,
+                            )
+                        )
+                    ),
+                )
             )
 
-            # Extract audio data from response
-            candidates = getattr(response, "candidates", None) or []
-            if not candidates:
+            # Extract audio data (exact pattern from official snippet)
+            # response.candidates[0].content.parts[0].inline_data.data
+            if not hasattr(response, 'candidates') or not response.candidates:
                 raise RuntimeError("No candidates returned from Gemini TTS")
+            
+            candidate = response.candidates[0]
+            if not hasattr(candidate, 'content') or not candidate.content:
+                raise RuntimeError("No content in candidate response")
+            
+            if not hasattr(candidate.content, 'parts') or not candidate.content.parts:
+                raise RuntimeError("No parts in content")
+            
+            part = candidate.content.parts[0]
+            
+            if not hasattr(part, 'inline_data') or not part.inline_data:
+                raise RuntimeError("No inline_data in part")
+            
+            if not hasattr(part.inline_data, 'data') or not part.inline_data.data:
+                raise RuntimeError("No data in inline_data")
+            
+            # Get audio data (this is already PCM bytes ready for WAV)
+            data = part.inline_data.data
 
-            content = getattr(candidates[0], "content", None)
-            parts = getattr(content, "parts", None) or []
-
-            audio_part = None
-            for p in parts:
-                inline = getattr(p, "inline_data", None)
-                if inline is not None:
-                    audio_part = inline
-                    break
-
-            if audio_part is None:
-                raise RuntimeError("No inline audio data part in response")
-
-            raw_data = getattr(audio_part, "data", None)
-            mime_type = getattr(audio_part, "mime_type", None) or ""
-            if raw_data is None:
-                raise RuntimeError("Audio inline_data.data is missing")
-
-            # Handle both bytes and base64-encoded strings
-            if isinstance(raw_data, (bytes, bytearray)):
-                audio_bytes = bytes(raw_data)
-            else:
-                try:
-                    audio_bytes = base64.b64decode(raw_data)
-                except Exception:
-                    audio_bytes = raw_data
-
-            # Write audio file - if WAV, write directly; otherwise wrap PCM in WAV
-            if mime_type.lower() in {"audio/wav", "audio/x-wav", "audio/wave"}:
-                with open(output_file, "wb") as f:
-                    f.write(audio_bytes)
-            else:
-                # PCM or other format - wrap in WAV container
-                with wave.open(output_file, "wb") as wf:
-                    wf.setnchannels(DEFAULT_CHANNELS)
-                    wf.setsampwidth(DEFAULT_SAMPLE_WIDTH)
-                    wf.setframerate(DEFAULT_SAMPLE_RATE)
-                    wf.writeframes(audio_bytes)
+            # Save to WAV file using the exact pattern from official docs
+            wave_file(output_file, data)
 
             if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
                 logger.info(f"Audio saved to {output_file} (Gemini AI Studio TTS)")

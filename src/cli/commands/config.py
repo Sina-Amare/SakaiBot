@@ -216,10 +216,6 @@ OPENROUTER_MODEL=google/gemini-2.5-flash
 # UserBot Configuration
 USERBOT_MAX_ANALYZE_MESSAGES=10000
 
-# Optional Services
-ASSEMBLYAI_API_KEY=your_assemblyai_key_here
-ELEVENLABS_API_KEY=your_elevenlabs_key_here
-
 # Paths
 PATHS_FFMPEG_EXECUTABLE=/usr/local/bin/ffmpeg
 

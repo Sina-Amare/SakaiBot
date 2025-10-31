@@ -55,12 +55,6 @@ class Config(BaseSettings):
     # Paths Configuration
     paths_ffmpeg_executable: Optional[str] = Field(default=None, description="Path to FFmpeg executable")
     
-    # AssemblyAI Configuration (optional)
-    assemblyai_api_key: Optional[str] = Field(default=None, description="AssemblyAI API Key")
-    
-    # ElevenLabs Configuration (optional)
-    elevenlabs_api_key: Optional[str] = Field(default=None, description="ElevenLabs API Key")
-    
     # Application Settings
     environment: str = Field(default="production", description="Environment (development/production)")
     debug: bool = Field(default=False, description="Enable debug mode")

@@ -10,9 +10,8 @@ google-generativeai>=0.1.0
 SpeechRecognition>=3.10.0
 pydub
 
-# Text-to-Speech
-edge-tts
-pyttsx3
+# Text-to-Speech (Google Gemini TTS)
+google-genai>=0.8.0
 
 # NLP - using simpler alternatives to avoid compilation issues
 # hazm dependency removed due to numpy compilation issues on Windows

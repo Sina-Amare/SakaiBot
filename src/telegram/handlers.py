@@ -745,6 +745,21 @@ class EventHandlers:
             )
         )
     
+    async def _safe_edit_message(self, message: Message, new_text: str, client: TelegramClient) -> bool:
+        """Safely edit a message, handling Telegram's duplicate content errors."""
+        try:
+            await client.edit_message(message, new_text)
+            return True
+        except Exception as e:
+            # Ignore "Content of the message was not modified" errors
+            error_str = str(e).lower()
+            if "content of the message was not modified" in error_str or "message not modified" in error_str:
+                # This is expected when trying to edit with same content - not an error
+                return False
+            # Log other edit errors but don't raise
+            self._logger.debug(f"Could not edit message: {e}")
+            return False
+    
     async def _monitor_tts_request(
         self,
         request_id: str,
@@ -756,6 +771,7 @@ class EventHandlers:
         """Monitor TTS request and send result when ready."""
         update_counter = 0
         last_position = None
+        last_status_text = None
         
         try:
             while True:
@@ -767,10 +783,10 @@ class EventHandlers:
                     # Send the completed audio
                     audio_file = tts_queue.get_completed_audio(request_id)
                     if audio_file:
-                        await client.edit_message(
-                            status_message,
-                            f"✅ تبدیل متن به گفتار با موفقیت انجام شد. در حال ارسال..."
-                        )
+                        success_text = "✅ تبدیل متن به گفتار با موفقیت انجام شد. در حال ارسال..."
+                        if last_status_text != success_text:
+                            await self._safe_edit_message(status_message, success_text, client)
+                            last_status_text = success_text
                         
                         await client.send_file(
                             chat_id,
@@ -791,10 +807,10 @@ class EventHandlers:
                     break
                 
                 elif request.status == TTSStatus.FAILED:
-                    await client.edit_message(
-                        status_message,
-                        f"⚠️ TTS Error: {request.error_message or 'Failed to generate audio'}"
-                    )
+                    error_text = f"⚠️ TTS Error: {request.error_message or 'Failed to generate audio'}"
+                    if last_status_text != error_text:
+                        await self._safe_edit_message(status_message, error_text, client)
+                        last_status_text = error_text
                     
                     # Clean up the failed request
                     tts_queue.cleanup_request(request_id)
@@ -802,11 +818,10 @@ class EventHandlers:
                 
                 elif request.status == TTSStatus.PROCESSING:
                     # Update status to show processing
-                    await client.edit_message(
-                        status_message,
-                        f"⚙️ در حال پردازش...\n"
-                        f"🔊 صدای مورد نظر: {request.voice or 'Kore'}"
-                    )
+                    processing_text = f"⚙️ در حال پردازش...\n🔊 صدای مورد نظر: {request.voice or 'Kore'}"
+                    if last_status_text != processing_text:
+                        await self._safe_edit_message(status_message, processing_text, client)
+                        last_status_text = processing_text
                 
                 elif request.status == TTSStatus.PENDING:
                     # Update position periodically (every 2 seconds)
@@ -816,24 +831,28 @@ class EventHandlers:
                         if current_position != last_position:
                             last_position = current_position
                             if current_position:
-                                await client.edit_message(
-                                    status_message,
+                                pending_text = (
                                     f"🗣️ در حال تبدیل متن به گفتار...\n"
                                     f"📋 وضعیت: در صف (مکان: {current_position})\n"
                                     f"🔊 صدای مورد نظر: {request.voice or 'Kore'}"
                                 )
+                                if last_status_text != pending_text:
+                                    await self._safe_edit_message(status_message, pending_text, client)
+                                    last_status_text = pending_text
                 
                 # Update status periodically
                 await asyncio.sleep(1)
                 
         except Exception as e:
             self._logger.error(f"Error monitoring TTS request {request_id}: {e}", exc_info=True)
+            # Only show actual TTS errors, not message edit errors
             try:
-                await client.edit_message(
-                    status_message,
-                    f"TTS Error: An unexpected error occurred - {e}"
-                )
+                request = tts_queue.get_request_status(request_id)
+                if request and request.status == TTSStatus.FAILED:
+                    error_text = f"⚠️ TTS Error: {request.error_message or str(e)}"
+                    await self._safe_edit_message(status_message, error_text, client)
             except Exception:
+                # If we can't even get the request status, just log it
                 pass
     
     async def _handle_other_ai_commands(

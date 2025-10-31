@@ -39,9 +39,12 @@ class TextToSpeechProcessor:
         callirrhoe, charon, despina, enceladus, erinome, fenrir, gacrux, iapetus, 
         kore, laomedeia, leda, orus, puck, pulcherrima, rasalgethi, sadachbia, 
         sadaltager, schedar, sulafat, umbriel, vindemiatrix, zephyr, zubenelgenubi
+        
+        Masculine voices: Orus, Charon, Fenrir, Puck, Gacrux, Alnilam, Schedar, 
+        Rasalgethi, Iapetus, Achernar, Zephyr
         """
         if not requested_voice or not requested_voice.strip():
-            return "Kore"
+            return "Orus"  # Default masculine voice
         
         voice = requested_voice.strip()
         
@@ -56,8 +59,8 @@ class TextToSpeechProcessor:
         ]:
             return voice.lower()
         
-        # Old voice names - default to Kore
-        return "Kore"
+        # Old voice names - default to Orus (masculine)
+        return "Orus"
 
     async def _synthesize_with_gemini(self, text: str, voice_name: str, output_file: str) -> bool:
         """Synthesize speech using Gemini TTS provider."""

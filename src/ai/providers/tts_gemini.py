@@ -53,7 +53,7 @@ def synthesize_speech(
     Args:
         text: Text to convert to speech
         output_file: Path to save the audio file
-        voice_name: Voice name to use (default: Kore)
+        voice_name: Voice name to use (default: Orus - masculine voice)
     
     Returns:
         Tuple of (success: bool, error_message: Optional[str])

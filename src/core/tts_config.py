@@ -43,7 +43,7 @@ API_TIMEOUT: int = 30
 
 # TTS Model Configuration
 TTS_MODEL: str = "gemini-2.5-flash-preview-tts"
-DEFAULT_VOICE: str = "Kore"
+DEFAULT_VOICE: str = "Orus"  # Masculine voice
 
 # Audio Settings
 DEFAULT_SAMPLE_RATE: int = 24000

@@ -818,7 +818,8 @@ class EventHandlers:
                 
                 elif request.status == TTSStatus.PROCESSING:
                     # Update status to show processing
-                    processing_text = f"⚙️ در حال پردازش...\n🔊 صدای مورد نظر: {request.voice or 'Kore'}"
+                    voice_name = request.voice or DEFAULT_TTS_VOICE
+                    processing_text = f"⚙️ در حال پردازش...\n🔊 صدای مورد نظر: {voice_name}"
                     if last_status_text != processing_text:
                         await self._safe_edit_message(status_message, processing_text, client)
                         last_status_text = processing_text
@@ -831,10 +832,11 @@ class EventHandlers:
                         if current_position != last_position:
                             last_position = current_position
                             if current_position:
+                                voice_name = request.voice or DEFAULT_TTS_VOICE
                                 pending_text = (
                                     f"🗣️ در حال تبدیل متن به گفتار...\n"
                                     f"📋 وضعیت: در صف (مکان: {current_position})\n"
-                                    f"🔊 صدای مورد نظر: {request.voice or 'Kore'}"
+                                    f"🔊 صدای مورد نظر: {voice_name}"
                                 )
                                 if last_status_text != pending_text:
                                     await self._safe_edit_message(status_message, pending_text, client)

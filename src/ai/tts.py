@@ -41,9 +41,10 @@ class TextToSpeechProcessor:
 
     async def _synthesize_with_gemini(self, text: str, voice_name: str) -> Optional[bytes]:
         self._logger.info("Generating TTS via Google GenAI (Gemini) TTS.")
-        api_key = os.getenv("GEMINI_API_KEY")
+        # Try TTS-specific key first, fallback to general Gemini key
+        api_key = os.getenv("GEMINI_API_KEY_TTS") or os.getenv("GEMINI_API_KEY")
         if not api_key:
-            self._last_error = "کلید GEMINI_API_KEY تنظیم نشده است."
+            self._last_error = "کلید GEMINI_API_KEY_TTS یا GEMINI_API_KEY تنظیم نشده است."
             return None
 
         def _call_genai() -> Optional[bytes]:

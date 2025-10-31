@@ -91,33 +91,38 @@ class TextToSpeechProcessor:
                 from google import genai
                 from google.genai import types
 
-                # Client reads API key from environment automatically
-                # Set it explicitly in environment if needed
-                if api_key:
-                    import os
-                    os.environ['GOOGLE_API_KEY'] = api_key
+                # Set API key in environment for client to read (matches user's code snippet pattern)
+                original_key = os.environ.get('GOOGLE_API_KEY')
+                os.environ['GOOGLE_API_KEY'] = api_key
                 
-                client = genai.Client()
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash-preview-tts",
-                    contents=text,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["AUDIO"],
-                        speech_config=types.SpeechConfig(
-                            voice_config=types.VoiceConfig(
-                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                    voice_name=voice_name,
+                try:
+                    client = genai.Client()
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash-preview-tts",
+                        contents=text,
+                        config=types.GenerateContentConfig(
+                            response_modalities=["AUDIO"],
+                            speech_config=types.SpeechConfig(
+                                voice_config=types.VoiceConfig(
+                                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                        voice_name=voice_name,
+                                    )
                                 )
-                            )
+                            ),
                         ),
-                    ),
-                )
-                # Extract inline audio bytes (PCM)
-                part = response.candidates[0].content.parts[0]
-                inline = getattr(part, "inline_data", None)
-                if not inline or not getattr(inline, "data", None):
-                    return None
-                return inline.data
+                    )
+                    # Extract inline audio bytes (PCM)
+                    part = response.candidates[0].content.parts[0]
+                    inline = getattr(part, "inline_data", None)
+                    if not inline or not getattr(inline, "data", None):
+                        return None
+                    return inline.data
+                finally:
+                    # Restore original if it existed
+                    if original_key:
+                        os.environ['GOOGLE_API_KEY'] = original_key
+                    elif 'GOOGLE_API_KEY' in os.environ:
+                        del os.environ['GOOGLE_API_KEY']
             except Exception as e:
                 self._logger.error(f"GenAI TTS call failed: {e}", exc_info=True)
                 return None

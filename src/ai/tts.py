@@ -91,7 +91,13 @@ class TextToSpeechProcessor:
                 from google import genai
                 from google.genai import types
 
-                client = genai.Client(api_key=api_key)
+                # Client reads API key from environment automatically
+                # Set it explicitly in environment if needed
+                if api_key:
+                    import os
+                    os.environ['GOOGLE_API_KEY'] = api_key
+                
+                client = genai.Client()
                 response = client.models.generate_content(
                     model="gemini-2.5-flash-preview-tts",
                     contents=text,

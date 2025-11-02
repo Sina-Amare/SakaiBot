@@ -18,7 +18,7 @@ from ..ai.stt import SpeechToTextProcessor
 from ..ai.tts import TextToSpeechProcessor
 from ..ai.tts_queue import tts_queue, TTSStatus
 from ..utils.logging import get_logger
-from ..utils.helpers import clean_temp_files, parse_command_with_params
+from ..utils.helpers import clean_temp_files, parse_command_with_params, split_message
 
 
 class EventHandlers:
@@ -185,12 +185,19 @@ class EventHandlers:
                 f"🔍 **جمع‌بندی و تحلیل هوش مصنوعی:**\n{summary_text}"
             )
             
-            # Truncate if too long
-            if len(final_response) > MAX_MESSAGE_LENGTH:
-                available_length = MAX_MESSAGE_LENGTH - 100  # Reserve space for truncation notice
-                final_response = final_response[:available_length] + "\n... (truncated)"
+            # Split message into chunks if too long
+            message_chunks = split_message(final_response, max_length=MAX_MESSAGE_LENGTH)
             
-            await client.edit_message(thinking_msg, final_response)
+            if len(message_chunks) == 1:
+                # Single message - just edit the thinking message
+                await client.edit_message(thinking_msg, message_chunks[0])
+            else:
+                # Multiple chunks - edit first message with first chunk, send rest as new messages
+                await client.edit_message(thinking_msg, message_chunks[0])
+                
+                # Send remaining chunks as separate messages
+                for chunk in message_chunks[1:]:
+                    await client.send_message(chat_id, chunk, reply_to=reply_to_id)
         
         except AIProcessorError as e:
             await client.edit_message(thinking_msg, f"⚠️ STT Error: {e}")
@@ -392,11 +399,19 @@ class EventHandlers:
             # Log successful response
             self._logger.info(f"AI command {command_type} completed. Response length: {len(response)} chars")
             
-            # Truncate if too long
-            if len(response) > MAX_MESSAGE_LENGTH:
-                response = response[:MAX_MESSAGE_LENGTH - 20] + "... (truncated)"
+            # Split message into chunks if too long
+            message_chunks = split_message(response, max_length=MAX_MESSAGE_LENGTH)
             
-            await client.edit_message(thinking_msg, response)
+            if len(message_chunks) == 1:
+                # Single message - just edit the thinking message with markdown
+                await client.edit_message(thinking_msg, message_chunks[0], parse_mode='md')
+            else:
+                # Multiple chunks - edit first message with first chunk, send rest as new messages
+                await client.edit_message(thinking_msg, message_chunks[0], parse_mode='md')
+                
+                # Send remaining chunks as separate messages with markdown
+                for chunk in message_chunks[1:]:
+                    await client.send_message(chat_id, chunk, reply_to=reply_to_id, parse_mode='md')
             
             # Send a simple completion message without humor
             from datetime import datetime

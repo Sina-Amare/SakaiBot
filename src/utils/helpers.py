@@ -120,3 +120,83 @@ def parse_command_with_params(command_text: str, command_prefix: str) -> tuple[d
         remaining_text = remaining_text[match.end():].strip()
     
     return params, remaining_text
+
+
+def split_message(text: str, max_length: int = 4096, reserve_length: int = 0) -> list[str]:
+    """Split long text into chunks that fit within max_length.
+    
+    Intelligently splits at sentence/paragraph boundaries when possible.
+    Falls back to word boundaries, then character boundaries if needed.
+    
+    Args:
+        text: The text to split
+        max_length: Maximum length for each chunk (default: 4096 for Telegram)
+        reserve_length: Additional bytes to reserve (e.g., for prefixes/suffixes)
+    
+    Returns:
+        List of text chunks, each within max_length
+    """
+    if not text:
+        return [""]
+    
+    # Calculate actual max length per chunk
+    actual_max = max_length - reserve_length
+    if actual_max <= 0:
+        actual_max = max_length
+    
+    # If text fits in one message, return as is
+    if len(text) <= actual_max:
+        return [text]
+    
+    chunks = []
+    remaining = text
+    
+    while len(remaining) > actual_max:
+        # Try to split at paragraph boundary first (double newline)
+        if '\n\n' in remaining[:actual_max + 100]:  # Look ahead a bit
+            # Find the last paragraph break within limit
+            para_split = remaining.rfind('\n\n', 0, actual_max)
+            if para_split > actual_max * 0.5:  # Only use if not too small
+                chunks.append(remaining[:para_split].strip())
+                remaining = remaining[para_split + 2:].strip()
+                continue
+        
+        # Try to split at sentence boundary (., !, ?, ؟, !)
+        sentence_enders = ['. ', '! ', '? ', '؟ ', '!\n', '?\n', '.\n', '؟\n']
+        best_split = -1
+        
+        for ender in sentence_enders:
+            # Look for sentence endings within the limit
+            pos = remaining.rfind(ender, 0, actual_max + 50)
+            if pos > best_split and pos > actual_max * 0.5:
+                best_split = pos + len(ender) - 1  # Include the space/newline
+        
+        if best_split > 0:
+            chunks.append(remaining[:best_split].strip())
+            remaining = remaining[best_split:].strip()
+            continue
+        
+        # Try to split at word boundary
+        last_space = remaining.rfind(' ', 0, actual_max)
+        if last_space > actual_max * 0.5:  # Only use if not too small
+            chunks.append(remaining[:last_space].strip())
+            remaining = remaining[last_space + 1:].strip()
+            continue
+        
+        # Fallback: split at character boundary (avoid breaking in middle if possible)
+        # Try to find a safe break point near the limit
+        split_pos = actual_max
+        # Look for any whitespace near the boundary
+        for i in range(actual_max - 100, actual_max):
+            if i < len(remaining) and remaining[i] in (' ', '\n', '\t'):
+                split_pos = i + 1
+                break
+        
+        chunks.append(remaining[:split_pos].strip())
+        remaining = remaining[split_pos:].strip()
+    
+    # Add remaining text if any
+    if remaining:
+        chunks.append(remaining)
+    
+    return chunks if chunks else [text]

@@ -9,6 +9,7 @@ from enum import Enum
 
 from .tts import TextToSpeechProcessor
 from ..utils.logging import get_logger
+from ..utils.task_manager import get_task_manager
 
 
 class TTSStatus(Enum):
@@ -67,7 +68,8 @@ class TTSQueue:
         # Start processing if not already running
         if not self._is_processing:
             self._logger.debug("Starting queue processing")
-            asyncio.create_task(self._process_queue())
+            task_manager = get_task_manager()
+            task_manager.create_task(self._process_queue())
         else:
             self._logger.debug(f"Queue already processing. Current queue size: {self._queue.qsize()}")
         

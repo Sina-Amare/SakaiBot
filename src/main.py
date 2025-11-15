@@ -18,6 +18,7 @@ from .ai.stt import SpeechToTextProcessor
 from .ai.tts import TextToSpeechProcessor
 from .utils.cache import CacheManager
 from .utils.logging import setup_logging, get_logger
+from .utils.task_manager import get_task_manager
 from .cli.handler import CLIHandler
 
 
@@ -73,20 +74,14 @@ class SakaiBot:
         self._logger.warning("SIGINT (Ctrl+C) received. Initiating graceful shutdown.")
         print("\nShutting down gracefully... (Press Ctrl+C again to force quit)")
         
-        # Cancel all running tasks
+        # Cancel all running tasks via TaskManager
         try:
-            # Get the event loop
-            loop = asyncio.get_event_loop()
-            if loop and loop.is_running():
-                # Cancel all tasks
-                tasks = asyncio.all_tasks(loop)
-                for task in tasks:
-                    task.cancel()
-                
-                # Stop the loop
-                loop.stop()
+            task_manager = get_task_manager()
+            # Note: cancel_all is async, but signal handler is sync
+            # We'll handle this in graceful_shutdown instead
+            self._logger.info("Signal received, will cancel tasks in graceful shutdown")
         except Exception as e:
-            self._logger.error(f"Error during signal handler shutdown: {e}")
+            self._logger.error(f"Error during signal handler: {e}")
         
         # Exit cleanly
         sys.exit(0)
@@ -186,6 +181,14 @@ class SakaiBot:
                 self._is_shutting_down = True
                 self._logger.info("Performing final shutdown tasks")
                 await self._graceful_shutdown("main_finally")
+            
+            # Cancel all tracked tasks
+            try:
+                task_manager = get_task_manager()
+                self._logger.info("Cancelling all tracked tasks...")
+                await task_manager.cancel_all()
+            except Exception as e:
+                self._logger.error(f"Error cancelling tasks: {e}", exc_info=True)
             
             # Disconnect client
             if self._client_manager.is_connected():

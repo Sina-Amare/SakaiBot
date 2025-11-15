@@ -19,6 +19,7 @@ from ..ai.tts import TextToSpeechProcessor
 from ..ai.tts_queue import tts_queue, TTSStatus
 from ..utils.logging import get_logger
 from ..utils.helpers import clean_temp_files, parse_command_with_params, split_message
+from ..utils.task_manager import get_task_manager
 
 
 class EventHandlers:
@@ -667,7 +668,8 @@ class EventHandlers:
             return
         
         self._logger.info(f"Creating task for /stt command from '{sender_info}'")
-        asyncio.create_task(
+        task_manager = get_task_manager()
+        task_manager.create_task(
             self._process_stt_command(message, replied_message, client, sender_info)
         )
     
@@ -754,7 +756,8 @@ class EventHandlers:
         )
         
         # Monitor the request and send result when ready
-        asyncio.create_task(
+        task_manager = get_task_manager()
+        task_manager.create_task(
             self._monitor_tts_request(
                 request_id, queue_status_msg, client, chat_id, message
             )
@@ -961,7 +964,8 @@ class EventHandlers:
         
         if command_type and command_args:
             self._logger.info(f"Creating task for {command_type} from '{sender_info}'")
-            asyncio.create_task(
+            task_manager = get_task_manager()
+            task_manager.create_task(
                 self._process_ai_command(
                     command_type, message, client, sender_info, **command_args
                 )

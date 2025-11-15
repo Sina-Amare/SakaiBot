@@ -3,6 +3,8 @@
 from .cache import CacheManager
 from .logging import setup_logging, get_logger
 from .helpers import *
+from .message_sender import MessageSender
+from .retry import retry_with_backoff
 
 __all__ = [
     "CacheManager",
@@ -12,4 +14,6 @@ __all__ = [
     "format_duration",
     "truncate_text",
     "split_message",
+    "MessageSender",
+    "retry_with_backoff",
 ]

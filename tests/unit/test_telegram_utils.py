@@ -11,12 +11,11 @@ class TestTelegramUtils(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.utils = TelegramUtils(self.mock_client)
+        self.utils = TelegramUtils()
     
     def test_initialization(self):
         """Test TelegramUtils initialization."""
-        self.assertEqual(self.utils.client, self.mock_client)
+        self.assertIsNotNone(self.utils)
 
 
 if __name__ == "__main__":

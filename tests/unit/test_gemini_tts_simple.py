@@ -18,8 +18,15 @@ try:
 except ImportError:
     pass
 
-from google import genai
-from google.genai import types
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
+    # Skip tests if genai is not available
+    import pytest
+    pytestmark = pytest.mark.skip(reason="google.genai not available")
 import wave
 
 

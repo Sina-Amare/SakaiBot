@@ -1,7 +1,7 @@
 """Unit tests for AI processor."""
 
 import unittest
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, patch, AsyncMock, PropertyMock
 
 from src.core.config import Config
 from src.core.exceptions import AIProcessorError
@@ -22,7 +22,9 @@ class TestAIProcessor(unittest.TestCase):
     def test_initialize_openrouter_provider(self, mock_provider_class):
         """Test initializing OpenRouter provider."""
         mock_provider = Mock()
-        mock_provider.is_configured = True
+        type(mock_provider).is_configured = PropertyMock(return_value=True)
+        type(mock_provider).provider_name = PropertyMock(return_value="OpenRouter")
+        type(mock_provider).model_name = PropertyMock(return_value="test-model")
         mock_provider_class.return_value = mock_provider
         
         processor = AIProcessor(self.mock_config)
@@ -38,7 +40,9 @@ class TestAIProcessor(unittest.TestCase):
         self.mock_config.openrouter_api_key = None
         
         mock_provider = Mock()
-        mock_provider.is_configured = True
+        type(mock_provider).is_configured = PropertyMock(return_value=True)
+        type(mock_provider).provider_name = PropertyMock(return_value="Google Gemini")
+        type(mock_provider).model_name = PropertyMock(return_value="test-model")
         mock_provider_class.return_value = mock_provider
         
         processor = AIProcessor(self.mock_config)

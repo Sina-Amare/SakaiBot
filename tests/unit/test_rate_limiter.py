@@ -11,7 +11,7 @@ class TestRateLimiter(unittest.IsolatedAsyncioTestCase):
     
     async def test_check_rate_limit_allows(self):
         """Test that rate limit allows requests within limit."""
-        limiter = RateLimiter(capacity=5, fill_rate=1.0, window_seconds=60)
+        limiter = RateLimiter(max_requests=5, window_seconds=60)
         
         user_id = 123
         
@@ -22,7 +22,7 @@ class TestRateLimiter(unittest.IsolatedAsyncioTestCase):
     
     async def test_check_rate_limit_blocks(self):
         """Test that rate limit blocks requests over limit."""
-        limiter = RateLimiter(capacity=2, fill_rate=0.1, window_seconds=60)
+        limiter = RateLimiter(max_requests=2, window_seconds=60)
         
         user_id = 123
         
@@ -35,7 +35,7 @@ class TestRateLimiter(unittest.IsolatedAsyncioTestCase):
     
     async def test_get_remaining_requests(self):
         """Test getting remaining requests."""
-        limiter = RateLimiter(capacity=10, fill_rate=1.0, window_seconds=60)
+        limiter = RateLimiter(max_requests=10, window_seconds=60)
         
         user_id = 123
         
@@ -49,7 +49,7 @@ class TestRateLimiter(unittest.IsolatedAsyncioTestCase):
     
     async def test_rate_limit_per_user(self):
         """Test that rate limits are per user."""
-        limiter = RateLimiter(capacity=2, fill_rate=0.1, window_seconds=60)
+        limiter = RateLimiter(max_requests=2, window_seconds=60)
         
         user1 = 123
         user2 = 456

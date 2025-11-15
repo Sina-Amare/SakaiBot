@@ -10,16 +10,18 @@ class TestTranslationUtils(unittest.TestCase):
     
     def test_parse_translation_command_simple(self):
         """Test parsing simple translation command."""
-        target, text, errors = parse_translation_command("en Hello world")
+        # Format: language=text
+        target, text, errors = parse_translation_command("en=Hello world")
         self.assertEqual(target, "en")
         self.assertEqual(text, "Hello world")
         self.assertEqual(len(errors), 0)
     
-    def test_parse_translation_command_with_comma(self):
-        """Test parsing translation command with source language."""
-        target, text, errors = parse_translation_command("en,fa Hello world")
+    def test_parse_translation_command_reply_format(self):
+        """Test parsing translation command for reply format."""
+        # Format: just language (for reply translation)
+        target, text, errors = parse_translation_command("en")
         self.assertEqual(target, "en")
-        self.assertEqual(text, "Hello world")
+        self.assertIsNone(text)  # Text comes from replied message
         self.assertEqual(len(errors), 0)
     
     def test_parse_translation_command_no_text(self):

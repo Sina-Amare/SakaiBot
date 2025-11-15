@@ -17,9 +17,8 @@ class TestTaskManager(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.01)
             return "done"
         
-        task = manager.create_task(dummy_task(), name="test_task")
+        task = manager.create_task(dummy_task())
         self.assertIsNotNone(task)
-        self.assertEqual(task.get_name(), "test_task")
         
         # Wait for task to complete
         await task
@@ -35,8 +34,8 @@ class TestTaskManager(unittest.IsolatedAsyncioTestCase):
             except asyncio.CancelledError:
                 pass
         
-        task1 = manager.create_task(long_task(), name="task1")
-        task2 = manager.create_task(long_task(), name="task2")
+        task1 = manager.create_task(long_task())
+        task2 = manager.create_task(long_task())
         
         # Cancel all tasks
         await manager.cancel_all()

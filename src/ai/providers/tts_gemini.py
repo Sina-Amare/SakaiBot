@@ -6,8 +6,11 @@ https://ai.google.dev/gemini-api/docs/speech-generation
 
 import os
 import time
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING, Any
 import wave
+
+if TYPE_CHECKING:
+    from google import genai
 
 try:
     from google import genai
@@ -39,7 +42,10 @@ def wave_file(filename: str, pcm: bytes, channels: int = 1, rate: int = 24000, s
 
 
 # Global client instance to reuse (created lazily)
-_client_instance: Optional[genai.Client] = None
+if TYPE_CHECKING:
+    _client_instance: Optional["genai.Client"] = None
+else:
+    _client_instance: Optional[Any] = None
 
 
 def synthesize_speech(

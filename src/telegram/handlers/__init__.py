@@ -15,6 +15,6 @@ __all__ = [
     'CategorizationHandler'
 ]
 
-# Note: EventHandlers is exported from src.telegram.handlers (parent module)
-# to maintain backward compatibility
+# Note: EventHandlers is in src.telegram.handlers (the parent module file, not this package)
+# Import it directly from there to avoid circular imports
 

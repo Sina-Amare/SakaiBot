@@ -28,7 +28,7 @@ class TestInputValidator(unittest.TestCase):
     def test_validate_prompt_too_short(self):
         """Test validating too short prompt."""
         with self.assertRaises(ValueError):
-            InputValidator.validate_prompt("", min_length=1)
+            InputValidator.validate_prompt("")
     
     def test_validate_prompt_sanitization(self):
         """Test prompt sanitization."""
@@ -54,18 +54,18 @@ class TestInputValidator(unittest.TestCase):
     
     def test_validate_number_valid(self):
         """Test validating valid numbers."""
-        self.assertTrue(InputValidator.validate_number("10"))
-        self.assertTrue(InputValidator.validate_number("1"))
-        self.assertTrue(InputValidator.validate_number("10000"))
-        self.assertTrue(InputValidator.validate_number("500", min_val=1, max_val=1000))
+        self.assertEqual(InputValidator.validate_number("10"), 10)
+        self.assertEqual(InputValidator.validate_number("1"), 1)
+        self.assertEqual(InputValidator.validate_number("10000"), 10000)
+        self.assertEqual(InputValidator.validate_number("500", min_val=1, max_val=1000), 500)
     
     def test_validate_number_invalid(self):
         """Test validating invalid numbers."""
-        self.assertFalse(InputValidator.validate_number(""))
-        self.assertFalse(InputValidator.validate_number("abc"))
-        self.assertFalse(InputValidator.validate_number("0"))
-        self.assertFalse(InputValidator.validate_number("10001"))
-        self.assertFalse(InputValidator.validate_number("10", min_val=20, max_val=100))
+        self.assertIsNone(InputValidator.validate_number(""))
+        self.assertIsNone(InputValidator.validate_number("abc"))
+        self.assertIsNone(InputValidator.validate_number("0"))
+        self.assertIsNone(InputValidator.validate_number("10001"))
+        self.assertIsNone(InputValidator.validate_number("10", min_val=20, max_val=100))
     
     def test_sanitize_command_input(self):
         """Test command input sanitization."""

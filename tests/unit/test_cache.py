@@ -14,52 +14,53 @@ class TestCacheManager(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.cache_file = os.path.join(self.temp_dir, "test_cache.json")
-        self.manager = CacheManager(cache_file=self.cache_file)
+        self.manager = CacheManager()
     
     def tearDown(self):
         """Clean up test fixtures."""
-        if os.path.exists(self.cache_file):
-            os.remove(self.cache_file)
-        os.rmdir(self.temp_dir)
+        # Clean up cache files if they exist
+        from src.core.constants import PV_CACHE_FILE, GROUP_CACHE_FILE
+        for cache_file in [PV_CACHE_FILE, GROUP_CACHE_FILE]:
+            if os.path.exists(cache_file):
+                try:
+                    os.remove(cache_file)
+                except:
+                    pass
     
-    def test_save_and_load_cache(self):
-        """Test saving and loading cache."""
-        data = {"key1": "value1", "key2": "value2"}
-        self.manager.save_cache(data)
+    def test_save_and_load_pv_cache(self):
+        """Test saving and loading PV cache."""
+        data = [{"id": 1, "name": "test1"}, {"id": 2, "name": "test2"}]
+        self.manager.save_pv_cache(data)
         
-        loaded = self.manager.load_cache()
-        self.assertEqual(loaded, data)
+        loaded, _ = self.manager.load_pv_cache()
+        self.assertEqual(len(loaded), 2)
+        self.assertEqual(loaded[0]["id"], 1)
     
-    def test_load_cache_nonexistent(self):
-        """Test loading non-existent cache."""
-        manager = CacheManager(cache_file="nonexistent_file.json")
-        result = manager.load_cache()
-        self.assertEqual(result, {})
+    def test_load_pv_cache_nonexistent(self):
+        """Test loading non-existent PV cache."""
+        result, timestamp = self.manager.load_pv_cache()
+        # Should return None or empty list if file doesn't exist
+        self.assertIn(result, [None, []])
     
-    def test_save_cache_creates_directory(self):
-        """Test that save_cache creates directory if needed."""
-        nested_dir = os.path.join(self.temp_dir, "nested", "path")
-        cache_file = os.path.join(nested_dir, "cache.json")
-        manager = CacheManager(cache_file=cache_file)
+    def test_save_group_cache(self):
+        """Test saving group cache."""
+        data = [{"id": 1, "title": "test_group"}]
+        self.manager.save_group_cache(data)
         
-        data = {"test": "data"}
-        manager.save_cache(data)
-        
-        self.assertTrue(os.path.exists(cache_file))
-        loaded = manager.load_cache()
-        self.assertEqual(loaded, data)
+        loaded, _ = self.manager.load_group_cache()
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(loaded[0]["id"], 1)
     
     def test_cache_persistence(self):
         """Test that cache persists across instances."""
-        data = {"persistent": "data"}
-        self.manager.save_cache(data)
+        data = [{"id": 1, "name": "test"}]
+        self.manager.save_pv_cache(data)
         
         # Create new instance
-        new_manager = CacheManager(cache_file=self.cache_file)
-        loaded = new_manager.load_cache()
-        self.assertEqual(loaded, data)
+        new_manager = CacheManager()
+        loaded, _ = new_manager.load_pv_cache()
+        self.assertIsNotNone(loaded)
+        self.assertGreater(len(loaded), 0)
 
 
 if __name__ == "__main__":

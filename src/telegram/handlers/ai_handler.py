@@ -16,6 +16,8 @@ from ...utils.task_manager import get_task_manager
 from ...utils.rate_limiter import get_ai_rate_limiter
 from ...utils.validators import InputValidator
 from ...utils.message_sender import MessageSender
+from ...utils.error_handler import ErrorHandler
+from ...utils.metrics import get_metrics_collector, TimingContext
 from .base import BaseHandler
 
 
@@ -45,10 +47,15 @@ class AIHandler(BaseHandler):
         reply_to_id = event_message.id
         user_id = event_message.sender_id
         
+        # Track metrics
+        metrics = get_metrics_collector()
+        metrics.increment('ai_command.requests', tags={'command': command_type})
+        
         # Check rate limit
         rate_limiter = get_ai_rate_limiter()
         if not await rate_limiter.check_rate_limit(user_id):
             remaining = await rate_limiter.get_remaining_requests(user_id)
+            metrics.increment('ai_command.rate_limited', tags={'command': command_type})
             error_msg = (
                 f"⚠️ محدودیت استفاده\n\n"
                 f"شما به حد مجاز درخواست رسیده‌اید.\n"
@@ -62,22 +69,26 @@ class AIHandler(BaseHandler):
         thinking_msg = await client.send_message(chat_id, thinking_msg_text, reply_to=reply_to_id)
         
         try:
-            if not self._ai_processor.is_configured:
-                provider_name = self._ai_processor.provider_name if self._ai_processor else "AI"
-                response = f"AI Error: {provider_name} API key or model name not configured correctly."
-            elif command_type == "/prompt":
-                response = await self._handle_prompt_command(**command_args)
-            elif command_type == "/translate":
-                response = await self._handle_translate_command(**command_args)
-            elif command_type == "/analyze":
-                response = await self._handle_analyze_command(client, chat_id, **command_args)
-            elif command_type == "/tellme":
-                response = await self._handle_tellme_command(client, chat_id, **command_args)
-            else:
-                response = f"Unknown command type: {command_type}"
+            # Track timing
+            with TimingContext('ai_command.duration', tags={'command': command_type}):
+                if not self._ai_processor.is_configured:
+                    provider_name = self._ai_processor.provider_name if self._ai_processor else "AI"
+                    response = f"AI Error: {provider_name} API key or model name not configured correctly."
+                elif command_type == "/prompt":
+                    response = await self._handle_prompt_command(**command_args)
+                elif command_type == "/translate":
+                    response = await self._handle_translate_command(**command_args)
+                elif command_type == "/analyze":
+                    response = await self._handle_analyze_command(client, chat_id, **command_args)
+                elif command_type == "/tellme":
+                    response = await self._handle_tellme_command(client, chat_id, **command_args)
+                else:
+                    response = f"Unknown command type: {command_type}"
             
-            # Log successful response
+            # Log successful response and track metrics
             self._logger.info(f"AI command {command_type} completed. Response length: {len(response)} chars")
+            metrics.increment('ai_command.success', tags={'command': command_type})
+            metrics.set_gauge('ai_command.response_length', len(response), tags={'command': command_type})
             
             # Use MessageSender for reliable delivery with pagination
             message_sender = MessageSender(client)
@@ -100,14 +111,25 @@ class AIHandler(BaseHandler):
                 )
         
         except Exception as e:
-            self._logger.error(f"AI command ({command_type}) error: {e}", exc_info=True)
+            metrics.increment('ai_command.errors', tags={'command': command_type, 'error_type': type(e).__name__})
+            ErrorHandler.log_error(e, context=f"AI command {command_type}")
+            user_message = ErrorHandler.get_user_message(e)
             try:
-                await client.edit_message(
+                message_sender = MessageSender(client)
+                await message_sender.edit_message_safe(
                     thinking_msg,
-                    f"Error processing {command_type}: An unexpected error occurred"
+                    user_message
                 )
             except Exception:
-                pass
+                # If we can't edit, try sending a new message
+                try:
+                    await client.send_message(
+                        chat_id,
+                        user_message,
+                        reply_to=reply_to_id
+                    )
+                except Exception:
+                    pass
     
     async def _handle_prompt_command(self, user_prompt_text: str) -> str:
         """Handle /prompt command."""

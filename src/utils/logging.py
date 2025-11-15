@@ -2,10 +2,16 @@
 
 import logging
 import sys
+import uuid
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
+from contextvars import ContextVar
 
 from ..core.constants import LOG_FORMAT, MONITOR_LOG_FILE
+
+# Context variable for correlation ID
+_correlation_id: ContextVar[Optional[str]] = ContextVar('correlation_id', default=None)
 
 
 class AutoFlushFileHandler(logging.FileHandler):
@@ -69,7 +75,48 @@ def get_logger(name: str, level: Optional[int] = None) -> logging.Logger:
     if logger.handlers:
         logger.propagate = False
     
+    # Add correlation ID filter
+    if not any(isinstance(f, CorrelationIDFilter) for f in logger.filters):
+        logger.addFilter(CorrelationIDFilter())
+    
     return logger
+
+
+class CorrelationIDFilter(logging.Filter):
+    """Filter to add correlation ID to log records."""
+    
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Add correlation ID to log record."""
+        correlation_id = _correlation_id.get()
+        # Set correlation_id attribute, defaulting to '-' if not set
+        record.correlation_id = correlation_id if correlation_id else '-'
+        return True
+
+
+def set_correlation_id(correlation_id: Optional[str] = None) -> str:
+    """
+    Set correlation ID for current context.
+    
+    Args:
+        correlation_id: Optional correlation ID. If None, generates a new one.
+        
+    Returns:
+        The correlation ID
+    """
+    if correlation_id is None:
+        correlation_id = str(uuid.uuid4())[:8]
+    _correlation_id.set(correlation_id)
+    return correlation_id
+
+
+def get_correlation_id() -> Optional[str]:
+    """Get current correlation ID."""
+    return _correlation_id.get()
+
+
+def clear_correlation_id() -> None:
+    """Clear correlation ID from current context."""
+    _correlation_id.set(None)
 
 
 def setup_module_logger(

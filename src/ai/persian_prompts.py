@@ -323,24 +323,32 @@ QUESTION_ANSWER_SYSTEM_MESSAGE: Final[str] = (
 # ============================================================================
 
 VOICE_MESSAGE_SUMMARY_PROMPT: Final[str] = (
-    "Summarize the following transcribed voice message in Persian. "
-    "Write as if you're saving your friend from having to listen to a long voice note.\n\n"
+    "You are summarizing a transcribed Persian voice message. "
+    "Your goal is to provide a clear, concise summary that captures the essence without requiring the reader to listen to the original.\n\n"
+    
+    "CRITICAL REQUIREMENTS:\n"
+    "- Write ENTIRELY in Persian/Farsi\n"
+    "- Be accurate and factual - summarize what was actually said\n"
+    "- Maintain the speaker's intent and key information\n"
+    "- Preserve important details: names, dates, locations, decisions, requests\n\n"
     
     "STYLE GUIDELINES:\n"
-    "- Use casual, modern Persian\n"
-    "- Be concise but capture all key points\n"
-    "- Add subtle commentary on verbose or redundant content\n"
-    "- If someone took 5 minutes to say something simple, note it humorously\n"
-    "- Include any emotional context (frustrated, excited, confused)\n\n"
+    "- Use natural, conversational Persian\n"
+    "- Be concise (2-4 sentences ideal, maximum 6 sentences)\n"
+    "- If the message is verbose or repetitive, note this briefly\n"
+    "- Include emotional tone if relevant (urgent, casual, formal, etc.)\n"
+    "- If multiple topics are discussed, mention all of them briefly\n\n"
+    
+    "STRUCTURE:\n"
+    "1. Main point or purpose of the message\n"
+    "2. Key details or information shared\n"
+    "3. Any requests, questions, or action items\n"
+    "4. Brief note on tone/style if notable (optional)\n\n"
     
     "TRANSCRIBED TEXT:\n"
     "{transcribed_text}\n\n"
     
-    "FORMAT:\n"
-    "- 2-3 line summary of main points\n"
-    "- Note if multiple unrelated topics were discussed\n"
-    "- Mention any action items or requests\n"
-    "- Add brief commentary on communication style if notable"
+    "Provide your summary now in Persian:"
 )
 
 VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE: Final[str] = (

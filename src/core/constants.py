@@ -31,6 +31,7 @@ CONFIRMATION_KEYWORD: Final[str] = "confirm"
 
 # Logging Constants
 LOG_FORMAT: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_FORMAT_WITH_CORRELATION: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - [%(correlation_id)s] - %(message)s"
 MONITOR_LOG_FILE: Final[str] = "logs/monitor_activity.log"
 
 # HTTP Headers for OpenRouter

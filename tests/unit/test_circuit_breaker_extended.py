@@ -66,7 +66,7 @@ class TestCircuitBreakerExtended(unittest.IsolatedAsyncioTestCase):
             except Exception:
                 pass
         
-        self.assertEqual(breaker.get_state(), CircuitBreakerState.OPEN)
+        self.assertEqual(breaker.get_state(), CircuitState.OPEN)
         
         # Wait for timeout
         await asyncio.sleep(0.15)

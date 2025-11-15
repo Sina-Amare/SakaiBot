@@ -13,6 +13,8 @@ from ...core.exceptions import AIProcessorError
 from ...utils.helpers import split_message
 from ...utils.logging import get_logger
 from ...utils.task_manager import get_task_manager
+from ...utils.rate_limiter import get_ai_rate_limiter
+from ...utils.validators import InputValidator
 from .base import BaseHandler
 
 
@@ -40,6 +42,20 @@ class AIHandler(BaseHandler):
         """Process AI commands (prompt, translate, analyze, tellme)."""
         chat_id = event_message.chat_id
         reply_to_id = event_message.id
+        user_id = event_message.sender_id
+        
+        # Check rate limit
+        rate_limiter = get_ai_rate_limiter()
+        if not await rate_limiter.check_rate_limit(user_id):
+            remaining = await rate_limiter.get_remaining_requests(user_id)
+            error_msg = (
+                f"⚠️ محدودیت استفاده\n\n"
+                f"شما به حد مجاز درخواست رسیده‌اید.\n"
+                f"لطفاً {rate_limiter._window_seconds} ثانیه صبر کنید.\n"
+                f"درخواست‌های باقیمانده: {remaining}"
+            )
+            await client.send_message(chat_id, error_msg, reply_to=reply_to_id)
+            return
         
         thinking_msg_text = f"🤖 Processing your {command_type} command from {command_sender_info}..."
         thinking_msg = await client.send_message(chat_id, thinking_msg_text, reply_to=reply_to_id)
@@ -99,6 +115,11 @@ class AIHandler(BaseHandler):
             return "Usage: /prompt=<your question or instruction>"
         
         try:
+            # Validate and sanitize prompt
+            try:
+                user_prompt_text = InputValidator.validate_prompt(user_prompt_text)
+            except ValueError as e:
+                return f"❌ Invalid prompt: {str(e)}"
             # Import Persian comedian system message
             from ...ai.persian_prompts import PERSIAN_COMEDIAN_SYSTEM
             
@@ -124,6 +145,16 @@ class AIHandler(BaseHandler):
         if not text_for_ai or not target_language:
             return "Usage: /translate=<lang>=<text> or reply with /translate=<lang>"
         
+        # Validate language code
+        if not InputValidator.validate_language_code(target_language):
+            return f"❌ Invalid language code: {target_language}. Please use a valid ISO 639-1 language code (e.g., 'en', 'fa', 'es')."
+        
+        # Validate and sanitize text
+        try:
+            text_for_ai = InputValidator.validate_prompt(text_for_ai, max_length=5000)
+        except ValueError as e:
+            return f"❌ Invalid text: {str(e)}"
+        
         try:
             response = await self._ai_processor.translate_text_with_phonetics(
                 text_to_translate=text_for_ai,
@@ -146,6 +177,14 @@ class AIHandler(BaseHandler):
         analysis_mode: str = "general"
     ) -> str:
         """Handle /analyze command."""
+        # Validate number of messages
+        if not InputValidator.validate_number(str(num_messages), min_val=1, max_val=10000):
+            return f"❌ Invalid number of messages: {num_messages}. Must be between 1 and 10000."
+        
+        # Validate analysis mode
+        if analysis_mode not in ("general", "fun", "romance"):
+            return f"❌ Invalid analysis mode: {analysis_mode}. Valid modes: general, fun, romance"
+        
         try:
             # Get chat history
             history = await client.get_messages(chat_id, limit=num_messages)
@@ -195,6 +234,16 @@ class AIHandler(BaseHandler):
         user_question: str
     ) -> str:
         """Handle /tellme command."""
+        # Validate number of messages
+        if not InputValidator.validate_number(str(num_messages), min_val=1, max_val=10000):
+            return f"❌ Invalid number of messages: {num_messages}. Must be between 1 and 10000."
+        
+        # Validate and sanitize question
+        try:
+            user_question = InputValidator.validate_prompt(user_question, max_length=1000)
+        except ValueError as e:
+            return f"❌ Invalid question: {str(e)}"
+        
         try:
             # Get chat history
             history = await client.get_messages(chat_id, limit=num_messages)
@@ -248,11 +297,15 @@ class AIHandler(BaseHandler):
         command_type = None
         command_args = {}
         
+        # Sanitize command text
+        command_text = InputValidator.sanitize_command_input(command_text)
+        
         # Parse different command types
         if command_text.lower().startswith("/prompt="):
             command_type = "/prompt"
             user_prompt_text = command_text[len("/prompt="):].strip()
             if user_prompt_text:
+                # Additional validation will happen in _handle_prompt_command
                 command_args = {"user_prompt_text": user_prompt_text}
             else:
                 await client.send_message(

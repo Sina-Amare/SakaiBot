@@ -15,6 +15,7 @@ from ...utils.logging import get_logger
 from ...utils.task_manager import get_task_manager
 from ...utils.rate_limiter import get_ai_rate_limiter
 from ...utils.validators import InputValidator
+from ...utils.message_sender import MessageSender
 from .base import BaseHandler
 
 
@@ -78,26 +79,25 @@ class AIHandler(BaseHandler):
             # Log successful response
             self._logger.info(f"AI command {command_type} completed. Response length: {len(response)} chars")
             
-            # Split message into chunks if too long
-            message_chunks = split_message(response, max_length=MAX_MESSAGE_LENGTH)
+            # Use MessageSender for reliable delivery with pagination
+            message_sender = MessageSender(client)
+            sent_messages = await message_sender.send_long_message(
+                chat_id=chat_id,
+                text=response,
+                reply_to=reply_to_id,
+                parse_mode='md',
+                edit_message=thinking_msg
+            )
             
-            if len(message_chunks) == 1:
-                # Single message - just edit the thinking message with markdown
-                await client.edit_message(thinking_msg, message_chunks[0], parse_mode='md')
-            else:
-                # Multiple chunks - edit first message with first chunk, send rest as new messages
-                await client.edit_message(thinking_msg, message_chunks[0], parse_mode='md')
-                
-                # Send remaining chunks as separate messages with markdown
-                for chunk in message_chunks[1:]:
-                    await client.send_message(chat_id, chunk, reply_to=reply_to_id, parse_mode='md')
-            
-            # Send a simple completion message without humor
-            time_str = datetime.now().strftime('%H:%M')
-            completion_msg = f"✅ انجام شد - {time_str}"
-            
-            # Send as a separate message for visibility
-            await client.send_message(chat_id, completion_msg, reply_to=reply_to_id)
+            # Send completion message if we successfully sent response
+            if sent_messages:
+                time_str = datetime.now().strftime('%H:%M')
+                completion_msg = f"✅ انجام شد - {time_str}"
+                await message_sender.send_message_safe(
+                    chat_id,
+                    completion_msg,
+                    reply_to=reply_to_id
+                )
         
         except Exception as e:
             self._logger.error(f"AI command ({command_type}) error: {e}", exc_info=True)

@@ -342,3 +342,9 @@ VOICE_MESSAGE_SUMMARY_PROMPT: Final[str] = (
     "- Mention any action items or requests\n"
     "- Add brief commentary on communication style if notable"
 )
+
+VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE: Final[str] = (
+    "تو یک تحلیل‌گر حرفه‌ای گفتگوهای صوتی فارسی هستی. "
+    "همیشه پاسخ را به زبان فارسی و با لحن طبیعی بنویس. "
+    "فقط خلاصهٔ محتوای گفته‌شده را بدون اضافه کردن تحلیل شخصی ارائه بده."
+)

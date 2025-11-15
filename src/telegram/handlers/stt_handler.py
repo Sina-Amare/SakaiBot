@@ -12,6 +12,10 @@ from pydub import AudioSegment
 
 from ...ai.stt import SpeechToTextProcessor
 from ...ai.processor import AIProcessor
+from ...ai.persian_prompts import (
+    VOICE_MESSAGE_SUMMARY_PROMPT,
+    VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE
+)
 from ...core.constants import MAX_MESSAGE_LENGTH
 from ...core.exceptions import AIProcessorError
 from ...utils.helpers import clean_temp_files, split_message
@@ -95,18 +99,11 @@ class STTHandler(BaseHandler):
             
             summary_text = None
             # Generate AI summary if AI is configured
-            summary_prompt = (
-                "متن زیر یک نسخهٔ پیاده‌سازی شدهٔ از یک پیام صوتی فارسی است. "
-                "لطفاً یک خلاصهٔ طبیعی و جامع از محتوای گفته‌شده ارائه دهید. "
-                "دقیقاً بگو چه چیزی گفته شده است و چه هدفی دارد، "
-                "نه تحلیل یا تفسیری از آن.\n\n"
-                f"متن اصلی:\n{transcribed_text}"
+            # Use centralized prompts from persian_prompts.py
+            summary_prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
+                transcribed_text=transcribed_text
             )
-            system_message = (
-                "تو یک تحلیل‌گر حرفه‌ای گفتگوهای صوتی فارسی هستی. "
-                "همیشه پاسخ را به زبان فارسی و با لحن طبیعی بنویس. "
-                "فقط خلاصهٔ محتوای گفته‌شده را بدون اضافه کردن تحلیل شخصی ارائه بده."
-            )
+            system_message = VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE
 
             if self._ai_processor.is_configured:
                 try:
@@ -145,19 +142,15 @@ class STTHandler(BaseHandler):
                 f"🔍 **جمع‌بندی و تحلیل هوش مصنوعی:**\n{summary_text}"
             )
             
-            # Split message into chunks if too long
-            message_chunks = split_message(final_response, max_length=MAX_MESSAGE_LENGTH)
-            
-            if len(message_chunks) == 1:
-                # Single message - just edit the thinking message
-                await client.edit_message(thinking_msg, message_chunks[0])
-            else:
-                # Multiple chunks - edit first message with first chunk, send rest as new messages
-                await client.edit_message(thinking_msg, message_chunks[0])
-                
-                # Send remaining chunks as separate messages
-                for chunk in message_chunks[1:]:
-                    await client.send_message(chat_id, chunk, reply_to=reply_to_id)
+            # Use MessageSender for reliable delivery with pagination
+            message_sender = MessageSender(client)
+            await message_sender.send_long_message(
+                chat_id=chat_id,
+                text=final_response,
+                reply_to=reply_to_id,
+                parse_mode=None,  # STT responses don't use markdown
+                edit_message=thinking_msg
+            )
         
         except AIProcessorError as e:
             await client.edit_message(thinking_msg, f"⚠️ STT Error: {e}")
@@ -184,11 +177,9 @@ class STTHandler(BaseHandler):
             return None
         
         model_name = os.getenv("GEMINI_SUMMARY_MODEL", "gemini-1.5-flash-latest")
-        prompt = (
-            "متن پیاده‌سازی‌شده یک پیام صوتی فارسی در ادامه آمده است. "
-            "در یک پاراگراف کوتاه، جمع‌بندی روان و دقیق ارائه بده. "
-            "از تیتر یا بولت استفاده نکن و اگر بخشی مبهم است خیلی کوتاه در همان پاراگراف توضیح بده.\n\n"
-            f"{transcribed_text}"
+        # Use centralized prompt from persian_prompts.py
+        prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
+            transcribed_text=transcribed_text
         )
         
         def _call_gemini() -> Optional[str]:

@@ -1,6 +1,6 @@
 """CLI state management for SakaiBot."""
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from src.core.config import Config
 
 class CLIState:
@@ -13,6 +13,8 @@ class CLIState:
         self._active_command_to_topic_map: Dict[Any, List[str]] = {}
         self.directly_authorized_pvs: List[Any] = []
         self.is_monitoring_active: bool = False
+        self.settings_saved_on_cli_exit: bool = False
+        self.registered_handler_info: Optional[Tuple[Any, Any, Any, Any]] = None
     
     @property
     def selected_target_group(self) -> Optional[Dict[str, Any]]:
@@ -63,4 +65,13 @@ class CLIState:
         """Normalise and set command-to-topic mappings."""
         from .utils import normalize_command_mappings
         self._active_command_to_topic_map = normalize_command_mappings(value)
+    
+    def to_settings_dict(self) -> Dict[str, Any]:
+        """Convert CLI state to settings dictionary for persistence."""
+        return {
+            'selected_target_group': self._raw_selected_target_group,
+            'active_command_to_topic_map': self._active_command_to_topic_map,
+            'directly_authorized_pvs': self.directly_authorized_pvs,
+            'is_monitoring_active': self.is_monitoring_active
+        }
     

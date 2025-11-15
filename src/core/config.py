@@ -90,15 +90,36 @@ class Config(BaseSettings):
     @field_validator("openrouter_api_key")
     @classmethod
     def validate_openrouter_key(cls, v: Optional[str]) -> Optional[str]:
-        if v and ("YOUR_OPENROUTER_API_KEY_HERE" in v or len(v) < 10):
-            return None  # Treat invalid keys as None
+        """Validate OpenRouter API key format."""
+        if not v:
+            return None
+        # Check for placeholder values
+        if "YOUR_OPENROUTER_API_KEY_HERE" in v or "YOUR_API_KEY" in v.upper():
+            return None
+        # Minimum length check
+        if len(v) < 10:
+            return None
+        # Basic format validation (OpenRouter keys are typically alphanumeric with dashes/underscores)
+        if not all(c.isalnum() or c in ['-', '_'] for c in v):
+            return None
         return v
     
     @field_validator("gemini_api_key")
     @classmethod
     def validate_gemini_key(cls, v: Optional[str]) -> Optional[str]:
-        if v and ("YOUR_GEMINI_API_KEY_HERE" in v or len(v) < 10):
-            return None  # Treat invalid keys as None
+        """Validate Gemini API key format."""
+        if not v:
+            return None
+        # Check for placeholder values
+        if "YOUR_GEMINI_API_KEY_HERE" in v or "YOUR_API_KEY" in v.upper():
+            return None
+        # Minimum length check
+        if len(v) < 10:
+            return None
+        # Google API keys typically start with "AIza" or are base64-like
+        # Basic format validation
+        if not all(c.isalnum() or c in ['-', '_', '='] for c in v):
+            return None
         return v
     
     @field_validator("paths_ffmpeg_executable")

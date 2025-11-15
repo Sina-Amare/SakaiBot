@@ -7,8 +7,9 @@ import pytz
 from .llm_interface import LLMProvider
 from .providers import OpenRouterProvider, GeminiProvider
 from ..core.config import Config
-from ..core.exceptions import AIProcessorError
+from ..core.exceptions import AIProcessorError, ConfigurationError
 from ..utils.logging import get_logger
+from ..utils.security import mask_api_key
 
 
 class AIProcessor:
@@ -38,9 +39,12 @@ class AIProcessor:
                 raise AIProcessorError(f"Unknown LLM provider: {provider_type}")
             
             if not self._provider.is_configured:
+                api_key_field = "openrouter_api_key" if provider_type == "openrouter" else "gemini_api_key"
+                api_key = getattr(self._config, api_key_field, None)
+                masked_key = mask_api_key(api_key) if api_key else "None"
                 self._logger.warning(
-                    f"{self._provider.provider_name} is not properly configured. "
-                    "AI features will be disabled."
+                    f"{self._provider.provider_name} is not properly configured "
+                    f"(API key: {masked_key}). AI features will be disabled."
                 )
         except Exception as e:
             self._logger.error(f"Failed to initialize LLM provider: {e}")

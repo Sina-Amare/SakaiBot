@@ -12,6 +12,7 @@ from ..core.exceptions import (
     ValidationError
 )
 from .logging import get_logger
+from .security import sanitize_log_message
 
 T = TypeVar('T')
 logger = get_logger(__name__)
@@ -92,15 +93,18 @@ class ErrorHandler:
     @staticmethod
     def log_error(error: Exception, context: Optional[str] = None) -> None:
         """
-        Log error with context.
+        Log error with context, masking sensitive data.
         
         Args:
             error: Exception instance
             context: Additional context string
         """
         context_str = f" [{context}]" if context else ""
+        error_message = str(error)
+        # Sanitize error message to mask API keys and sensitive data
+        sanitized_message = sanitize_log_message(error_message)
         logger.error(
-            f"Error{context_str}: {type(error).__name__}: {error}",
+            f"Error{context_str}: {type(error).__name__}: {sanitized_message}",
             exc_info=True
         )
 

@@ -99,15 +99,14 @@ class AIHandler(BaseHandler):
             # Send as a separate message for visibility
             await client.send_message(chat_id, completion_msg, reply_to=reply_to_id)
         
+        except AIProcessorError as e:
+            self._logger.error(f"AI command ({command_type}) failed: {e}", exc_info=True)
+            await client.edit_message(thinking_msg, f"⚠️ **خطای AI:** پردازشگر هوش مصنوعی با مشکل مواجه شد.\n\n`{e}`")
+
         except Exception as e:
-            self._logger.error(f"AI command ({command_type}) error: {e}", exc_info=True)
-            try:
-                await client.edit_message(
-                    thinking_msg,
-                    f"Error processing {command_type}: An unexpected error occurred"
-                )
-            except Exception:
-                pass
+            self._logger.error(f"An unexpected error occurred in AI Handler ({command_type}): {e}", exc_info=True)
+            error_message = "یک خطای پیش‌بینی نشده رخ داده است. لطفاً دوباره تلاش کنید."
+            await client.edit_message(thinking_msg, f"⚠️ **خطای AI:** {error_message}\n\n`{e}`")
     
     async def _handle_prompt_command(self, user_prompt_text: str) -> str:
         """Handle /prompt command."""

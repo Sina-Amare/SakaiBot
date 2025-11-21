@@ -21,12 +21,15 @@ from ..utils.logging import get_logger
 from .providers.tts_gemini import synthesize_speech as gemini_synthesize_speech
 
 
+from ..core.config import Config
+
 class TextToSpeechProcessor:
     """Handles text-to-speech conversion with multiple provider support."""
 
-    def __init__(self) -> None:
+    def __init__(self, config: Optional[Config] = None) -> None:
         self._logger = get_logger(self.__class__.__name__)
         self._last_error: Optional[str] = None
+        self._config = config
 
     @property
     def last_error(self) -> Optional[str]:
@@ -66,8 +69,10 @@ class TextToSpeechProcessor:
         """Synthesize speech using Gemini TTS provider."""
         self._logger.info("Generating TTS via Google GenAI (Gemini) TTS.")
         
+        api_key = self._config.gemini_api_key if self._config else os.getenv("GEMINI_API_KEY")
+
         def _call_gemini() -> bool:
-            success, error_msg = gemini_synthesize_speech(text, output_file, voice_name)
+            success, error_msg = gemini_synthesize_speech(text, output_file, voice_name, api_key=api_key)
             if not success and error_msg:
                 self._logger.error(f"Gemini TTS error: {error_msg}")
                 self._last_error = error_msg

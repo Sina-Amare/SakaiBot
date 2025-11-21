@@ -2,7 +2,7 @@
 
 from .client import TelegramClientManager
 from .utils import TelegramUtils
-from .handlers import EventHandlers
+from .main_handlers import EventHandlers
 
 __all__ = [
     "TelegramClientManager",

@@ -159,16 +159,20 @@ class STTHandler(BaseHandler):
                 for chunk in message_chunks[1:]:
                     await client.send_message(chat_id, chunk, reply_to=reply_to_id)
         
-        except AIProcessorError as e:
-            await client.edit_message(thinking_msg, f"⚠️ STT Error: {e}")
-        
         except FileNotFoundError as e:
-            self._logger.error(f"File not found: {e}", exc_info=True)
-            await client.edit_message(thinking_msg, f"STT Error: File not found - {e}")
+            self._logger.error(f"STT Error: File not found during processing: {e}", exc_info=True)
+            await client.edit_message(thinking_msg, f"⚠️ **خطای STT:** فایل مورد نظر یافت نشد. ممکن است در دانلود یا تبدیل فایل مشکلی پیش آمده باشد.\n\n`{e}`")
+
+        except AIProcessorError as e:
+            self._logger.error(f"STT Error: AI Processor failed: {e}", exc_info=True)
+            await client.edit_message(thinking_msg, f"⚠️ **خطای STT:** پردازشگر هوش مصنوعی با مشکل مواجه شد.\n\n`{e}`")
         
         except Exception as e:
-            self._logger.error(f"Unexpected error in STT processing: {e}", exc_info=True)
-            await client.edit_message(thinking_msg, f"STT Error: An unexpected error occurred - {e}")
+            self._logger.error(f"An unexpected error occurred in STT Handler: {e}", exc_info=True)
+            error_message = "یک خطای پیش‌بینی نشده رخ داده است. لطفاً دوباره تلاش کنید."
+            if "ffmpeg" in str(e).lower():
+                error_message = "خطا در پردازش فایل صوتی. لطفاً از نصب بودن FFmpeg اطمینان حاصل کنید."
+            await client.edit_message(thinking_msg, f"⚠️ **خطای STT:** {error_message}\n\n`{e}`")
         
         finally:
             # Restore PATH if modified

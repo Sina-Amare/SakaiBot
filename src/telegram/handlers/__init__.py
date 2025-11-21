@@ -15,6 +15,4 @@ __all__ = [
     'CategorizationHandler'
 ]
 
-# Note: EventHandlers is exported from src.telegram.handlers (parent module)
-# to maintain backward compatibility
 

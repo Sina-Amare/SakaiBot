@@ -81,7 +81,7 @@ async def _start_monitoring(verbose: bool):
             display_info(line)
         
         # Setup event handlers
-        from src.telegram.handlers import EventHandlers
+        from src.telegram.main_handlers import EventHandlers
         from src.ai.processor import AIProcessor
         from src.ai.stt import SpeechToTextProcessor
         from src.ai.tts import TextToSpeechProcessor

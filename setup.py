@@ -34,22 +34,7 @@ setup(
     ],
     packages=find_packages(),
     python_requires=">=3.10",
-    install_requires=[
-        "telethon>=1.34.0",
-        "python-dotenv>=1.0.0",
-        "pydantic>=2.0.0",
-        "pydantic-settings>=2.0.0",
-        "openai>=1.0.0",
-        "google-genai>=0.1.0",
-        "click>=8.1.0",
-        "rich>=13.0.0",
-        "tabulate>=0.9.0",
-        "aiofiles>=23.0.0",
-        "pytz>=2023.3",
-        "SpeechRecognition>=3.10.0",
-        "pydub>=0.25.1",
-        "azure-cognitiveservices-speech>=1.31.0",
-    ],
+    install_requires=[],
     extras_require={
         "dev": [
             "pytest>=7.4.0",

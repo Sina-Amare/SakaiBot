@@ -45,7 +45,8 @@ _client_instance: Optional[genai.Client] = None
 def synthesize_speech(
     text: str, 
     output_file: str = "output.wav", 
-    voice_name: Optional[str] = None
+    voice_name: Optional[str] = None,
+    api_key: Optional[str] = None
 ) -> Tuple[bool, Optional[str]]:
     """
     Synthesize speech using Gemini AI Studio TTS.
@@ -64,7 +65,8 @@ def synthesize_speech(
     if not text or not text.strip():
         return False, "Empty text provided for synthesis"
 
-    if not GOOGLE_API_KEY:
+    effective_api_key = api_key or GOOGLE_API_KEY
+    if not effective_api_key:
         # Check which keys are actually set (for debugging)
         keys_checked = []
         if os.getenv("GEMINI_API_KEY_TTS"):
@@ -99,7 +101,7 @@ def synthesize_speech(
         try:
             # Reuse client instance if available, otherwise create new one
             if _client_instance is None:
-                _client_instance = genai.Client(api_key=GOOGLE_API_KEY)
+                _client_instance = genai.Client(api_key=effective_api_key)
             client = _client_instance
             
             # Generate content with TTS (exact pattern from official docs)

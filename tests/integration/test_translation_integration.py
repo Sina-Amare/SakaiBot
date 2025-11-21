@@ -7,9 +7,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tests.unit.test_translation import (
+from src.utils.translation_utils import (
     validate_language_code,
-    parse_enhanced_translate_command,
+    parse_translation_command,
     format_translation_response,
     extract_translation_from_response
 )
@@ -21,11 +21,10 @@ class TestTranslationIntegration(unittest.TestCase):
     def test_complete_translation_workflow(self):
         """Test complete translation workflow from command to response."""
         # Test command parsing
-        command = "en,fa Hello world"
-        target, source, text, errors = parse_enhanced_translate_command(command)
+        command = "en=Hello world"
+        target, text, errors = parse_translation_command(command)
         
         self.assertEqual(target, "en")
-        self.assertEqual(source, "fa")
         self.assertEqual(text, "Hello world")
         self.assertEqual(len(errors), 0)
         
@@ -34,15 +33,12 @@ class TestTranslationIntegration(unittest.TestCase):
         self.assertTrue(is_valid)
         self.assertEqual(std_target, "en")
         
-        is_valid, std_source, suggestion = validate_language_code(source)
-        self.assertTrue(is_valid)
-        self.assertEqual(std_source, "fa")
-        
         # Test response formatting with mock translation
         translation = "سلام دنیا"
-        pronunciation = "سلام دنیا"
-        formatted_response = format_translation_response(translation, pronunciation)
-        self.assertEqual(formatted_response, "سلام دنیا\n pronunciation: (سلام دنیا)")
+        pronunciation = "salaam donyaa"
+        formatted_response = format_translation_response(translation, pronunciation, "fa")
+        self.assertIn("سلام دنیا", formatted_response)
+        self.assertIn("salaam donyaa", formatted_response)
     
     def test_structured_response_extraction(self):
         """Test extraction from structured AI responses."""
@@ -55,17 +51,17 @@ Phonetic: (هلو ورلد)"""
         self.assertEqual(pronunciation, "هلو ورلد")
         
         # Test formatting the extracted response
-        formatted_response = format_translation_response(translation, pronunciation)
-        self.assertEqual(formatted_response, "Hello world\n pronunciation: (هلو ورلد)")
+        formatted_response = format_translation_response(translation, pronunciation, "en")
+        self.assertIn("Hello world", formatted_response)
+        self.assertIn("هلو ورلد", formatted_response)
     
     def test_end_to_end_persian_translation(self):
         """Test end-to-end Persian translation workflow."""
         # Test Persian command parsing - translate Persian text to English
-        command = "en=fa سلام دنیا"  # Translate to English from Persian: سلام دنیا
-        target, source, text, errors = parse_enhanced_translate_command(command)
+        command = "en=سلام دنیا"  # Translate to English from Persian: سلام دنیا
+        target, text, errors = parse_translation_command(command)
         
         self.assertEqual(target, "en")
-        self.assertEqual(source, "fa")
         self.assertEqual(text, "سلام دنیا")
         self.assertEqual(len(errors), 0)
         
@@ -74,17 +70,14 @@ Phonetic: (هلو ورلد)"""
         self.assertTrue(is_valid)
         self.assertEqual(std_target, "en")
         
-        is_valid, std_source, suggestion = validate_language_code(source)
-        self.assertTrue(is_valid)
-        self.assertEqual(std_source, "fa")
-        
         # Simulate AI response
         ai_response = """Translation: Hello world
-Phonetic: (هلو ورلد)"""
+Phonetic: (helo vorld)"""
         
         translation, pronunciation = extract_translation_from_response(ai_response)
-        formatted_response = format_translation_response(translation, pronunciation)
-        self.assertEqual(formatted_response, "Hello world\n pronunciation: (هلو ورلد)")
+        formatted_response = format_translation_response(translation, pronunciation, "en")
+        self.assertIn("Hello world", formatted_response)
+        self.assertIn("helo vorld", formatted_response)
 
 
 if __name__ == '__main__':

@@ -29,7 +29,9 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "openai>=1.0.0",
-    "google-genai>=0.8.0",
+    "google-genai>=0.1.0",
+    "google-generativeai>=0.1.0",
+    "cryptg>=0.4.0",
     "click>=8.1.0",
     "rich>=13.0.0",
     "tabulate>=0.9.0",
@@ -38,7 +40,7 @@ dependencies = [
     "SpeechRecognition>=3.10.0",
     "pydub>=0.25.1",
     "azure-cognitiveservices-speech>=1.31.0",
-    "gTTS>=2.5.1",
+    "gTTS>=2.5.1"
 ]
 
 [project.optional-dependencies]
@@ -50,7 +52,7 @@ dev = [
     "flake8>=6.1.0",
     "mypy>=1.5.0",
     "pre-commit>=3.3.0",
-    "ruff>=0.1.0",
+    "ruff>=0.1.0"
 ]
 optional = []
 

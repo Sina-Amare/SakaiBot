@@ -20,7 +20,8 @@ class TestAIProviders(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures before each test method."""
-        self.config = get_settings()
+        env_path = Path(__file__).parent.parent / ".env.test"
+        self.config = get_settings(dotenv_path=str(env_path))
         self.current_provider = self.config.llm_provider
     
     def test_gemini_provider_initialization(self):

@@ -192,19 +192,20 @@ class Config(BaseSettings):
         return cls(**env_values)
 
 
-def load_config() -> Config:
-    """Load configuration from .env file or config.ini."""
+def load_config(dotenv_path: Optional[str] = None) -> Config:
+    """Load configuration from a specified .env file or default locations."""
     try:
-        # Try loading from .env first (modern approach)
+        if dotenv_path and os.path.exists(dotenv_path):
+            return Config(_env_file=dotenv_path)
+
         if os.path.exists(".env"):
             return Config()
-        
-        # Fall back to config.ini (legacy support)
+
         if os.path.exists(CONFIG_FILE_NAME):
             return Config.load_from_ini()
-        
+
         raise ConfigurationError("No configuration file found (.env or config.ini)")
-    
+
     except Exception as e:
         if isinstance(e, ConfigurationError):
             raise
@@ -214,9 +215,9 @@ def load_config() -> Config:
 # Global settings instance (loaded lazily)
 settings: Optional[Config] = None
 
-def get_settings() -> Config:
-    """Get or create the global settings instance."""
+def get_settings(dotenv_path: Optional[str] = None) -> Config:
+    """Get, create, or reload the global settings instance."""
     global settings
-    if settings is None:
-        settings = load_config()
+    if settings is None or dotenv_path:
+        settings = load_config(dotenv_path=dotenv_path)
     return settings

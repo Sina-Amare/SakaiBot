@@ -99,12 +99,16 @@ class TTSHandler(BaseHandler):
                 self._logger.error(f"TTS Error: {error_msg}")
                 await client.edit_message(thinking_msg, f"⚠️ TTS Error: {error_msg}")
         
+        except AIProcessorError as e:
+            self._logger.error(f"TTS Error: AI Processor failed: {e}", exc_info=True)
+            await client.edit_message(thinking_msg, f"⚠️ **خطای TTS:** پردازشگر هوش مصنوعی با مشکل مواجه شد.\n\n`{e}`")
+
         except Exception as e:
-            self._logger.error(f"Unexpected error in TTS processing: {e}", exc_info=True)
-            await client.edit_message(
-                thinking_msg,
-                f"TTS Error: An unexpected error occurred - {e}"
-            )
+            self._logger.error(f"An unexpected error occurred in TTS Handler: {e}", exc_info=True)
+            error_message = "یک خطای پیش‌بینی نشده رخ داده است. لطفاً دوباره تلاش کنید."
+            if "file is not a recognized audio file" in str(e).lower():
+                error_message = "فرمت فایل صوتی تولید شده توسط سرویس TTS پشتیبانی نمی‌شود."
+            await client.edit_message(thinking_msg, f"⚠️ **خطای TTS:** {error_message}\n\n`{e}`")
         
         finally:
             # Clean up temporary file

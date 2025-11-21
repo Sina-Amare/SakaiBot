@@ -169,14 +169,14 @@ def menu(ctx):
     """Start interactive menu system."""
     asyncio.run(start_interactive_menu())
 
+from src.cli.setup_wizard import run_setup_wizard
+
 # Add setup wizard
 @cli.command()
 @click.pass_context
 def setup(ctx):
     """Run interactive setup wizard."""
-    # TODO: Implement setup wizard
-    console.print("[yellow]Setup wizard coming soon![/yellow]")
-    console.print("Please edit .env file manually for now.")
+    run_setup_wizard()
 
 if __name__ == '__main__':
     cli()

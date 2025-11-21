@@ -8,7 +8,7 @@ from unittest.mock import Mock
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.telegram.handlers import EventHandlers
+from src.telegram.main_handlers import EventHandlers
 
 
 class TestTelegramHandlers(unittest.TestCase):

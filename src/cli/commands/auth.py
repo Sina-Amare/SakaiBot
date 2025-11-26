@@ -42,8 +42,11 @@ async def _list_authorized():
         client, client_manager = await get_telegram_client()
         verifier = None  # Initialize verifier as None
         if not client:
-            display_error("Failed to connect to Telegram. Showing cached data only.")
-            # Proceed with cached data only
+            # Bot is running, show cached data with helpful message
+            display_warning(
+                "Bot is currently running - showing cached data.\n"
+                "For live updates, use: /auth list in Telegram"
+            )
             cached_pvs = cached_pvs or []
         else:
             # Use the user verifier to get updated information for users not in cache
@@ -102,22 +105,6 @@ async def _add_authorized(identifier: str):
     try:
         settings_manager = await get_settings_manager()
         settings = settings_manager.load_user_settings()
-        auth_pvs = settings.get('directly_authorized_pvs', [])
-        
-        # Get Telegram client for direct verification
-        from ..utils import get_telegram_client
-        client, client_manager = await get_telegram_client()
-        if not client:
-            display_error("Failed to connect to Telegram. Cannot verify user.")
-            return
-
-        # Use direct verification instead of cache
-        verifier = TelegramUserVerifier(client)
-        user_info = await verifier.verify_user_by_identifier(identifier)
-        
-        if not user_info:
-            display_error(f"No user found matching '{identifier}' in Telegram")
-            return
 
         # Check if already authorized
         if user_info['id'] in auth_pvs:
@@ -150,35 +137,6 @@ async def _remove_authorized(identifier: str):
         auth_pvs = settings.get('directly_authorized_pvs', [])
         
         if not auth_pvs:
-            display_info("No authorized users to remove.")
-            return
-
-        # Try to parse as ID first
-        try:
-            user_id = int(identifier)
-            if user_id in auth_pvs:
-                auth_pvs.remove(user_id)
-                settings['directly_authorized_pvs'] = auth_pvs
-                settings_manager.save_user_settings(settings)
-                display_success(f"Removed authorization for user ID: {user_id}")
-                return
-        except ValueError:
-            pass
-
-        # Use direct verification to find the user by identifier
-        from ..utils import get_telegram_client
-        client, client_manager = await get_telegram_client()
-        if not client:
-            display_error("Failed to connect to Telegram. Cannot verify user.")
-            return
-
-        # Use direct verification instead of cache
-        verifier = TelegramUserVerifier(client)
-        user_info = await verifier.verify_user_by_identifier(identifier)
-        
-        if not user_info:
-            display_error(f"No user found matching '{identifier}' in Telegram")
-            return
 
         # Check if user is authorized
         if user_info['id'] not in auth_pvs:

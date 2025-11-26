@@ -373,10 +373,20 @@ class ImageHandler(BaseHandler):
         )
         
         # Send image with enhanced prompt as caption
-        caption = (
-            f"🎨 Image generated with {model.upper()}\n\n"
-            f"**Enhanced prompt:**\n{enhanced_prompt[:500]}{'...' if len(enhanced_prompt) > 500 else ''}"
-        )
+        # Telegram photo caption limit is 1024 characters
+        # Use full prompt, only truncate if it exceeds Telegram's limit
+        header = f"🎨 Image generated with {model.upper()}\n\n**Enhanced prompt:**\n"
+        max_caption_length = 1024
+        max_prompt_length = max_caption_length - len(header)
+        
+        if len(enhanced_prompt) > max_prompt_length:
+            # Only truncate if it exceeds Telegram's limit
+            truncated_prompt = enhanced_prompt[:max_prompt_length - 3] + "..."
+            self._logger.warning(f"Enhanced prompt truncated for caption (original: {len(enhanced_prompt)} chars)")
+        else:
+            truncated_prompt = enhanced_prompt
+        
+        caption = f"{header}{truncated_prompt}"
         
         await client.send_file(
             chat_id,

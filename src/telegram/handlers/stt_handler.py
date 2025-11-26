@@ -20,6 +20,7 @@ from ...core.constants import MAX_MESSAGE_LENGTH
 from ...core.exceptions import AIProcessorError
 from ...utils.helpers import clean_temp_files, split_message
 from ...utils.logging import get_logger
+from ...utils.message_sender import MessageSender
 from .base import BaseHandler
 
 

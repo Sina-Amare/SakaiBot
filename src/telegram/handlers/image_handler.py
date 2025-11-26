@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 
 from telethon import TelegramClient
 from telethon.tl.types import Message
+from telethon.errors import MessageIdInvalidError, MessageNotModifiedError
 
 from ...ai.image_generator import ImageGenerator
 from ...ai.image_queue import image_queue, ImageStatus
@@ -293,20 +294,36 @@ class ImageHandler(BaseHandler):
         
         try:
             # Update status: enhancing prompt
-            await client.edit_message(
-                thinking_msg,
-                f"🎨 Enhancing prompt with AI..."
-            )
+            try:
+                await client.edit_message(
+                    thinking_msg,
+                    f"🎨 Enhancing prompt with AI..."
+                )
+            except (MessageIdInvalidError, MessageNotModifiedError):
+                # If we can't edit the message (deleted/invalid), fall back to sending a new one
+                thinking_msg = await client.send_message(
+                    chat_id,
+                    f"🎨 Enhancing prompt with AI...",
+                    reply_to=reply_to_id
+                )
             
             # Enhance prompt
             with TimingContext('image_command.enhancement_duration', tags={'model': model}):
                 enhanced_prompt = await self._prompt_enhancer.enhance_prompt(prompt)
             
             # Update status: generating image
-            await client.edit_message(
-                thinking_msg,
-                f"🖼️ Generating image with {model.upper()}..."
-            )
+            try:
+                await client.edit_message(
+                    thinking_msg,
+                    f"🖼️ Generating image with {model.upper()}..."
+                )
+            except (MessageIdInvalidError, MessageNotModifiedError):
+                # If edit fails, send a new status message instead of failing the whole flow
+                thinking_msg = await client.send_message(
+                    chat_id,
+                    f"🖼️ Generating image with {model.upper()}...",
+                    reply_to=reply_to_id
+                )
             
             # Generate image
             with TimingContext('image_command.generation_duration', tags={'model': model}):
@@ -338,7 +355,11 @@ class ImageHandler(BaseHandler):
                 error_msg = ErrorHandler.get_user_message(
                     AIProcessorError(error_message or "Image generation failed")
                 )
-                await client.edit_message(thinking_msg, error_msg)
+                try:
+                    await client.edit_message(thinking_msg, error_msg)
+                except (MessageIdInvalidError, MessageNotModifiedError):
+                    # Fallback: send as a new message
+                    await client.send_message(chat_id, error_msg, reply_to=reply_to_id)
                 metrics.increment('image_command.errors', tags={'model': model, 'error': 'generation_failed'})
         except Exception as e:
             image_queue.mark_failed(request_id, str(e))
@@ -367,10 +388,14 @@ class ImageHandler(BaseHandler):
             enhanced_prompt: Enhanced prompt for caption
         """
         # Update status: sending
-        await client.edit_message(
-            thinking_msg,
-            f"📤 Sending image..."
-        )
+        try:
+            await client.edit_message(
+                thinking_msg,
+                f"📤 Sending image..."
+            )
+        except (MessageIdInvalidError, MessageNotModifiedError):
+            # If we can't edit (message deleted/invalid), ignore and continue
+            pass
         
         # Send image with enhanced prompt as caption
         # Telegram photo caption limit is 1024 characters
@@ -397,7 +422,11 @@ class ImageHandler(BaseHandler):
         )
         
         # Delete status message
-        await thinking_msg.delete()
+        try:
+            await thinking_msg.delete()
+        except (MessageIdInvalidError, MessageNotModifiedError):
+            # If it's already gone or can't be deleted, ignore
+            pass
         
         # Clean up temp file
         try:

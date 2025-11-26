@@ -17,7 +17,7 @@ from ...utils.helpers import clean_temp_files
 from ...utils.logging import get_logger
 from ...utils.message_sender import MessageSender
 from ...utils.rate_limiter import get_ai_rate_limiter
-from ...utils.validators import InputValidator, validate_image_model, validate_image_prompt
+from ...utils.validators import InputValidator
 from ...utils.metrics import get_metrics_collector, TimingContext
 from ...utils.error_handler import ErrorHandler
 from .base import BaseHandler
@@ -66,9 +66,9 @@ class ImageHandler(BaseHandler):
         if not parsed:
             await client.send_message(
                 chat_id,
-                "❌ فرمت دستور نامعتبر است.\n"
-                "استفاده: `/image=flux/<prompt>` یا `/image=sdxl/<prompt>`\n"
-                "مثال: `/image=flux/a beautiful sunset`",
+                "❌ Invalid command format.\n"
+                "Usage: `/image=flux/<prompt>` or `/image=sdxl/<prompt>`\n"
+                "Example: `/image=flux/a beautiful sunset`",
                 reply_to=message.id,
                 parse_mode='md'
             )
@@ -78,22 +78,22 @@ class ImageHandler(BaseHandler):
         prompt = parsed["prompt"]
         
         # Validate model
-        if not validate_image_model(model):
+        if not InputValidator.validate_image_model(model):
             await client.send_message(
                 chat_id,
-                f"❌ مدل نامعتبر: {model}\n"
-                f"مدل‌های مجاز: {', '.join(SUPPORTED_IMAGE_MODELS)}",
+                f"❌ Invalid model: {model}\n"
+                f"Supported models: {', '.join(SUPPORTED_IMAGE_MODELS)}",
                 reply_to=message.id
             )
             return
         
         # Validate prompt
         try:
-            prompt = validate_image_prompt(prompt)
+            prompt = InputValidator.validate_image_prompt(prompt)
         except ValueError as e:
             await client.send_message(
                 chat_id,
-                f"❌ خطا در prompt: {str(e)}",
+                f"❌ Prompt error: {str(e)}",
                 reply_to=message.id
             )
             return
@@ -106,10 +106,10 @@ class ImageHandler(BaseHandler):
             metrics = get_metrics_collector()
             metrics.increment('image_command.rate_limited', tags={'model': model})
             error_msg = (
-                f"⚠️ محدودیت استفاده\n\n"
-                f"شما به حد مجاز درخواست رسیده‌اید.\n"
-                f"لطفاً {rate_limiter._window_seconds} ثانیه صبر کنید.\n"
-                f"درخواست‌های باقیمانده: {remaining}"
+                f"⚠️ Rate limit exceeded\n\n"
+                f"You have reached the request limit.\n"
+                f"Please wait {rate_limiter._window_seconds} seconds.\n"
+                f"Remaining requests: {remaining}"
             )
             await client.send_message(chat_id, error_msg, reply_to=message.id)
             return
@@ -155,9 +155,9 @@ class ImageHandler(BaseHandler):
         queue_position = image_queue.get_queue_position(request_id, model)
         
         # Send initial status message
-        status_text = f"🎨 در حال پردازش درخواست تصویر با {model.upper()}..."
+        status_text = f"🎨 Processing image request with {model.upper()}..."
         if queue_position and queue_position > 1:
-            status_text += f"\n⏳ در صف {model.upper()}: موقعیت {queue_position}"
+            status_text += f"\n⏳ In {model.upper()} queue: position {queue_position}"
         
         thinking_msg = await client.send_message(
             chat_id,
@@ -170,7 +170,7 @@ class ImageHandler(BaseHandler):
             while True:
                 current_request = image_queue.get_request(request_id)
                 if not current_request:
-                    await client.edit_message(thinking_msg, "❌ درخواست یافت نشد")
+                    await client.edit_message(thinking_msg, "❌ Request not found")
                     return
                 
                 # Check if it's our turn to process
@@ -182,7 +182,7 @@ class ImageHandler(BaseHandler):
                 if current_request.status == ImageStatus.FAILED:
                     await client.edit_message(
                         thinking_msg,
-                        f"❌ خطا: {current_request.error_message or 'خطای نامشخص'}"
+                        f"❌ Error: {current_request.error_message or 'Unknown error'}"
                     )
                     return
                 elif current_request.status == ImageStatus.COMPLETED:
@@ -199,7 +199,7 @@ class ImageHandler(BaseHandler):
                 if position and position > 1:
                     await client.edit_message(
                         thinking_msg,
-                        f"⏳ در صف {model.upper()}: موقعیت {position}..."
+                        f"⏳ In {model.upper()} queue: position {position}..."
                     )
                 
                 await asyncio.sleep(2)  # Check every 2 seconds
@@ -262,7 +262,7 @@ class ImageHandler(BaseHandler):
         if model not in SUPPORTED_IMAGE_MODELS:
             return None
         
-            return {
+        return {
             "model": model,
             "prompt": prompt
         }
@@ -295,7 +295,7 @@ class ImageHandler(BaseHandler):
             # Update status: enhancing prompt
             await client.edit_message(
                 thinking_msg,
-                f"🎨 در حال بهبود prompt با هوش مصنوعی..."
+                f"🎨 Enhancing prompt with AI..."
             )
             
             # Enhance prompt
@@ -305,7 +305,7 @@ class ImageHandler(BaseHandler):
             # Update status: generating image
             await client.edit_message(
                 thinking_msg,
-                f"🖼️ در حال تولید تصویر با {model.upper()}..."
+                f"🖼️ Generating image with {model.upper()}..."
             )
             
             # Generate image
@@ -315,7 +315,7 @@ class ImageHandler(BaseHandler):
                 elif model == "sdxl":
                     success, image_path, error_message = await self._image_generator.generate_with_sdxl(enhanced_prompt)
                 else:
-                    success, image_path, error_message = (False, None, f"مدل نامعتبر: {model}")
+                    success, image_path, error_message = (False, None, f"Invalid model: {model}")
             
             if success and image_path:
                 # Mark as completed
@@ -332,11 +332,11 @@ class ImageHandler(BaseHandler):
                 self._logger.info(f"Image generation completed for request {request_id}")
             else:
                 # Mark as failed
-                image_queue.mark_failed(request_id, error_message or "خطای نامشخص")
+                image_queue.mark_failed(request_id, error_message or "Unknown error")
                 
                 # Send error message
                 error_msg = ErrorHandler.get_user_message(
-                    AIProcessorError(error_message or "تولید تصویر ناموفق بود")
+                    AIProcessorError(error_message or "Image generation failed")
                 )
                 await client.edit_message(thinking_msg, error_msg)
                 metrics.increment('image_command.errors', tags={'model': model, 'error': 'generation_failed'})
@@ -369,13 +369,13 @@ class ImageHandler(BaseHandler):
         # Update status: sending
         await client.edit_message(
             thinking_msg,
-            f"📤 در حال ارسال تصویر..."
+            f"📤 Sending image..."
         )
         
         # Send image with enhanced prompt as caption
         caption = (
-            f"🎨 تصویر تولید شده با {model.upper()}\n\n"
-            f"**Prompt بهبود یافته:**\n{enhanced_prompt[:500]}{'...' if len(enhanced_prompt) > 500 else ''}"
+            f"🎨 Image generated with {model.upper()}\n\n"
+            f"**Enhanced prompt:**\n{enhanced_prompt[:500]}{'...' if len(enhanced_prompt) > 500 else ''}"
         )
         
         await client.send_file(

@@ -138,7 +138,7 @@ async def test_handle_image_command_rate_limited(image_handler, mock_message, mo
     # Should send rate limit message
     mock_client.send_message.assert_called_once()
     call_args = mock_client.send_message.call_args
-    assert "محدودیت" in call_args[0][1] or "rate limit" in call_args[0][1].lower()
+    assert "rate limit" in call_args[0][1].lower()
 
 
 @pytest.mark.asyncio
@@ -148,6 +148,14 @@ async def test_process_image_command_success_flux(
     """Test successful Flux image generation flow."""
     from pathlib import Path
     from src.ai.image_queue import image_queue
+    from src.ai.image_queue import ImageRequest, ImageStatus
+    
+    # Clear queue state before test
+    image_queue._flux_queue.clear()
+    image_queue._sdxl_queue.clear()
+    image_queue._requests.clear()
+    image_queue._flux_processing = False
+    image_queue._sdxl_processing = False
     
     # Setup mocks
     mock_prompt_enhancer.enhance_prompt = AsyncMock(return_value="enhanced prompt")
@@ -158,16 +166,14 @@ async def test_process_image_command_success_flux(
     # Mock file operations
     with patch('pathlib.Path.exists', return_value=True):
         with patch('pathlib.Path.unlink'):
-            # Add request to queue and process
-            request_id = image_queue.add_request("flux", "test prompt", mock_message.sender_id)
-            
             # Create a mock thinking message
             thinking_msg = MagicMock()
             mock_client.send_message = AsyncMock(return_value=thinking_msg)
             mock_client.edit_message = AsyncMock()
             mock_client.send_file = AsyncMock()
             
-            # Process the command
+            # Process the command (it will add the request itself)
+            # The queue should be empty, so try_start_processing should return True immediately
             await image_handler.process_image_command(
                 mock_message, mock_client, 67890, "Test User", "flux", "test prompt"
             )
@@ -189,6 +195,13 @@ async def test_process_image_command_generation_failure(
     """Test handling image generation failure."""
     from src.ai.image_queue import image_queue
     
+    # Clear queue state before test
+    image_queue._flux_queue.clear()
+    image_queue._sdxl_queue.clear()
+    image_queue._requests.clear()
+    image_queue._flux_processing = False
+    image_queue._sdxl_processing = False
+    
     mock_prompt_enhancer.enhance_prompt = AsyncMock(return_value="enhanced prompt")
     mock_image_generator.generate_with_flux = AsyncMock(
         return_value=(False, None, "Generation failed")
@@ -197,8 +210,6 @@ async def test_process_image_command_generation_failure(
     thinking_msg = MagicMock()
     mock_client.send_message = AsyncMock(return_value=thinking_msg)
     mock_client.edit_message = AsyncMock()
-    
-    request_id = image_queue.add_request("flux", "test prompt", mock_message.sender_id)
     
     await image_handler.process_image_command(
         mock_message, mock_client, 67890, "Test User", "flux", "test prompt"

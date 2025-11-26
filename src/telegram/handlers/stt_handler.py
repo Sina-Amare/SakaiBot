@@ -12,7 +12,7 @@ from pydub import AudioSegment
 
 from ...ai.stt import SpeechToTextProcessor
 from ...ai.processor import AIProcessor
-from ...ai.persian_prompts import (
+from ...ai.prompts import (
     VOICE_MESSAGE_SUMMARY_PROMPT,
     VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE
 )
@@ -99,7 +99,7 @@ class STTHandler(BaseHandler):
             
             summary_text = None
             # Generate AI summary if AI is configured
-            # Use centralized prompts from persian_prompts.py
+            # Use centralized prompts from prompts.py
             summary_prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
                 transcribed_text=transcribed_text
             )
@@ -177,7 +177,7 @@ class STTHandler(BaseHandler):
             return None
         
         model_name = os.getenv("GEMINI_SUMMARY_MODEL", "gemini-1.5-flash-latest")
-        # Use centralized prompt from persian_prompts.py
+        # Use centralized prompt from prompts.py
         prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
             transcribed_text=transcribed_text
         )

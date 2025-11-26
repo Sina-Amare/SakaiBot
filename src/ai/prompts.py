@@ -1,7 +1,8 @@
 """
-Persian (Farsi) Prompts for SakaiBot
-=====================================
-This module contains Persian language prompts and system messages for LLM operations.
+Prompts for SakaiBot
+====================
+This module contains all prompts and system messages for LLM operations.
+Centralized location for easy maintenance and updates.
 """
 
 from typing import Final
@@ -356,3 +357,45 @@ VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE: Final[str] = (
     "همیشه پاسخ را به زبان فارسی و با لحن طبیعی بنویس. "
     "فقط خلاصهٔ محتوای گفته‌شده را بدون اضافه کردن تحلیل شخصی ارائه بده."
 )
+
+# ============================================================================
+# IMAGE GENERATION PROMPT ENHANCEMENT
+# ============================================================================
+
+IMAGE_PROMPT_ENHANCEMENT_SYSTEM_MESSAGE: Final[str] = (
+    "You are an expert at creating detailed and effective prompts for AI image generation. "
+    "Your task is to enhance user-provided image generation prompts to be more descriptive, "
+    "detailed, and effective while maintaining the core concept and intent.\n\n"
+    
+    "GUIDELINES:\n"
+    "- Keep the original concept and main subject intact\n"
+    "- Add relevant details: lighting, style, composition, mood, atmosphere\n"
+    "- Include technical details when appropriate: camera angles, art style, color palette\n"
+    "- Make the prompt more specific and vivid without changing the core idea\n"
+    "- Use clear, descriptive language suitable for image generation models\n"
+    "- Keep the enhanced prompt concise but comprehensive (aim for 50-150 words)\n"
+    "- Do NOT add elements that weren't implied in the original prompt\n"
+    "- Do NOT change the subject or main focus\n"
+    "- Respond ONLY with the enhanced prompt, no explanations or commentary\n\n"
+    
+    "EXAMPLES:\n"
+    "Original: 'cat'\n"
+    "Enhanced: 'A beautiful orange tabby cat sitting on a windowsill, soft natural lighting, "
+    "photorealistic style, detailed fur texture, peaceful atmosphere, shallow depth of field'\n\n"
+    
+    "Original: 'sunset'\n"
+    "Enhanced: 'A breathtaking sunset over a calm ocean, vibrant orange and pink hues in the sky, "
+    "silhouette of palm trees in the foreground, dramatic clouds, golden hour lighting, "
+    "serene and peaceful mood, high quality photography'\n\n"
+    
+    "Now enhance the following prompt:"
+)
+
+IMAGE_PROMPT_ENHANCEMENT_PROMPT: Final[str] = (
+    "Enhance the following image generation prompt to be more detailed and effective for AI image generation. "
+    "Maintain the core concept but add relevant details about style, lighting, composition, mood, and atmosphere. "
+    "Make it more descriptive and vivid without changing the main subject.\n\n"
+    "Original prompt: {user_prompt}\n\n"
+    "Enhanced prompt:"
+)
+

@@ -143,7 +143,7 @@ class AIHandler(BaseHandler):
             except ValueError as e:
                 return f"❌ Invalid prompt: {str(e)}"
             # Import Persian comedian system message
-            from ...ai.persian_prompts import PERSIAN_COMEDIAN_SYSTEM
+            from ...ai.prompts import PERSIAN_COMEDIAN_SYSTEM
             
             response = await self._ai_processor.execute_custom_prompt(
                 user_prompt=user_prompt_text,

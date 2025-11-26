@@ -29,6 +29,7 @@ from .handlers.tts_handler import TTSHandler
 from .handlers.ai_handler import AIHandler
 from .handlers.image_handler import ImageHandler
 from .handlers.categorization_handler import CategorizationHandler
+from .commands import handle_auth_command, handle_help_command, handle_status_command
 
 
 class EventHandlers:
@@ -46,6 +47,13 @@ class EventHandlers:
         self._tts_processor = tts_processor
         self._ffmpeg_path = ffmpeg_path
         self._logger = get_logger(self.__class__.__name__)
+        
+        # Store self-command handlers
+        self._self_command_handlers = {
+            'auth': handle_auth_command,
+            'help': handle_help_command,
+            'status': handle_status_command,
+        }
         
         # Initialize specialized handlers using composition
         self._stt_handler = STTHandler(
@@ -132,6 +140,28 @@ class EventHandlers:
         
         command_text = message_to_process.text.strip() if message_to_process.text else ""
         command_text_lower = command_text.lower()
+        
+        # Check for self-commands (userbot commands like /auth, /help, /status)
+        # These are only processed for outgoing messages from the bot owner
+        if not is_confirm_flow and not is_direct_auth_user_command:
+            for cmd_name, cmd_handler in self._self_command_handlers.items():
+                if command_text_lower.startswith(f"/{cmd_name}"):
+                    # Extract args (everything after the command)
+                    args = command_text[len(cmd_name) + 1:].strip() if len(command_text) > len(cmd_name) + 1 else ""
+                    self._logger.info(f"Processing self-command: /{cmd_name} {args}")
+                    
+                    # Create event-like object for compatibility
+                    class SimpleEvent:
+                        def __init__(self, msg, cli):
+                            self.message = msg
+                            self.client = cli
+                        
+                        async def edit(self, text, parse_mode=None):
+                            await self.message.edit(text, parse_mode=parse_mode)
+                    
+                    event = SimpleEvent(message_to_process, client)
+                    await cmd_handler(event, args)
+                    return
         
         # Determine command sender info
         if is_confirm_flow or is_direct_auth_user_command:

@@ -63,9 +63,33 @@ def display_info(message: str):
     console.print(f"[blue]Info:[/blue] {message}")
 
 async def get_telegram_client():
-    """Get initialized Telegram client."""
+    """Get initialized Telegram client.
+    
+    Returns None if bot is already running (to prevent database lock).
+    """
+    from pathlib import Path
     from src.core.config import load_config
     from src.telegram.client import TelegramClientManager
+    
+    # Check if bot is already running
+    lock_file = Path("data/.sakaibot.lock")
+    if lock_file.exists():
+        try:
+            pid = int(lock_file.read_text().strip())
+            # Check if process is actually running
+            import psutil
+            if psutil.pid_exists(pid):
+                display_error(
+                    "Bot is currently running! Cannot use CLI for user management.\n"
+                    "Use Telegram self-commands instead:\n"
+                    "  • /auth list - View authorized users\n"
+                    "  • /auth add @username - Add user\n"
+                    "  • /auth remove @username - Remove user\n\n"
+                    "Send these commands in any Telegram chat (even Saved Messages)."
+                )
+                return None, None
+        except (ValueError, FileNotFoundError, ImportError):
+            pass  # Lock file corrupted or psutil not available, proceed
     
     try:
         config = load_config()

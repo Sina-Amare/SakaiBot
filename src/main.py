@@ -19,6 +19,7 @@ from .ai.tts import TextToSpeechProcessor
 from .utils.cache import CacheManager
 from .utils.logging import setup_logging, get_logger
 from .utils.task_manager import get_task_manager
+from .utils.instance_lock import InstanceLock
 from .cli.handler import CLIHandler
 
 
@@ -58,6 +59,9 @@ class SakaiBot:
         
         # Shutdown flag
         self._is_shutting_down = False
+        
+        # Instance lock for single-instance enforcement
+        self._instance_lock = InstanceLock()
         
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -136,6 +140,12 @@ class SakaiBot:
     
     async def run(self) -> None:
         """Run the SakaiBot application."""
+        # Acquire instance lock (kills old instances if needed)
+        if not self._instance_lock.acquire(force=True):
+            self._logger.error("Failed to acquire instance lock")
+            print("Error: Could not start bot (another instance may be running)")
+            return
+        
         try:
             self._logger.info("Starting SakaiBot")
             print(f"Starting SakaiBot v{self._config.APP_VERSION if hasattr(self._config, 'APP_VERSION') else '2.0.0'}...")
@@ -194,6 +204,9 @@ class SakaiBot:
             if self._client_manager.is_connected():
                 print("Disconnecting Telegram client...")
                 await self._client_manager.disconnect()
+            
+            # Release instance lock
+            self._instance_lock.release()
             
             self._logger.info("SakaiBot has been stopped")
             print("SakaiBot has been stopped.")

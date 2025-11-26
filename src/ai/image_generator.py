@@ -33,7 +33,9 @@ class ImageGenerator:
             self._http_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(
                     connect=IMAGE_GENERATION_CONNECT_TIMEOUT,
-                    read=IMAGE_GENERATION_TIMEOUT
+                    read=IMAGE_GENERATION_TIMEOUT,
+                    write=IMAGE_GENERATION_TIMEOUT,
+                    pool=IMAGE_GENERATION_CONNECT_TIMEOUT
                 ),
                 limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
                 follow_redirects=True

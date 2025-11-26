@@ -46,10 +46,10 @@ SakaiBot includes robust text-to-image generation functionality supporting both 
 ### Examples
 
 ```
-/image=flux/a beautiful sunset over mountains
-/image=sdxl/futuristic cyberpunk cityscape at night
-/image=flux/cat
-/image=sdxl/portrait of a warrior
+/image=flux=a beautiful sunset over mountains
+/image=sdxl=futuristic cyberpunk cityscape at night
+/image=flux=cat
+/image=sdxl=portrait of a warrior
 ```
 
 ## Prompt Enhancement
@@ -58,7 +58,7 @@ User prompts are automatically enhanced using the configured LLM provider (OpenR
 
 ### Enhancement Process
 
-1. User sends simple prompt: `/image=flux/cat`
+1. User sends simple prompt: `/image=flux=cat`
 2. Prompt is validated and sanitized
 3. LLM enhances the prompt: "A beautiful orange tabby cat sitting on a windowsill, soft natural lighting, photorealistic style, detailed fur texture, peaceful atmosphere"
 4. Enhanced prompt is used for image generation
@@ -80,12 +80,12 @@ The system uses a specialized prompt from `src/ai/prompts.py`:
 
 ### Queue Behavior
 
-1. User sends `/image=flux/prompt1`
+1. User sends `/image=flux=prompt1`
 2. Request added to Flux queue (position 1)
-3. User immediately sends `/image=sdxl/prompt2`
+3. User immediately sends `/image=sdxl=prompt2`
 4. Request added to SDXL queue (position 1)
 5. Both requests process concurrently (different models)
-6. User sends `/image=flux/prompt3`
+6. User sends `/image=flux=prompt3`
 7. Request added to Flux queue (position 2)
 8. Waits for first Flux request to complete
 
@@ -282,7 +282,7 @@ Check logs in `logs/` directory for detailed error information.
 
 Potential improvements:
 - Additional models (Stable Diffusion, DALL-E, etc.)
-- Prompt templates/presets (`/image=flux/anime/prompt`)
+- Prompt templates/presets (`/image=flux=anime=prompt`)
 - Image variations (generate multiple versions)
 - Image-to-image workflows
 - User preferences (remember preferred model)

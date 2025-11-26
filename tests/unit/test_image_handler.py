@@ -49,7 +49,7 @@ def mock_message():
     message.id = 12345
     message.chat_id = 67890
     message.sender_id = 11111
-    message.text = "/image=flux/a beautiful sunset"
+    message.text = "/image=flux=a beautiful sunset"
     message.is_reply = False
     return message
 
@@ -75,7 +75,7 @@ def test_parse_image_command_flux(image_handler, mock_message):
 
 def test_parse_image_command_sdxl(image_handler, mock_message):
     """Test parsing SDXL image command."""
-    mock_message.text = "/image=sdxl/futuristic city"
+    mock_message.text = "/image=sdxl=futuristic city"
     result = image_handler._parse_image_command(mock_message)
     
     assert result is not None
@@ -85,7 +85,7 @@ def test_parse_image_command_sdxl(image_handler, mock_message):
 
 def test_parse_image_command_invalid_model(image_handler, mock_message):
     """Test parsing command with invalid model."""
-    mock_message.text = "/image=invalid/prompt"
+    mock_message.text = "/image=invalid=prompt"
     result = image_handler._parse_image_command(mock_message)
     
     assert result is None

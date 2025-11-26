@@ -279,12 +279,12 @@
 
 ### ✅ Complete Features
 
-#### 1. Image Generation (`/image=flux/...`, `/image=sdxl/...`)
+#### 1. Image Generation (`/image=flux=...`, `/image=sdxl=...`)
 - **Status**: ✅ Complete
 - **Location**: `src/telegram/handlers/image_handler.py`
 - **Trigger**: 
-  - `/image=flux/<prompt>` - Generate using Flux worker
-  - `/image=sdxl/<prompt>` - Generate using SDXL worker
+  - `/image=flux=<prompt>` - Generate using Flux worker
+  - `/image=sdxl=<prompt>` - Generate using SDXL worker
 - **AI Integration**:
   - Prompt enhancement via OpenRouter/Gemini before generation
   - System message specialized for image generation prompt engineering

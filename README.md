@@ -454,13 +454,13 @@ Generate images from text prompts using Flux or SDXL models:
 
 ```text
 # Generate with Flux (GET, no auth required)
-/image=flux/a beautiful sunset over mountains
+/image=flux=a beautiful sunset over mountains
 
 # Generate with SDXL (POST, requires API key)
-/image=sdxl/futuristic cyberpunk cityscape at night
+/image=sdxl=futuristic cyberpunk cityscape at night
 
 # Simple prompts are automatically enhanced by AI
-/image=flux/cat
+/image=flux=cat
 # The AI will enhance "cat" to a detailed prompt before generation
 ```
 

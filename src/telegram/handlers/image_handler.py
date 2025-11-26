@@ -67,8 +67,8 @@ class ImageHandler(BaseHandler):
             await client.send_message(
                 chat_id,
                 "❌ Invalid command format.\n"
-                "Usage: `/image=flux/<prompt>` or `/image=sdxl/<prompt>`\n"
-                "Example: `/image=flux/a beautiful sunset`",
+                "Usage: `/image=flux=<prompt>` or `/image=sdxl=<prompt>`\n"
+                "Example: `/image=flux=a beautiful sunset`",
                 reply_to=message.id,
                 parse_mode='md'
             )
@@ -244,14 +244,14 @@ class ImageHandler(BaseHandler):
         if not command_text.lower().startswith("/image="):
             return None
         
-        # Parse: /image=flux/prompt or /image=sdxl/prompt
+        # Parse: /image=flux=prompt or /image=sdxl=prompt
         parts = command_text[len("/image="):].strip()
         
-        # Find the first slash to separate model and prompt
-        if "/" not in parts:
+        # Find the second equals sign to separate model and prompt
+        if "=" not in parts:
             return None
         
-        model_part, prompt_part = parts.split("/", 1)
+        model_part, prompt_part = parts.split("=", 1)
         model = model_part.strip().lower()
         prompt = prompt_part.strip()
         

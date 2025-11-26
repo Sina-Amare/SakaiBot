@@ -17,6 +17,8 @@ from ..ai.processor import AIProcessor
 from ..ai.stt import SpeechToTextProcessor
 from ..ai.tts import TextToSpeechProcessor
 from ..ai.tts_queue import tts_queue, TTSStatus
+from ..ai.image_generator import ImageGenerator
+from ..ai.prompt_enhancer import PromptEnhancer
 from ..utils.logging import get_logger
 from ..utils.helpers import clean_temp_files, parse_command_with_params, split_message
 from ..utils.task_manager import get_task_manager
@@ -25,6 +27,7 @@ from ..utils.task_manager import get_task_manager
 from .handlers.stt_handler import STTHandler
 from .handlers.tts_handler import TTSHandler
 from .handlers.ai_handler import AIHandler
+from .handlers.image_handler import ImageHandler
 from .handlers.categorization_handler import CategorizationHandler
 
 
@@ -55,6 +58,16 @@ class EventHandlers:
             ffmpeg_path=ffmpeg_path
         )
         self._ai_handler = AIHandler(ai_processor=ai_processor)
+        
+        # Initialize image generation components
+        image_generator = ImageGenerator()
+        prompt_enhancer = PromptEnhancer(ai_processor=ai_processor)
+        self._image_handler = ImageHandler(
+            ai_processor=ai_processor,
+            image_generator=image_generator,
+            prompt_enhancer=prompt_enhancer
+        )
+        
         self._categorization_handler = CategorizationHandler()
 
     def _normalize_text(self, text: str) -> str:
@@ -152,6 +165,15 @@ class EventHandlers:
                 await your_confirm_message.delete()
             return
         
+        # Handle image generation command
+        if command_text_lower.startswith("/image="):
+            await self._handle_image_command(
+                message_to_process, client, current_chat_id_for_response, command_sender_info
+            )
+            if is_confirm_flow and your_confirm_message:
+                await your_confirm_message.delete()
+            return
+        
         # Handle other AI commands
         await self._ai_handler.handle_other_ai_commands(
             message_to_process, client, current_chat_id_for_response, 
@@ -209,8 +231,19 @@ class EventHandlers:
         # Delegate to TTS handler
         await self._tts_handler.handle_tts_command(message, client, chat_id, sender_info)
     
+    async def _handle_image_command(
+        self,
+        message: Message,
+        client: TelegramClient,
+        chat_id: int,
+        sender_info: str
+    ) -> None:
+        """Handle image generation command processing."""
+        # Delegate to Image handler
+        await self._image_handler.handle_image_command(message, client, chat_id, sender_info)
+    
     # TTS monitoring and AI parsing methods moved to specialized handlers
-    # See: handlers/tts_handler.py, handlers/ai_handler.py
+    # See: handlers/tts_handler.py, handlers/ai_handler.py, handlers/image_handler.py
     
     async def categorization_reply_handler_owner(
         self, event: events.NewMessage.Event, **kwargs

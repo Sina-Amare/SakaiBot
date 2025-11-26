@@ -42,6 +42,26 @@ class ErrorHandler:
             Persian error message
         """
         error_type = type(error)
+        error_str = str(error).lower()
+        
+        # Image generation specific error messages
+        if "image generation" in error_str or "sdxl" in error_str or "flux" in error_str:
+            if "timeout" in error_str or "timed out" in error_str:
+                return "⏱️ زمان تولید تصویر به پایان رسید. لطفاً دوباره تلاش کنید."
+            elif "rate limit" in error_str or "429" in error_str:
+                return "⚠️ محدودیت استفاده - لطفاً صبر کنید و دوباره تلاش کنید."
+            elif "unauthorized" in error_str or "401" in error_str or "api key" in error_str:
+                return "🔐 خطای احراز هویت: کلید API نامعتبر است."
+            elif "invalid" in error_str or "400" in error_str:
+                return "❌ درخواست نامعتبر: لطفاً prompt را بررسی کنید."
+            elif "network" in error_str or "connection" in error_str:
+                return "🌐 خطا در ارتباط با سرور تصویر. لطفاً دوباره تلاش کنید."
+            elif "content" in error_str or "moderation" in error_str or "filter" in error_str:
+                return "🚫 محتوا توسط سیستم فیلتر شد. لطفاً prompt دیگری امتحان کنید."
+            elif "service" in error_str or "500" in error_str or "unavailable" in error_str:
+                return "🔧 سرویس تولید تصویر در دسترس نیست. لطفاً بعداً دوباره تلاش کنید."
+            elif "model" in error_str and "invalid" in error_str:
+                return "❌ مدل نامعتبر است. مدل‌های مجاز: flux, sdxl"
         
         # Check for specific error types
         for exc_type, message in ERROR_MESSAGES.items():

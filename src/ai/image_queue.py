@@ -129,6 +129,54 @@ class ImageQueue:
             return None
         return request.status.value
     
+    def get_next_pending(self, model: str) -> Optional[ImageRequest]:
+        """
+        Get next pending request without marking as processing.
+        
+        Args:
+            model: Model name
+            
+        Returns:
+            Next pending request or None
+        """
+        queue = self._flux_queue if model == "flux" else self._sdxl_queue
+        for request in queue:
+            if request.status == ImageStatus.PENDING:
+                return request
+        return None
+    
+    def try_start_processing(self, request_id: str, model: str) -> bool:
+        """
+        Try to start processing a specific request if it's next in line.
+        
+        Args:
+            request_id: Request ID to process
+            model: Model name
+            
+        Returns:
+            True if processing started, False otherwise
+        """
+        if model == "flux":
+            if self._flux_processing:
+                return False
+            next_request = self.get_next_pending("flux")
+            if next_request and next_request.request_id == request_id:
+                next_request.status = ImageStatus.PROCESSING
+                self._flux_processing = True
+                self._logger.info(f"Started processing Flux request {request_id}")
+                return True
+        elif model == "sdxl":
+            if self._sdxl_processing:
+                return False
+            next_request = self.get_next_pending("sdxl")
+            if next_request and next_request.request_id == request_id:
+                next_request.status = ImageStatus.PROCESSING
+                self._sdxl_processing = True
+                self._logger.info(f"Started processing SDXL request {request_id}")
+                return True
+        
+        return False
+    
     def process_next_flux(self) -> Optional[ImageRequest]:
         """
         Get next pending Flux request and mark as processing.
@@ -258,6 +306,52 @@ class ImageQueue:
                 len([r for r in self._flux_queue if r.status == ImageStatus.PENDING]) +
                 len([r for r in self._sdxl_queue if r.status == ImageStatus.PENDING])
             )
+    
+    async def start_processing(self, model: str, process_callback):
+        """
+        Start processing queue for a specific model.
+        
+        Args:
+            model: Model name ("flux" or "sdxl")
+            process_callback: Async callback function(request) to process each request
+        """
+        import asyncio
+        
+        queue = self._flux_queue if model == "flux" else self._sdxl_queue
+        processing_flag = "_flux_processing" if model == "flux" else "_sdxl_processing"
+        
+        while True:
+            # Check if already processing
+            if getattr(self, processing_flag):
+                await asyncio.sleep(1)
+                continue
+            
+            # Get next pending request
+            next_request = None
+            for request in queue:
+                if request.status == ImageStatus.PENDING:
+                    next_request = request
+                    break
+            
+            if not next_request:
+                # No pending requests, wait a bit and check again
+                await asyncio.sleep(2)
+                continue
+            
+            # Mark as processing
+            next_request.status = ImageStatus.PROCESSING
+            setattr(self, processing_flag, True)
+            
+            try:
+                # Process the request
+                await process_callback(next_request)
+            except Exception as e:
+                self._logger.error(f"Error processing {model} request {next_request.request_id}: {e}", exc_info=True)
+                next_request.status = ImageStatus.FAILED
+                next_request.error_message = str(e)
+            finally:
+                # Reset processing flag
+                setattr(self, processing_flag, False)
 
 
 # Global image queue instance

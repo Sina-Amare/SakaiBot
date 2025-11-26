@@ -166,20 +166,32 @@ class ImageHandler(BaseHandler):
         )
         
         try:
-            # Wait for our turn in the queue
+            # Wait for our turn and process when ready
             while True:
                 current_request = image_queue.get_request(request_id)
                 if not current_request:
                     await client.edit_message(thinking_msg, "❌ درخواست یافت نشد")
                     return
                 
-                if current_request.status == ImageStatus.PROCESSING:
+                # Check if it's our turn to process
+                if image_queue.try_start_processing(request_id, model):
+                    # It's our turn! Process it
                     break
-                elif current_request.status == ImageStatus.FAILED:
+                
+                # Check status
+                if current_request.status == ImageStatus.FAILED:
                     await client.edit_message(
                         thinking_msg,
                         f"❌ خطا: {current_request.error_message or 'خطای نامشخص'}"
                     )
+                    return
+                elif current_request.status == ImageStatus.COMPLETED:
+                    # Request was completed (shouldn't happen, but handle it)
+                    if current_request.image_path:
+                        await self._send_image(
+                            client, chat_id, reply_to_id, thinking_msg,
+                            current_request.image_path, model, prompt
+                        )
                     return
                 
                 # Update queue position
@@ -192,78 +204,10 @@ class ImageHandler(BaseHandler):
                 
                 await asyncio.sleep(2)  # Check every 2 seconds
             
-            # Update status: enhancing prompt
-            await client.edit_message(
-                thinking_msg,
-                f"🎨 در حال بهبود prompt با هوش مصنوعی..."
+            # Process the request now that it's our turn
+            await self._process_single_request(
+                request_id, client, chat_id, reply_to_id, thinking_msg, model, prompt
             )
-            
-            # Enhance prompt
-            with TimingContext('image_command.enhancement_duration', tags={'model': model}):
-                enhanced_prompt = await self._prompt_enhancer.enhance_prompt(prompt)
-            
-            # Update status: generating image
-            await client.edit_message(
-                thinking_msg,
-                f"🖼️ در حال تولید تصویر با {model.upper()}..."
-            )
-            
-            # Generate image
-            with TimingContext('image_command.generation_duration', tags={'model': model}):
-                if model == "flux":
-                    success, image_path, error_message = await self._image_generator.generate_with_flux(enhanced_prompt)
-                elif model == "sdxl":
-                    success, image_path, error_message = await self._image_generator.generate_with_sdxl(enhanced_prompt)
-                else:
-                    success, image_path, error_message = (False, None, f"مدل نامعتبر: {model}")
-            
-            if success and image_path:
-                # Mark as completed
-                image_queue.mark_completed(request_id, image_path)
-                
-                # Update status: sending
-                await client.edit_message(
-                    thinking_msg,
-                    f"📤 در حال ارسال تصویر..."
-                )
-                
-                # Send image with enhanced prompt as caption
-                caption = (
-                    f"🎨 تصویر تولید شده با {model.upper()}\n\n"
-                    f"**Prompt بهبود یافته:**\n{enhanced_prompt[:500]}{'...' if len(enhanced_prompt) > 500 else ''}"
-                )
-                
-                await client.send_file(
-                    chat_id,
-                    image_path,
-                    caption=caption,
-                    reply_to=reply_to_id,
-                    parse_mode='md'
-                )
-                
-                # Delete status message
-                await thinking_msg.delete()
-                
-                # Clean up temp file
-                try:
-                    Path(image_path).unlink(missing_ok=True)
-                    image_queue.cleanup_request(request_id)
-                except Exception as e:
-                    self._logger.warning(f"Failed to cleanup image file {image_path}: {e}")
-                
-                # Track success
-                metrics.increment('image_command.success', tags={'model': model})
-                self._logger.info(f"Image generation completed for request {request_id}")
-            else:
-                # Mark as failed
-                image_queue.mark_failed(request_id, error_message or "خطای نامشخص")
-                
-                # Send error message
-                error_msg = ErrorHandler.get_user_message(
-                    AIProcessorError(error_message or "تولید تصویر ناموفق بود")
-                )
-                await client.edit_message(thinking_msg, error_msg)
-                metrics.increment('image_command.errors', tags={'model': model, 'error': 'generation_failed'})
         
         except Exception as e:
             # Mark as failed
@@ -318,8 +262,136 @@ class ImageHandler(BaseHandler):
         if model not in SUPPORTED_IMAGE_MODELS:
             return None
         
-        return {
+            return {
             "model": model,
             "prompt": prompt
         }
+    
+    async def _process_single_request(
+        self,
+        request_id: str,
+        client: TelegramClient,
+        chat_id: int,
+        reply_to_id: int,
+        thinking_msg: Message,
+        model: str,
+        prompt: str
+    ):
+        """
+        Process a single image generation request.
+        
+        Args:
+            request_id: Request ID
+            client: Telegram client
+            chat_id: Chat ID
+            reply_to_id: Message ID to reply to
+            thinking_msg: Status message to update
+            model: Model name
+            prompt: Original prompt
+        """
+        metrics = get_metrics_collector()
+        
+        try:
+            # Update status: enhancing prompt
+            await client.edit_message(
+                thinking_msg,
+                f"🎨 در حال بهبود prompt با هوش مصنوعی..."
+            )
+            
+            # Enhance prompt
+            with TimingContext('image_command.enhancement_duration', tags={'model': model}):
+                enhanced_prompt = await self._prompt_enhancer.enhance_prompt(prompt)
+            
+            # Update status: generating image
+            await client.edit_message(
+                thinking_msg,
+                f"🖼️ در حال تولید تصویر با {model.upper()}..."
+            )
+            
+            # Generate image
+            with TimingContext('image_command.generation_duration', tags={'model': model}):
+                if model == "flux":
+                    success, image_path, error_message = await self._image_generator.generate_with_flux(enhanced_prompt)
+                elif model == "sdxl":
+                    success, image_path, error_message = await self._image_generator.generate_with_sdxl(enhanced_prompt)
+                else:
+                    success, image_path, error_message = (False, None, f"مدل نامعتبر: {model}")
+            
+            if success and image_path:
+                # Mark as completed
+                image_queue.mark_completed(request_id, image_path)
+                
+                # Send image
+                await self._send_image(
+                    client, chat_id, reply_to_id, thinking_msg,
+                    image_path, model, enhanced_prompt
+                )
+                
+                # Track success
+                metrics.increment('image_command.success', tags={'model': model})
+                self._logger.info(f"Image generation completed for request {request_id}")
+            else:
+                # Mark as failed
+                image_queue.mark_failed(request_id, error_message or "خطای نامشخص")
+                
+                # Send error message
+                error_msg = ErrorHandler.get_user_message(
+                    AIProcessorError(error_message or "تولید تصویر ناموفق بود")
+                )
+                await client.edit_message(thinking_msg, error_msg)
+                metrics.increment('image_command.errors', tags={'model': model, 'error': 'generation_failed'})
+        except Exception as e:
+            image_queue.mark_failed(request_id, str(e))
+            raise
+    
+    async def _send_image(
+        self,
+        client: TelegramClient,
+        chat_id: int,
+        reply_to_id: int,
+        thinking_msg: Message,
+        image_path: str,
+        model: str,
+        enhanced_prompt: str
+    ):
+        """
+        Send generated image to Telegram.
+        
+        Args:
+            client: Telegram client
+            chat_id: Chat ID
+            reply_to_id: Message ID to reply to
+            thinking_msg: Status message to delete
+            image_path: Path to image file
+            model: Model name
+            enhanced_prompt: Enhanced prompt for caption
+        """
+        # Update status: sending
+        await client.edit_message(
+            thinking_msg,
+            f"📤 در حال ارسال تصویر..."
+        )
+        
+        # Send image with enhanced prompt as caption
+        caption = (
+            f"🎨 تصویر تولید شده با {model.upper()}\n\n"
+            f"**Prompt بهبود یافته:**\n{enhanced_prompt[:500]}{'...' if len(enhanced_prompt) > 500 else ''}"
+        )
+        
+        await client.send_file(
+            chat_id,
+            image_path,
+            caption=caption,
+            reply_to=reply_to_id,
+            parse_mode='md'
+        )
+        
+        # Delete status message
+        await thinking_msg.delete()
+        
+        # Clean up temp file
+        try:
+            Path(image_path).unlink(missing_ok=True)
+        except Exception as e:
+            self._logger.warning(f"Failed to cleanup image file {image_path}: {e}")
 

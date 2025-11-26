@@ -15,6 +15,7 @@ User Command → ImageHandler → ImageQueue → PromptEnhancer → ImageGenerat
 **Responsibility**: Telegram command handling and user interaction
 
 **Key Functions:**
+
 - Parse `/image=flux=<prompt>` and `/image=sdxl=<prompt>` commands
 - Validate model and prompt
 - Check rate limits
@@ -23,6 +24,7 @@ User Command → ImageHandler → ImageQueue → PromptEnhancer → ImageGenerat
 - Send generated images to Telegram
 
 **Flow:**
+
 1. `handle_image_command()` - Entry point, validates and queues request
 2. `process_image_command()` - Async processing, waits for queue position
 3. `_process_single_request()` - Actual generation workflow
@@ -33,11 +35,13 @@ User Command → ImageHandler → ImageQueue → PromptEnhancer → ImageGenerat
 **Responsibility**: Request queue management with separate FIFO queues per model
 
 **Design Decision**: Separate queues for Flux and SDXL
+
 - Allows concurrent processing of different models
 - Maintains FIFO order within each model
 - Prevents blocking between models
 
 **Key Data Structures:**
+
 ```python
 _flux_queue: List[ImageRequest]      # FIFO queue for Flux
 _sdxl_queue: List[ImageRequest]      # FIFO queue for SDXL
@@ -47,6 +51,7 @@ _requests: Dict[str, ImageRequest]    # Request lookup by ID
 ```
 
 **Key Methods:**
+
 - `add_request()` - Add request to appropriate queue
 - `try_start_processing()` - Atomically start processing if next in line
 - `get_queue_position()` - Get position in queue
@@ -57,11 +62,13 @@ _requests: Dict[str, ImageRequest]    # Request lookup by ID
 **Responsibility**: LLM-based prompt enhancement
 
 **Design Decision**: Mandatory enhancement with fallback
+
 - Always attempts to enhance prompts for better image quality
 - Falls back to original prompt if enhancement fails
 - Uses existing AIProcessor infrastructure
 
 **Enhancement Process:**
+
 1. Check if AI processor is configured
 2. Format enhancement prompt with user input
 3. Call AI processor with specialized system message
@@ -71,6 +78,7 @@ _requests: Dict[str, ImageRequest]    # Request lookup by ID
 7. Return enhanced prompt or fallback to original
 
 **Prompts Used:**
+
 - `IMAGE_PROMPT_ENHANCEMENT_SYSTEM_MESSAGE` - System context
 - `IMAGE_PROMPT_ENHANCEMENT_PROMPT` - User prompt template
 
@@ -79,10 +87,12 @@ _requests: Dict[str, ImageRequest]    # Request lookup by ID
 **Responsibility**: HTTP communication with Cloudflare Workers
 
 **Design Decision**: Different authentication per worker
+
 - Flux: GET request, no authentication
 - SDXL: POST request, Bearer token authentication
 
 **Key Methods:**
+
 - `generate_with_flux()` - Generate with Flux worker (GET)
 - `generate_with_sdxl()` - Generate with SDXL worker (POST)
 - `_make_flux_request()` - HTTP GET with query parameters
@@ -90,12 +100,14 @@ _requests: Dict[str, ImageRequest]    # Request lookup by ID
 - `_save_image()` - Save binary response to temp directory
 
 **Error Handling:**
+
 - Retry logic with exponential backoff (3 retries)
 - Comprehensive HTTP status code handling
 - Timeout handling (120s read, 30s connect)
 - Network error handling
 
 **HTTP Client Configuration:**
+
 ```python
 httpx.AsyncClient(
     timeout=httpx.Timeout(
@@ -173,6 +185,7 @@ Request 3: /image=flux=prompt3 (sent while Request 1 is processing)
 ### Config Class (`src/core/config.py`)
 
 **New Fields:**
+
 ```python
 flux_worker_url: Optional[str]
 sdxl_worker_url: Optional[str]
@@ -184,12 +197,14 @@ def is_image_generation_enabled(self) -> bool:
 ```
 
 **Validation:**
+
 - URL format validation (must start with http:// or https://)
 - API key validation (excludes placeholder values)
 
 ### Constants (`src/core/constants.py`)
 
 **New Constants:**
+
 ```python
 SUPPORTED_IMAGE_MODELS: Final[list[str]] = ["flux", "sdxl"]
 IMAGE_GENERATION_TIMEOUT: Final[int] = 120  # seconds
@@ -265,9 +280,9 @@ All error messages are in English (UI/UX), while prompts remain in Persian as co
 ## Future Extensibility
 
 The architecture supports:
+
 - Additional models (add new queue, new generator method)
 - Prompt templates/presets (`/image=flux=anime=prompt`)
 - Image variations (img2img workflows)
 - Batch generation (multiple variations)
 - User preferences (remember preferred model)
-

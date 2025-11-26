@@ -275,6 +275,41 @@
   - Masked API key display (default)
   - Editor integration
 
+## Image Generation Features
+
+### ✅ Complete Features
+
+#### 1. Image Generation (`/image=flux/...`, `/image=sdxl/...`)
+- **Status**: ✅ Complete
+- **Location**: `src/telegram/handlers/image_handler.py`
+- **Trigger**: 
+  - `/image=flux/<prompt>` - Generate using Flux worker
+  - `/image=sdxl/<prompt>` - Generate using SDXL worker
+- **AI Integration**:
+  - Prompt enhancement via OpenRouter/Gemini before generation
+  - System message specialized for image generation prompt engineering
+- **Features**:
+  - LLM-based prompt enhancement for better image quality
+  - Separate FIFO queues per model (Flux and SDXL process independently)
+  - Sequential processing within each model queue
+  - Queue position updates during processing
+  - Status updates: "🎨 Enhancing prompt...", "🖼️ Generating image...", "📤 Sending image..."
+  - Enhanced prompt shown as image caption
+  - Comprehensive error handling with Persian messages
+  - Rate limiting integration (reuses AI rate limiter)
+  - Metrics tracking
+- **Workers**:
+  - **Flux**: GET request, no authentication required
+  - **SDXL**: POST request with Bearer token authentication
+- **Configuration**: 
+  - `FLUX_WORKER_URL` - Flux worker endpoint
+  - `SDXL_WORKER_URL` - SDXL worker endpoint
+  - `SDXL_API_KEY` - SDXL Bearer token
+- **Limitations**:
+  - Sequential processing within each model (one request at a time per model)
+  - Temporary image files stored locally before sending
+  - Maximum prompt length: 1000 characters
+
 ## Media Handling
 
 ### ✅ Complete Features
@@ -335,6 +370,7 @@
 | Feature | Primary Location | Supporting Files |
 |---------|-----------------|------------------|
 | AI Commands | `src/telegram/handlers/ai_handler.py` | `src/ai/processor.py`, `src/ai/providers/` |
+| Image Generation | `src/telegram/handlers/image_handler.py` | `src/ai/image_generator.py`, `src/ai/prompt_enhancer.py`, `src/ai/image_queue.py` |
 | TTS | `src/telegram/handlers/tts_handler.py` | `src/ai/tts.py`, `src/ai/tts_queue.py`, `src/ai/providers/tts_gemini.py` |
 | STT | `src/telegram/handlers/stt_handler.py` | `src/ai/stt.py` |
 | Categorization | `src/telegram/handlers/categorization_handler.py` | `src/cli/commands/group.py` |
@@ -342,7 +378,7 @@
 | CLI | `src/cli/main.py` | `src/cli/handler.py`, `src/cli/interactive.py`, `src/cli/commands/` |
 | Configuration | `src/core/config.py` | `src/core/settings.py`, `src/core/constants.py` |
 | Error Handling | `src/utils/error_handler.py` | `src/core/exceptions.py` |
-| Rate Limiting | `src/utils/rate_limiter.py` | Used in `ai_handler.py` |
+| Rate Limiting | `src/utils/rate_limiter.py` | Used in `ai_handler.py`, `image_handler.py` |
 | Caching | `src/utils/cache.py` | `cache/pv_cache.json`, `cache/group_cache.json` |
 
 ---

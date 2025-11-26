@@ -29,6 +29,7 @@ SakaiBot is a modern Telegram userbot that integrates AI-powered capabilities fo
 
 - 🤖 **AI Integration** - Multiple LLM providers (OpenRouter, Google Gemini)
 - 💬 **Smart Commands** - Custom prompts, translations, conversation analysis
+- 🎨 **Image Generation** - Text-to-image with Flux and SDXL models via Cloudflare Workers
 - 🎤 **Voice Processing** - Speech-to-text and text-to-speech with high-quality Persian TTS support
 - 📨 **Message Management** - Automated categorization and forwarding
 - 🔐 **Security** - Multi-level authorization and confirmation flows
@@ -41,6 +42,7 @@ SakaiBot is a modern Telegram userbot that integrates AI-powered capabilities fo
 - Custom prompt processing
 - Intelligent translation with phonetic support
 - Conversation analysis and insights
+- Image generation with prompt enhancement (Flux and SDXL)
 
 ### Voice Processing
 - Speech-to-text (STT) using multiple engines
@@ -176,6 +178,11 @@ USERBOT_MAX_ANALYZE_MESSAGES=10000  # Default: 10000, Range: 1-10000
 PATHS_FFMPEG_EXECUTABLE=/usr/local/bin/ffmpeg  # Optional: Path to FFmpeg executable
                                                 # Required for audio processing features
                                                 # Windows example: C:\\ffmpeg\\bin\\ffmpeg.exe
+
+# Cloudflare Image Generation Workers (Optional)
+FLUX_WORKER_URL=https://image-smoke-ad69.fa-ra9931143.workers.dev  # Flux worker endpoint
+SDXL_WORKER_URL=https://image-api.cpt-n3m0.workers.dev              # SDXL worker endpoint
+SDXL_API_KEY=your_sdxl_bearer_token_here                            # SDXL Bearer token (required for SDXL)
 
 # Environment Settings
 ENVIRONMENT=production  # Options: production, development (Default: production)
@@ -440,6 +447,34 @@ Get AI insights about specific messages:
 **Usage**: `/tellme=<number_of_messages>=<your_question>`
 
 The bot will analyze the specified number of recent messages and answer your question about them.
+
+#### Image Generation
+
+Generate images from text prompts using Flux or SDXL models:
+
+```text
+# Generate with Flux (GET, no auth required)
+/image=flux/a beautiful sunset over mountains
+
+# Generate with SDXL (POST, requires API key)
+/image=sdxl/futuristic cyberpunk cityscape at night
+
+# Simple prompts are automatically enhanced by AI
+/image=flux/cat
+# The AI will enhance "cat" to a detailed prompt before generation
+```
+
+**Features**:
+- Automatic prompt enhancement via LLM for better results
+- Separate FIFO queues per model (Flux and SDXL process independently)
+- Queue position updates during processing
+- Enhanced prompt shown as image caption
+
+**Models**:
+- **Flux**: Fast generation, no authentication required
+- **SDXL**: High-quality generation, requires Bearer token
+
+**Configuration**: Requires `FLUX_WORKER_URL`, `SDXL_WORKER_URL`, and `SDXL_API_KEY` in `.env`
 
 ## Development
 

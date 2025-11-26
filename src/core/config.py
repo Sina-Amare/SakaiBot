@@ -12,7 +12,9 @@ from .constants import (
     DEFAULT_MAX_ANALYZE_MESSAGES,
     DEFAULT_OPENROUTER_MODEL,
     DEFAULT_GEMINI_MODEL,
-    DEFAULT_TTS_VOICE
+    DEFAULT_TTS_VOICE,
+    DEFAULT_FLUX_WORKER_URL,
+    DEFAULT_SDXL_WORKER_URL
 )
 from .exceptions import ConfigurationError
 
@@ -54,6 +56,17 @@ class Config(BaseSettings):
     
     # Paths Configuration
     paths_ffmpeg_executable: Optional[str] = Field(default=None, description="Path to FFmpeg executable")
+    
+    # Image Generation Configuration
+    flux_worker_url: str = Field(
+        default=DEFAULT_FLUX_WORKER_URL,
+        description="Flux Cloudflare Worker endpoint URL"
+    )
+    sdxl_worker_url: str = Field(
+        default=DEFAULT_SDXL_WORKER_URL,
+        description="SDXL Cloudflare Worker endpoint URL"
+    )
+    sdxl_api_key: Optional[str] = Field(default=None, description="SDXL Worker Bearer token")
     
     # Application Settings
     environment: str = Field(default="production", description="Environment (development/production)")
@@ -138,6 +151,43 @@ class Config(BaseSettings):
             return v
         return v
     
+    @field_validator("flux_worker_url")
+    @classmethod
+    def validate_flux_worker_url(cls, v: str) -> str:
+        """Validate Flux worker URL format."""
+        if not v:
+            raise ValueError("Flux worker URL cannot be empty")
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("Flux worker URL must start with http:// or https://")
+        return v
+    
+    @field_validator("sdxl_worker_url")
+    @classmethod
+    def validate_sdxl_worker_url(cls, v: str) -> str:
+        """Validate SDXL worker URL format."""
+        if not v:
+            raise ValueError("SDXL worker URL cannot be empty")
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("SDXL worker URL must start with http:// or https://")
+        return v
+    
+    @field_validator("sdxl_api_key")
+    @classmethod
+    def validate_sdxl_api_key(cls, v: Optional[str]) -> Optional[str]:
+        """Validate SDXL API key format."""
+        if not v:
+            return None
+        # Check for placeholder values
+        if "YOUR_SDXL_API_KEY_HERE" in v or "YOUR_API_KEY" in v.upper():
+            return None
+        # Minimum length check
+        if len(v) < 10:
+            return None
+        # Basic format validation (Bearer tokens are typically alphanumeric with dashes/underscores)
+        if not all(c.isalnum() or c in ['-', '_'] for c in v):
+            return None
+        return v
+    
     @property
     def is_ai_enabled(self) -> bool:
         """Check if AI features are properly configured."""
@@ -154,6 +204,24 @@ class Config(BaseSettings):
                 and len(self.gemini_api_key or "") > 10
             )
         return False
+    
+    @property
+    def is_image_generation_enabled(self) -> bool:
+        """Check if image generation is properly configured."""
+        # Flux doesn't require API key, just URL
+        # SDXL requires both URL and API key
+        flux_configured = bool(
+            self.flux_worker_url
+            and self.flux_worker_url.startswith(("http://", "https://"))
+        )
+        sdxl_configured = bool(
+            self.sdxl_worker_url
+            and self.sdxl_worker_url.startswith(("http://", "https://"))
+            and self.sdxl_api_key
+            and "YOUR_SDXL_API_KEY_HERE" not in (self.sdxl_api_key or "")
+            and len(self.sdxl_api_key or "") > 10
+        )
+        return flux_configured or sdxl_configured
     
     @property
     def ffmpeg_path_resolved(self) -> Optional[str]:

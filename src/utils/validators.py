@@ -4,6 +4,7 @@ import re
 from typing import Optional, Set
 
 from .logging import get_logger
+from ..core.constants import SUPPORTED_IMAGE_MODELS, MAX_IMAGE_PROMPT_LENGTH
 
 logger = get_logger(__name__)
 
@@ -194,4 +195,69 @@ class InputValidator:
             return None
         except ValueError:
             return None
+    
+    @staticmethod
+    def validate_image_model(model: str) -> bool:
+        """
+        Validate image generation model name.
+        
+        Args:
+            model: Model name to validate (e.g., "flux", "sdxl")
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        if not model or not isinstance(model, str):
+            return False
+        
+        # Normalize to lowercase
+        model = model.lower().strip()
+        
+        # Check if it's a supported model
+        return model in SUPPORTED_IMAGE_MODELS
+    
+    @staticmethod
+    def validate_image_prompt(prompt: str) -> str:
+        """
+        Validate and sanitize image generation prompt.
+        
+        Args:
+            prompt: Prompt text to validate
+            
+        Returns:
+            Sanitized prompt
+            
+        Raises:
+            ValueError: If prompt is invalid
+        """
+        if not prompt or not isinstance(prompt, str):
+            raise ValueError("Image prompt is required and must be a string")
+        
+        # Remove control characters
+        sanitized = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', prompt)
+        
+        # Limit length
+        if len(sanitized) > MAX_IMAGE_PROMPT_LENGTH:
+            raise ValueError(
+                f"Image prompt too long (max {MAX_IMAGE_PROMPT_LENGTH} characters, got {len(sanitized)})"
+            )
+        
+        # Trim whitespace
+        sanitized = sanitized.strip()
+        
+        if not sanitized:
+            raise ValueError("Image prompt cannot be empty after sanitization")
+        
+        # Basic content filtering - check for obviously harmful content
+        # This is a simple check; more sophisticated filtering can be added
+        harmful_patterns = [
+            r'\b(kill|murder|violence|hate|attack)\b',  # Basic harmful keywords
+        ]
+        
+        for pattern in harmful_patterns:
+            if re.search(pattern, sanitized, re.IGNORECASE):
+                logger.warning(f"Potentially harmful content detected in image prompt: {pattern}")
+                # Don't block, just log - let the worker handle moderation
+        
+        return sanitized
 

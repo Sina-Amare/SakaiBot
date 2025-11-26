@@ -39,3 +39,12 @@ OPENROUTER_HEADERS: Final[dict[str, str]] = {
     "HTTP-Referer": "http://localhost/sakaibot",
     "X-Title": "SakaiBot"
 }
+
+# Image Generation Constants
+SUPPORTED_IMAGE_MODELS: Final[list[str]] = ["flux", "sdxl"]
+IMAGE_GENERATION_TIMEOUT: Final[int] = 120  # seconds
+IMAGE_GENERATION_CONNECT_TIMEOUT: Final[int] = 30  # seconds
+MAX_IMAGE_PROMPT_LENGTH: Final[int] = 1000
+IMAGE_TEMP_DIR: Final[str] = "temp/images"
+DEFAULT_FLUX_WORKER_URL: Final[str] = "https://image-smoke-ad69.fa-ra9931143.workers.dev"
+DEFAULT_SDXL_WORKER_URL: Final[str] = "https://image-api.cpt-n3m0.workers.dev"

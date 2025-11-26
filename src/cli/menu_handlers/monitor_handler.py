@@ -2,7 +2,7 @@
 
 import asyncio
 from rich.console import Console
-from rich.prompt import Prompt
+# from rich.prompt import Prompt
 from pathlib import Path
 import sys
 
@@ -15,7 +15,7 @@ from src.utils.logging import get_logger
 
 # Import REAL monitor command implementations
 from src.cli.commands.monitor import _start_monitoring, _show_monitoring_status
-from src.cli.commands.auth import _list_authorized, _add_authorized, _remove_authorized
+# from src.cli.commands.auth import _list_authorized, _add_authorized, _remove_authorized
 
 console = Console()
 logger = get_logger(__name__)
@@ -43,48 +43,23 @@ class MonitorMenuHandler:
                 await _start_monitoring(verbose=True)
                 
         except Exception as e:
-            logger.error(f"Error toggling monitoring: {e}", exc_info=True)
+            logger.error(f"Error viewing status: {e}", exc_info=True)
             console.print(f"[red]Error: {e}[/red]")
         
         input("\nPress Enter to continue...")
-        
+
     async def manage_authorized_users(self):
-        """Manage authorized users using REAL functions."""
-        try:
-            while True:
-                console.clear()
-                console.print("[bold cyan]Manage Authorized Users[/bold cyan]\n")
-                
-                # Show current authorized users
-                await _list_authorized()
-                
-                console.print("\n[cyan]Options:[/cyan]")
-                console.print("  [1] Add user")
-                console.print("  [2] Remove user")
-                console.print("  [0] Back")
-                
-                choice = Prompt.ask("Select option", choices=["0", "1", "2"], default="0")
-                
-                if choice == "1":
-                    identifier = Prompt.ask("Enter username, user ID, or display name")
-                    if identifier.strip():
-                        await _add_authorized(identifier)
-                        input("\nPress Enter to continue...")
-                        
-                elif choice == "2":
-                    identifier = Prompt.ask("Enter username or user ID to remove")
-                    if identifier.strip():
-                        await _remove_authorized(identifier)
-                        input("\nPress Enter to continue...")
-                        
-                elif choice == "0":
-                    break
-                    
-        except Exception as e:
-            logger.error(f"Error managing authorized users: {e}", exc_info=True)
-            console.print(f"[red]Error: {e}[/red]")
-            input("\nPress Enter to continue...")
+        """Manage authorized users - Deprecated in CLI."""
+        console.clear()
+        console.print("[bold cyan]Manage Authorized Users[/bold cyan]\n")
+        console.print("[yellow]This feature has been moved to Telegram commands.[/yellow]")
+        console.print("Please use the following commands in Telegram:")
+        console.print("  • /auth list - List authorized users")
+        console.print("  • /auth add @username - Add authorized user")
+        console.print("  • /auth remove @username - Remove authorized user")
         
+        input("\nPress Enter to continue...")
+
     async def view_monitor_status(self):
         """View monitoring status using REAL function."""
         try:

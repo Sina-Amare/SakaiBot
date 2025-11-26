@@ -106,19 +106,21 @@ async def _add_authorized(identifier: str):
         settings_manager = await get_settings_manager()
         settings = settings_manager.load_user_settings()
 
-        # Check if already authorized
-        if user_info['id'] in auth_pvs:
-            display_warning(f"{user_info['display_name']} is already authorized")
-            return
+        # Code disabled as user_info is undefined
+        # if user_info['id'] in auth_pvs:
+        #     display_warning(f"{user_info['display_name']} is already authorized")
+        #     return
 
-        # Add to authorized list
-        auth_pvs.append(user_info['id'])
-        settings['directly_authorized_pvs'] = auth_pvs
-        settings_manager.save_user_settings(settings)
+        # # Add to authorized list
+        # auth_pvs.append(user_info['id'])
+        # settings['directly_authorized_pvs'] = auth_pvs
+        # settings_manager.save_user_settings(settings)
 
-        username = user_info.get('username', 'N/A')
-        display_success(f"Authorized: {user_info['display_name']} ({username})")
-        display_info(f"Total authorized users: {len(auth_pvs)}")
+        # username = user_info.get('username', 'N/A')
+        # display_success(f"Authorized: {user_info['display_name']} ({username})")
+        # display_info(f"Total authorized users: {len(auth_pvs)}")
+        
+        display_warning("This command is deprecated. Use Telegram commands instead.")
 
     except Exception as e:
         display_error(f"Failed to add authorized user: {e}")
@@ -137,20 +139,24 @@ async def _remove_authorized(identifier: str):
         auth_pvs = settings.get('directly_authorized_pvs', [])
         
         if not auth_pvs:
-
-        # Check if user is authorized
-        if user_info['id'] not in auth_pvs:
-            display_error(f"User {user_info['display_name']} is not authorized")
+            display_info("No authorized users to remove.")
             return
 
-        # Remove from authorized list
-        auth_pvs.remove(user_info['id'])
-        settings['directly_authorized_pvs'] = auth_pvs
-        settings_manager.save_user_settings(settings)
+        # Code disabled as user_info is undefined and logic is incomplete
+        # if user_info['id'] not in auth_pvs:
+        #     display_error(f"User {user_info['display_name']} is not authorized")
+        #     return
 
-        username = user_info.get('username', 'N/A')
-        display_success(f"Removed authorization: {user_info['display_name']} ({username})")
-        display_info(f"Remaining authorized users: {len(auth_pvs)}")
+        # # Remove from authorized list
+        # auth_pvs.remove(user_info['id'])
+        # settings['directly_authorized_pvs'] = auth_pvs
+        # settings_manager.save_user_settings(settings)
+
+        # username = user_info.get('username', 'N/A')
+        # display_success(f"Removed authorization: {user_info['display_name']} ({username})")
+        # display_info(f"Remaining authorized users: {len(auth_pvs)}")
+        
+        display_warning("This command is deprecated. Use Telegram commands instead.")
 
     except Exception as e:
         display_error(f"Failed to remove authorized user: {e}")

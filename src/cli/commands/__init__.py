@@ -2,20 +2,14 @@
 
 from .config import config
 from .group import group
-"""CLI command modules."""
-
-from .config import config
-from .group import group
 from .monitor import monitor
-from .status import status
-# Auth commands disabled - use Telegram self-commands instead:
-# /auth list, /auth add @user, /auth remove @user
-# from .auth import auth
+# from .status import status  # Status is handled in main.py locally
+# from .auth import auth  # Auth commands disabled - use Telegram self-commands instead
 
 __all__ = [
     'config',
     'group',
     'monitor',
-    'status',
-    # 'auth',  # Disabled - use Telegram self-commands
+    # 'status',
+    # 'auth',
 ]

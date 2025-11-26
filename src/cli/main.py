@@ -12,7 +12,7 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.cli.commands import group, auth, monitor, config
+from src.cli.commands import group, monitor, config
 from src.cli.utils import (
     setup_environment, display_banner,
     normalize_command_mappings, normalize_selected_group
@@ -150,10 +150,10 @@ def show_status():
         console.print(f"[red]Error loading status: {e}[/red]")
 
 # Add command groups
-cli.add_command(group.group)
-cli.add_command(auth.auth)
-cli.add_command(monitor.monitor)
-cli.add_command(config.config)
+cli.add_command(group)
+# cli.add_command(auth)  # Disabled: Auth moved to Telegram commands
+cli.add_command(monitor)
+cli.add_command(config)
 
 # Add status command
 @cli.command()

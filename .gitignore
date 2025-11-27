@@ -146,3 +146,4 @@ temp/
 *.tmp
 venv.linux
 .cursor/
+acli

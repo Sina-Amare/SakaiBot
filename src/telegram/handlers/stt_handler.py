@@ -49,27 +49,6 @@ class STTHandler(BaseHandler):
         self,
         original_message: Message,
         replied_voice_message: Message,
-        client: TelegramClient,
-        command_sender_info: str
-    ) -> None:
-        """Process STT command and provide transcription with AI summary."""
-        chat_id = original_message.chat_id
-        reply_to_id = original_message.id
-        
-        thinking_msg = await client.send_message(
-            chat_id,
-            f"🎧 در حال پردازش پیام صوتی {command_sender_info} (گام ۱: تبدیل به متن)...",
-            reply_to=reply_to_id
-        )
-        
-        downloaded_voice_path = None
-        converted_wav_path = f"temp_voice_stt_{original_message.id}_{replied_voice_message.id}.wav"
-        path_modified = False
-        original_path = ""
-        
-        try:
-            # Setup FFmpeg path
-            path_modified, original_path = await self._setup_ffmpeg_path()
             
             # Download voice message
             base_download_name = f"temp_voice_download_stt_{original_message.id}_{replied_voice_message.id}"
@@ -229,7 +208,7 @@ class STTHandler(BaseHandler):
         ).strip()
         sentences = re.split(r"(?<=[.!؟])\s+", normalized)
         kept: List[str] = []
-        blacklist = ("اگر", "خوشحال", "لطفاً اطلاعات بیشتر", "اگر نیاز")
+        blacklist = ("اگر", "خوشحال", "Please wait اطلاعات بیشتر", "اگر نیاز")
         for sentence in sentences:
             s = sentence.strip()
             if not s:

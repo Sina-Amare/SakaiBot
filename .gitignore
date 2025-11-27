@@ -147,3 +147,18 @@ temp/
 venv.linux
 .cursor/
 acli
+
+# Image generation temp files
+temp/images/
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+!docs/**/*.jpg
+
+# Utility scripts
+scripts/apply_image_fixes.py
+scripts/convert_to_english.py
+
+# Antigravity AI artifacts
+.gemini/

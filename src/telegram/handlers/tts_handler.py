@@ -51,7 +51,7 @@ class TTSHandler(BaseHandler):
         
         thinking_msg = await client.send_message(
             chat_id,
-            f"🗣️ در حال تبدیل متن به گفتار برای {command_sender_info}...",
+            f"🗣️ Converting text to speech for {command_sender_info}...",
             reply_to=reply_to_id
         )
         
@@ -75,7 +75,7 @@ class TTSHandler(BaseHandler):
                 
                 await client.edit_message(
                     thinking_msg,
-                    f"✅ تبدیل متن به گفتار با موفقیت انجام شد (ارائه‌دهنده: {caption_provider})."
+                    f"✅ Text-to-speech conversion successful (Provider: {caption_provider})."
                 )
                 
                 await client.send_file(
@@ -84,9 +84,9 @@ class TTSHandler(BaseHandler):
                     voice_note=True,
                     reply_to=reply_to_id,
                     caption=(
-                        f"🎤️ خروجی گفتار برای متن:\n"
+                        f"🎤️ Speech output for text:\n"
                         f"\"{text_to_speak[:100]}{'...' if len(text_to_speak) > 100 else ''}\"\n"
-                        f"(تولید شده با {caption_provider})"
+                        f"(Generated with {caption_provider})"
                     )
                 )
                 
@@ -95,7 +95,7 @@ class TTSHandler(BaseHandler):
             else:
                 error_msg = getattr(self._tts_processor, "last_error", None)
                 if not error_msg:
-                    error_msg = "تبدیل متن به گفتار انجام نشد. لطفاً بعداً دوباره تلاش کنید."
+                    error_msg = "Text-to-speech conversion failed. Please try again later."
                 self._logger.error(f"TTS Error: {error_msg}")
                 await client.edit_message(thinking_msg, f"⚠️ TTS Error: {error_msg}")
         
@@ -139,10 +139,10 @@ class TTSHandler(BaseHandler):
         if not text_to_speak:
             await client.send_message(
                 chat_id,
-                "❌ لطفاً متن را وارد کنید یا به پیامی که می‌خواهید تبدیل شود پاسخ دهید.\n\n"
-                "✅ مثال:\n"
+                "❌ Please provide text or reply to a message you want to convert.\n\n"
+                "✅ Example:\n"
                 "/tts=سلام دنیا\n"
-                "یا پاسخ به یک پیام با /tts",
+                "or reply to a message with /tts",
                 reply_to=message.id
             )
             return
@@ -168,9 +168,9 @@ class TTSHandler(BaseHandler):
         # Send status message
         queue_status_msg = await client.send_message(
             chat_id,
-            f"🗣️ در حال تبدیل متن به گفتار برای {sender_info}...\n"
-            f"📋 وضعیت: در صف (مکان: {queue_position})\n"
-            f"🔊 صدای مورد نظر: {voice}",
+            f"🗣️ Converting text to speech for {sender_info}...\n"
+            f"📋 Status: In queue (Position: {queue_position})\n"
+            f"🔊 Voice: {voice}",
             reply_to=message.id
         )
         
@@ -225,7 +225,7 @@ class TTSHandler(BaseHandler):
                     # Send the completed audio
                     audio_file = tts_queue.get_completed_audio(request_id)
                     if audio_file:
-                        success_text = "✅ تبدیل متن به گفتار با موفقیت انجام شد. در حال ارسال..."
+                        success_text = "✅ Text-to-speech conversion successful. Sending..."
                         if last_status_text != success_text:
                             await self._safe_edit_message(status_message, success_text, client)
                             last_status_text = success_text
@@ -236,9 +236,9 @@ class TTSHandler(BaseHandler):
                             audio_file,
                             voice_note=True,
                             caption=(
-                                f"🎤️ خروجی گفتار برای متن:\n"
+                                f"🎤️ Speech output for text:\n"
                                 f"\"{request.text[:100]}{'...' if len(request.text) > 100 else ''}\"\n"
-                                f"(تولید شده با Gemini TTS)"
+                                f"(Generated with Gemini TTS)"
                             )
                         )
                         
@@ -276,7 +276,7 @@ class TTSHandler(BaseHandler):
                 elif request.status == TTSStatus.PROCESSING:
                     # Update status to show processing
                     voice_name = request.voice or DEFAULT_TTS_VOICE
-                    processing_text = f"⚙️ در حال پردازش...\n🔊 صدای مورد نظر: {voice_name}"
+                    processing_text = f"⚙️ Processing...\n🔊 Voice: {voice_name}"
                     if last_status_text != processing_text:
                         await self._safe_edit_message(status_message, processing_text, client)
                         last_status_text = processing_text
@@ -291,9 +291,9 @@ class TTSHandler(BaseHandler):
                             if current_position:
                                 voice_name = request.voice or DEFAULT_TTS_VOICE
                                 pending_text = (
-                                    f"🗣️ در حال تبدیل متن به گفتار...\n"
-                                    f"📋 وضعیت: در صف (مکان: {current_position})\n"
-                                    f"🔊 صدای مورد نظر: {voice_name}"
+                                    f"🗣️ Converting text to speech...\n"
+                                    f"📋 Status: In queue (Position: {current_position})\n"
+                                    f"🔊 Voice: {voice_name}"
                                 )
                                 if last_status_text != pending_text:
                                     await self._safe_edit_message(status_message, pending_text, client)

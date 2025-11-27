@@ -57,10 +57,10 @@ class AIHandler(BaseHandler):
             remaining = await rate_limiter.get_remaining_requests(user_id)
             metrics.increment('ai_command.rate_limited', tags={'command': command_type})
             error_msg = (
-                f"⚠️ محدودیت استفاده\n\n"
-                f"شما به حد مجاز درخواست رسیده‌اید.\n"
-                f"لطفاً {rate_limiter._window_seconds} ثانیه صبر کنید.\n"
-                f"درخواست‌های باقیمانده: {remaining}"
+                f"⚠️ Rate Limit Exceeded\n\n"
+                f"You have reached your request limit.\n"
+                f"Please wait {rate_limiter._window_seconds} seconds.\n"
+                f"Remaining requests: {remaining}"
             )
             await client.send_message(chat_id, error_msg, reply_to=reply_to_id)
             return
@@ -103,7 +103,7 @@ class AIHandler(BaseHandler):
             # Send completion message if we successfully sent response
             if sent_messages:
                 time_str = datetime.now().strftime('%H:%M')
-                completion_msg = f"✅ انجام شد - {time_str}"
+                completion_msg = f"✅ Done - {time_str}"
                 await message_sender.send_message_safe(
                     chat_id,
                     completion_msg,

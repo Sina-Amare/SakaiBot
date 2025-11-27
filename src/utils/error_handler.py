@@ -19,11 +19,11 @@ logger = get_logger(__name__)
 
 # Persian error messages for users
 ERROR_MESSAGES = {
-    ConfigurationError: "⚠️ خطای پیکربندی: لطفاً تنظیمات را بررسی کنید.",
-    TelegramError: "⚠️ خطای تلگرام: مشکلی در ارتباط با تلگرام رخ داد. لطفاً دوباره تلاش کنید.",
-    AIProcessorError: "⚠️ خطای هوش مصنوعی: مشکلی در پردازش درخواست شما رخ داد. لطفاً دوباره تلاش کنید.",
-    ValidationError: "⚠️ خطای اعتبارسنجی: ورودی نامعتبر است. لطفاً دوباره بررسی کنید.",
-    Exception: "⚠️ خطای غیرمنتظره: مشکلی رخ داد. لطفاً بعداً دوباره تلاش کنید."
+    ConfigurationError: "⚠️ Configuration Error: Please check your settings.",
+    TelegramError: "⚠️ Telegram Error: Failed to communicate with Telegram. Please try again.",
+    AIProcessorError: "⚠️ AI Processing Error: Failed to process your request. Please try again.",
+    ValidationError: "⚠️ Validation Error: Invalid input. Please check and try again.",
+    Exception: "⚠️ Unexpected Error: Something went wrong. Please try again later."
 }
 
 

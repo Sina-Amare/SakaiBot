@@ -50,8 +50,11 @@ class SettingsManager:
                         # Further validate the contents of the command map
                         from ..cli.utils import normalize_command_mappings
                         normalized = normalize_command_mappings(loaded_value)
+                        # Only log warning if normalization actually fixed issues (not just reformatted)
                         if normalized != loaded_value:
-                            self._logger.warning(f"Loaded '{key}' had an invalid format and was normalized.")
+                            # Check if it's a meaningful difference (not just dict ordering)
+                            if not loaded_value or len(normalized) != len(loaded_value):
+                                self._logger.warning(f"Loaded '{key}' had an invalid format and was normalized.")
                             loaded_value = normalized
                 elif key == "directly_authorized_pvs" and not isinstance(loaded_value, list):
                     self._logger.warning(f"Loaded '{key}' is not a list. Resetting to default")

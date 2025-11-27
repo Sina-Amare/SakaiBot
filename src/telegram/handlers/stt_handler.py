@@ -49,6 +49,27 @@ class STTHandler(BaseHandler):
         self,
         original_message: Message,
         replied_voice_message: Message,
+        client: TelegramClient,
+        command_sender_info: str
+    ) -> None:
+        """Process STT command and provide transcription with AI summary."""
+        chat_id = original_message.chat_id
+        reply_to_id = original_message.id
+        
+        thinking_msg = await client.send_message(
+            chat_id,
+            f"🎧 Processing voice message from {command_sender_info} (Step 1: Transcribing)...",
+            reply_to=reply_to_id
+        )
+        
+        downloaded_voice_path = None
+        converted_wav_path = f"temp_voice_stt_{original_message.id}_{replied_voice_message.id}.wav"
+        path_modified = False
+        original_path = ""
+        
+        try:
+            # Setup FFmpeg path
+            path_modified, original_path = await self._setup_ffmpeg_path()
             
             # Download voice message
             base_download_name = f"temp_voice_download_stt_{original_message.id}_{replied_voice_message.id}"
@@ -73,8 +94,8 @@ class STTHandler(BaseHandler):
             # Update message with transcription
             await client.edit_message(
                 thinking_msg,
-                f"📝 **متن پیاده‌سازی شده:**\n{transcribed_text}\n\n"
-                f"⏳ (گام ۲: خلاصه‌سازی و تحلیل هوش مصنوعی)..."
+                f"📝 **Transcribed Text:**\n{transcribed_text}\n\n"
+                f"⏳ (Step 2: AI Summarization & Analysis)..."
             )
             
             summary_text = None
@@ -108,7 +129,7 @@ class STTHandler(BaseHandler):
                 if fallback_summary:
                     summary_text = fallback_summary
                 elif not summary_text:
-                    summary_text = "خلاصه‌ای در دسترس نبود."
+                    summary_text = "No summary available."
 
             if summary_text:
                 cleaned_lines = [line.strip() for line in summary_text.splitlines() if line.strip()]
@@ -118,8 +139,8 @@ class STTHandler(BaseHandler):
 
             # Prepare final response
             final_response = (
-                f"📝 **متن پیاده‌سازی شده:**\n{transcribed_text}\n\n"
-                f"🔍 **جمع‌بندی و تحلیل هوش مصنوعی:**\n{summary_text}"
+                f"📝 **Transcribed Text:**\n{transcribed_text}\n\n"
+                f"🔍 **AI Summary & Analysis:**\n{summary_text}"
             )
             
             # Use MessageSender for reliable delivery with pagination
@@ -134,14 +155,12 @@ class STTHandler(BaseHandler):
         
         except AIProcessorError as e:
             await client.edit_message(thinking_msg, f"⚠️ STT Error: {e}")
-        
-        except FileNotFoundError as e:
             self._logger.error(f"File not found: {e}", exc_info=True)
-            await client.edit_message(thinking_msg, f"STT Error: File not found - {e}")
+            await client.edit_message(thinking_msg, f"⚠️ File not found - {e}")
         
         except Exception as e:
             self._logger.error(f"Unexpected error in STT processing: {e}", exc_info=True)
-            await client.edit_message(thinking_msg, f"STT Error: An unexpected error occurred - {e}")
+            await client.edit_message(thinking_msg, f"⚠️ An unexpected error occurred - {e}")
         
         finally:
             # Restore PATH if modified

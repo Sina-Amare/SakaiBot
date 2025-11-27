@@ -134,7 +134,7 @@ class AIHandler(BaseHandler):
     async def _handle_prompt_command(self, user_prompt_text: str) -> str:
         """Handle /prompt command."""
         if not user_prompt_text:
-            return "Usage: /prompt=<your question or instruction>"
+            return "❓ **Usage:** `/prompt=<your question or instruction>`"
         
         try:
             # Validate and sanitize prompt
@@ -165,7 +165,7 @@ class AIHandler(BaseHandler):
     ) -> str:
         """Handle /translate command."""
         if not text_for_ai or not target_language:
-            return "Usage: /translate=<lang>=<text> or reply with /translate=<lang>"
+            return "🌐 **Usage:** `/translate=<lang>=<text>` or reply with `/translate=<lang>`"
         
         # Validate language code
         if not InputValidator.validate_language_code(target_language):
@@ -230,7 +230,7 @@ class AIHandler(BaseHandler):
                     })
             
             if not messages_data:
-                return "No text messages found in the specified history to analyze."
+                return "📭 No text messages found in the specified history to analyze."
             
             response = await self._ai_processor.analyze_conversation_messages(
                 messages_data,
@@ -289,7 +289,7 @@ class AIHandler(BaseHandler):
                     })
             
             if not messages_data:
-                return "No text messages found in history to answer your question."
+                return "📭 No text messages found in history to answer your question."
             
             response = await self._ai_processor.answer_question_from_chat_history(
                 messages_data, user_question
@@ -332,8 +332,9 @@ class AIHandler(BaseHandler):
             else:
                 await client.send_message(
                     chat_id,
-                    "Usage: /prompt=<your question or instruction>",
-                    reply_to=message.id
+                    "❓ **Usage:** `/prompt=<your question or instruction>`",
+                    reply_to=message.id,
+                    parse_mode='md'
                 )
                 return
         
@@ -343,8 +344,9 @@ class AIHandler(BaseHandler):
             if not command_args:
                 await client.send_message(
                     chat_id,
-                    "Usage: /translate=<lang>[,source_lang] [text] or reply with /translate=<lang>",
-                    reply_to=message.id
+                    "🌐 **Usage:** `/translate=<lang>[,source_lang] [text]` or reply with `/translate=<lang>`",
+                    reply_to=message.id,
+                    parse_mode='md'
                 )
                 return
         
@@ -354,16 +356,18 @@ class AIHandler(BaseHandler):
             if command_args and isinstance(command_args, dict) and command_args.get("error") == "unknown_mode":
                 await client.send_message(
                     chat_id,
-                    "حالت تحلیل نامعتبر است. حالت‌های مجاز: general, fun, romance",
-                    reply_to=message.id
+                    "❌ **Invalid analysis mode.** Valid modes: general, fun, romance",
+                    reply_to=message.id,
+                    parse_mode='md'
                 )
                 return
             if not command_args:
                 max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
                 await client.send_message(
                     chat_id,
-                    f"Usage: /analyze=<number_between_1_and_{max_limit}> یا /analyze=<mode>=<number> (mode: fun, romance, general)",
-                    reply_to=message.id
+                    f"📊 **Usage:** `/analyze=<number_between_1_and_{max_limit}>` or `/analyze=<mode>=<number>` (mode: fun, romance, general)",
+                    reply_to=message.id,
+                    parse_mode='md'
                 )
                 return
         
@@ -373,8 +377,9 @@ class AIHandler(BaseHandler):
             if not command_args:
                 await client.send_message(
                     chat_id,
-                    "Usage: /tellme=<number_of_messages>=<your_question>",
-                    reply_to=message.id
+                    "💬 **Usage:** `/tellme=<number_of_messages>=<your_question>`",
+                    reply_to=message.id,
+                    parse_mode='md'
                 )
                 return
         
@@ -412,8 +417,8 @@ class AIHandler(BaseHandler):
                 # Remove formatting like emojis, labels, and AI analysis sections
                 # Extract text between "📝 متن پیاده‌سازی شده:" and "🔍 جمع‌بندی و تحلیل هوش مصنوعی:"
                 
-                # Look for STT result format: "📝 **متن پیاده‌سازی شده:**\n{transcribed_text}\n\n🔍 **جمع‌بندی و تحلیل هوش مصنوعی:**"
-                stt_pattern = r"📝\s*\*\*متن\s*پیاده‌سازی\s*شده:\*\*\s*\n(.*?)\s*\n\s*\n🔍\s*\*\*جمع‌بندی\s*و\s*تحلیل\s*هوش\s*مصنوعی:\*\*"
+                # Look for STT result format: "📝 **Transcribed Text:**\n{transcribed_text}\n\n🔍 **AI Summary & Analysis:**"
+                stt_pattern = r"📝\s*\*\*Transcribed\s*Text:\*\*\s*\n(.*?)\s*\n\s*\n🔍\s*\*\*AI\s*Summary\s*&\s*Analysis:\*\*"
                 match = re.search(stt_pattern, original_text, re.DOTALL)
                 
                 if match:

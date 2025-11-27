@@ -230,8 +230,9 @@ class EventHandlers:
         if not message.is_reply:
             await client.send_message(
                 chat_id,
-                "Please use /stt in reply to a voice message.",
-                reply_to=message.id
+                "❌ Please use `/stt` in reply to a voice message.",
+                reply_to=message.id,
+                parse_mode='md'
             )
             return
         
@@ -239,8 +240,9 @@ class EventHandlers:
         if not (replied_message and replied_message.voice):
             await client.send_message(
                 chat_id,
-                "The replied message is not a voice note.",
-                reply_to=message.id
+                "❌ The replied message is not a voice note.",
+                reply_to=message.id,
+                parse_mode='md'
             )
             return
         

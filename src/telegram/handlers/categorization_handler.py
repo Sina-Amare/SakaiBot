@@ -162,7 +162,7 @@ class CategorizationHandler(BaseHandler):
                 self._logger.warning("Could not fetch the friend's command message")
                 await client_instance.send_message(
                     event.chat_id,
-                    "Could not process 'confirm'. Replied message not found.",
+                    "❌ Could not process 'confirm'. Replied message not found.",
                     reply_to=your_message.id
                 )
                 return

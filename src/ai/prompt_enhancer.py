@@ -3,7 +3,7 @@
 from typing import Optional, Tuple
 
 from ..core.constants import MAX_IMAGE_PROMPT_LENGTH
-from ..core.exceptions import AIProcessorError
+from ..core.config import get_settings
 from ..utils.logging import get_logger
 from .processor import AIProcessor
 from .prompts import (
@@ -65,12 +65,12 @@ class PromptEnhancer:
         """
         try:
             # Check if OpenRouter is configured
-            from ..core.config import get_settings
             config = get_settings()
             
             if config.llm_provider != "openrouter" or not config.openrouter_api_key:
                 self._logger.info("OpenRouter not configured, skipping")
                 return (None, "")
+
             
             self._logger.info(f"Enhancing prompt with OpenRouter: '{user_prompt[:50]}...'")
             
@@ -110,7 +110,6 @@ class PromptEnhancer:
         """
         try:
             # Check if Gemini is configured
-            from ..core.config import get_settings
             config = get_settings()
             
             if not config.gemini_api_key:

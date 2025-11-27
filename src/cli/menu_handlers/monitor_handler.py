@@ -74,6 +74,8 @@ class MonitorMenuHandler:
     async def configure_monitor_settings(self):
         """Configure monitor settings."""
         try:
+            from src.cli.utils import normalize_selected_group
+            
             settings = self.settings_manager.load_user_settings()
             
             console.print("[bold cyan]Monitor Settings[/bold cyan]\n")
@@ -82,7 +84,14 @@ class MonitorMenuHandler:
             console.print(f"[cyan]Current Settings:[/cyan]")
             console.print(f"  Monitoring Active: {settings.get('is_monitoring_active', False)}")
             console.print(f"  Authorized Users: {len(settings.get('directly_authorized_pvs', []))}")
-            console.print(f"  Target Group: {settings.get('selected_target_group', {}).get('title', 'None')}")
+            
+            # Handle both old format (int) and new format (dict) for selected_target_group
+            target_group = normalize_selected_group(settings.get('selected_target_group'))
+            if target_group:
+                target_title = target_group.get('title', f"Group {target_group.get('id')}")
+            else:
+                target_title = 'None'
+            console.print(f"  Target Group: {target_title}")
             
             console.print("\n[yellow]To modify settings:[/yellow]")
             console.print("  • Use 'Manage Authorized Users' to add/remove users")

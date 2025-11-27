@@ -75,15 +75,21 @@ If `EventHandlers` or `processor` is None, this would fail. Let me check where `
 
 **Looking earlier in the function (lines 33-96):** There's no visible initialization of `processor` or `EventHandlers` in the visible code. The function jumps from validation (lines 38-73) to registering handlers (line 104) without showing the initialization code in between.
 
-**Root Cause:** The code between lines 73-100 is not visible in the collapsed view, but the error suggests that either:
-1. `processor` is not being initialized properly
-2. `EventHandlers` class initialization is failing
-3. Some dependency is None when `_start_monitoring` tries to use it
+**Root Cause:** After reviewing the full code:
+- Line 63: `client, client_manager = await get_telegram_client()` gets the client
+- Lines 90-94: All processors are initialized correctly (ai_processor, stt_processor, tts_processor)
+- Lines 96-101: EventHandlers is initialized with correct parameters
+- **ACTUAL ISSUE:** Line 121 and 157 call `event_handlers.process_command_logic()` which is a method
+- However, the error "'NoneType' object is not callable" suggests `process_command_logic` might be None
+- Looking at EventHandlers class (handlers.py:122-132), `process_command_logic` IS defined as a method
+- **TRUE ROOT CAUSE:** The error is likely happening DURING initialization of EventHandlers or one of its sub-handlers
+- If any of the handlers fail to initialize in `__init__`, an attribute might be None
+- Most likely: One of the specialized handlers (STTHandler, TTSHandler, AIHandler, ImageHandler) is failing to initialize
 
 **Solution:**
-- Need to expand the full function to see what's being initialized
-- Likely need to add defensive checks before calling methods
-- Ensure all dependencies are properly initialized before use
+- Add try-except around EventHandlers initialization to catch and report the actual error
+- Add defensive checks to ensure all components are initialized before registering handlers
+- Improve error messages to show which component failed
 
 ---
 

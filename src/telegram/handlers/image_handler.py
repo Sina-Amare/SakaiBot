@@ -309,7 +309,7 @@ class ImageHandler(BaseHandler):
             
             # Enhance prompt
             with TimingContext('image_command.enhancement_duration', tags={'model': model}):
-                enhanced_prompt = await self._prompt_enhancer.enhance_prompt(prompt)
+                enhanced_prompt, model_used = await self._prompt_enhancer.enhance_prompt(prompt)
             
             # Update status: generating image
             try:
@@ -338,10 +338,10 @@ class ImageHandler(BaseHandler):
                 # Mark as completed
                 image_queue.mark_completed(request_id, image_path)
                 
-                # Send image
+                # Send image with model_used for caption
                 await self._send_image(
                     client, chat_id, reply_to_id, thinking_msg,
-                    image_path, model, enhanced_prompt
+                    image_path, model, enhanced_prompt, model_used
                 )
                 
                 # Track success
@@ -373,7 +373,8 @@ class ImageHandler(BaseHandler):
         thinking_msg: Message,
         image_path: str,
         model: str,
-        enhanced_prompt: str
+        enhanced_prompt: str,
+        model_used: str
     ):
         """
         Send generated image to Telegram.
@@ -386,6 +387,7 @@ class ImageHandler(BaseHandler):
             image_path: Path to image file
             model: Model name
             enhanced_prompt: Enhanced prompt for caption
+            model_used: Model used for enhancement ("openrouter", "gemini", or "none")
         """
         # Update status: sending
         try:
@@ -400,7 +402,16 @@ class ImageHandler(BaseHandler):
         # Send image with enhanced prompt as caption
         # Telegram photo caption limit is 1024 characters
         # Use full prompt, only truncate if it exceeds Telegram's limit
-        header = f"🎨 Image generated with {model.upper()}\n\n**Enhanced prompt:**\n"
+        
+        # Model enhancement attribution
+        if model_used == "openrouter":
+            enhancement_note = "✨ Enhanced by OpenRouter"
+        elif model_used == "gemini":
+            enhancement_note = "✨ Enhanced by Gemini"
+        else:
+            enhancement_note = "⚡ Original prompt (no enhancement)"
+        
+        header = f"🎨 Image generated with {model.upper()}\n{enhancement_note}\n\n**Enhanced prompt:**\n"
         max_caption_length = 1024
         max_prompt_length = max_caption_length - len(header)
         

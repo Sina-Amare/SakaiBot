@@ -82,7 +82,7 @@ async def _start_monitoring(verbose: bool):
         
         # Setup event handlers
         try:
-            from src.telegram.handlers import EventHandlers
+            from src.telegram.event_handlers import EventHandlers
             from src.ai.processor import AIProcessor
             from src.ai.stt import SpeechToTextProcessor
             from src.ai.tts import TextToSpeechProcessor
@@ -107,7 +107,10 @@ async def _start_monitoring(verbose: bool):
                 raise RuntimeError("EventHandlers.process_command_logic is not initialized")
                 
         except Exception as e:
+            import traceback
             display_error(f"Failed to initialize event handlers: {e}")
+            console.print(f"[red]Full traceback:[/red]")
+            console.print(traceback.format_exc())
             if client_manager:
                 await client_manager.disconnect()
             return

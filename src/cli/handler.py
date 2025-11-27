@@ -9,7 +9,7 @@ from ..core.config import Config, get_settings
 from ..utils.cache import CacheManager
 from ..telegram.utils import TelegramUtils
 from ..core.settings import SettingsManager
-from ..telegram.handlers import EventHandlers
+from ..telegram.event_handlers import EventHandlers
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)

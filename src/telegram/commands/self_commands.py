@@ -4,9 +4,9 @@ from typing import Optional
 from telethon import events
 from telethon.tl.types import Message
 
-from ..core.settings import SettingsManager
-from ..telegram.user_verifier import TelegramUserVerifier
-from ..utils.logging import get_logger
+from ...core.settings import SettingsManager
+from ..user_verifier import TelegramUserVerifier
+from ...utils.logging import get_logger
 
 logger = get_logger(__name__)
 

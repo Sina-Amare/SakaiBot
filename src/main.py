@@ -12,7 +12,7 @@ from .core.exceptions import ConfigurationError, TelegramError
 from .core.settings import SettingsManager
 from .telegram.client import TelegramClientManager
 from .telegram.utils import TelegramUtils
-from .telegram.handlers import EventHandlers
+from .telegram.event_handlers import EventHandlers
 from .ai.processor import AIProcessor
 from .ai.stt import SpeechToTextProcessor
 from .ai.tts import TextToSpeechProcessor

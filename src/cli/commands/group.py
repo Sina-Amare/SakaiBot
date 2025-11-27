@@ -255,21 +255,20 @@ async def _manage_mappings(action: str):
                 try:
                     client, client_manager = await get_telegram_client()
                     if client:
-                        # Get forum topics if it's a forum group
+                        # Get forum topics using TelegramUtils (already tested and working)
                         try:
-                            topics_result = await client(functions.channels.GetForumTopicsRequest(
-                                channel=group_id,
-                                offset_date=0,
-                                offset_id=0,
-                                offset_topic=0,
-                                limit=100
-                            ))
+                            from src.telegram.utils import TelegramUtils
+                            telegram_utils = TelegramUtils()
+                            topics = await telegram_utils.get_forum_topics(client, group_id)
                             
-                            for topic in topics_result.topics:
-                                if hasattr(topic, 'id') and hasattr(topic, 'title'):
-                                    topic_id_to_name[topic.id] = topic.title
-                        except Exception:
+                            # Build topic_id to name mapping
+                            if topics:
+                                for topic in topics:
+                                    if topic and isinstance(topic, dict) and 'id' in topic and 'title' in topic:
+                                        topic_id_to_name[topic['id']] = topic['title']
+                        except Exception as e:
                             # Not a forum or can't fetch topics, continue without names
+                            # Silently ignore to avoid disrupting the display
                             pass
                         finally:
                             if client_manager:

@@ -249,6 +249,35 @@ async def _manage_mappings(action: str):
                 display_info("No command mappings defined.")
                 return
             
+            # Fetch topic names if target group is a forum
+            topic_id_to_name = {}
+            if group_id:
+                try:
+                    client, client_manager = await get_telegram_client()
+                    if client:
+                        # Get forum topics if it's a forum group
+                        try:
+                            topics_result = await client(functions.channels.GetForumTopicsRequest(
+                                channel=group_id,
+                                offset_date=0,
+                                offset_id=0,
+                                offset_topic=0,
+                                limit=100
+                            ))
+                            
+                            for topic in topics_result.topics:
+                                if hasattr(topic, 'id') and hasattr(topic, 'title'):
+                                    topic_id_to_name[topic.id] = topic.title
+                        except Exception:
+                            # Not a forum or can't fetch topics, continue without names
+                            pass
+                        finally:
+                            if client_manager:
+                                await client_manager.disconnect()
+                except Exception:
+                    # If we can't get client, continue without topic names
+                    pass
+            
             # Display mappings with a numbered index for consistency
             table = Table(title="Command Mappings", show_header=True, header_style="bold cyan")
             table.add_column("#", style="dim", width=6)
@@ -259,7 +288,12 @@ async def _manage_mappings(action: str):
                 if topic_id is None:
                     target = "Main Group Chat"
                 else:
-                    target = f"Topic ID: {topic_id}"
+                    # Show topic name if available
+                    topic_name = topic_id_to_name.get(topic_id)
+                    if topic_name:
+                        target = f"Topic ID: {topic_id} ({topic_name})"
+                    else:
+                        target = f"Topic ID: {topic_id}"
                 
                 # Safely join commands, handling potential None values
                 if commands and isinstance(commands, list):

@@ -64,38 +64,45 @@ class PromptEnhancer:
             Tuple of (enhanced_prompt or None, "openrouter" or "")
         """
         try:
-            # Check if OpenRouter is configured
+            # Check if OpenRouter is configured (only check API key, not LLM_PROVIDER)
             config = get_settings()
             
-            if config.llm_provider != "openrouter" or not config.openrouter_api_key:
-                self._logger.info("OpenRouter not configured, skipping")
+            if not config.openrouter_api_key:
+                self._logger.info("OpenRouter API key not configured, skipping")
                 return (None, "")
-
             
             self._logger.info(f"Enhancing prompt with OpenRouter: '{user_prompt[:50]}...'")
             
-            # Format the enhancement prompt
-            enhancement_prompt = IMAGE_PROMPT_ENHANCEMENT_PROMPT.format(
-                user_prompt=user_prompt
-            )
+            # Temporarily switch to OpenRouter (similar to Gemini fallback)
+            original_provider = config.llm_provider
+            config.llm_provider = "openrouter"
             
-            # Call AI processor to enhance the prompt
-            enhanced = await self._ai_processor.execute_custom_prompt(
-                user_prompt=enhancement_prompt,
-                system_message=IMAGE_PROMPT_ENHANCEMENT_SYSTEM_MESSAGE
-            )
-            
-            if not enhanced or not enhanced.strip():
-                self._logger.warning("Empty response from OpenRouter")
+            try:
+                # Format the enhancement prompt
+                enhancement_prompt = IMAGE_PROMPT_ENHANCEMENT_PROMPT.format(
+                    user_prompt=user_prompt
+                )
+                
+                # Call AI processor to enhance the prompt
+                enhanced = await self._ai_processor.execute_custom_prompt(
+                    user_prompt=enhancement_prompt,
+                    system_message=IMAGE_PROMPT_ENHANCEMENT_SYSTEM_MESSAGE
+                )
+                
+                if not enhanced or not enhanced.strip():
+                    self._logger.warning("Empty response from OpenRouter")
+                    return (None, "")
+                
+                # Clean and validate enhanced prompt
+                cleaned = self._clean_enhanced_prompt(enhanced)
+                if cleaned:
+                    self._logger.info(f"Successfully enhanced with OpenRouter: '{cleaned[:100]}...'")
+                    return (cleaned, "openrouter")
+                
                 return (None, "")
-            
-            # Clean and validate enhanced prompt
-            cleaned = self._clean_enhanced_prompt(enhanced)
-            if cleaned:
-                self._logger.info(f"Successfully enhanced with OpenRouter: '{cleaned[:100]}...'")
-                return (cleaned, "openrouter")
-            
-            return (None, "")
+            finally:
+                # Restore original provider
+                config.llm_provider = original_provider
             
         except Exception as e:
             self._logger.warning(f"OpenRouter enhancement failed: {e}, will try Gemini fallback")

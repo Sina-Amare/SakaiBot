@@ -48,35 +48,51 @@ class EventHandlers:
         self._ffmpeg_path = ffmpeg_path
         self._logger = get_logger(self.__class__.__name__)
         
+        self._logger.debug("Initializing EventHandlers...")
+        
         # Store self-command handlers
         self._self_command_handlers = {
             'auth': handle_auth_command,
             'help': handle_help_command,
             'status': handle_status_command,
         }
+        self._logger.debug("Self-command handlers registered")
         
         # Initialize specialized handlers using composition
+        self._logger.debug("Creating STTHandler...")
         self._stt_handler = STTHandler(
             stt_processor=stt_processor,
             ai_processor=ai_processor,
             ffmpeg_path=ffmpeg_path
         )
+        
+        self._logger.debug("Creating TTSHandler...")
         self._tts_handler = TTSHandler(
             tts_processor=tts_processor,
             ffmpeg_path=ffmpeg_path
         )
+        
+        self._logger.debug("Creating AIHandler...")
         self._ai_handler = AIHandler(ai_processor=ai_processor)
         
         # Initialize image generation components
+        self._logger.debug("Creating ImageGenerator...")
         image_generator = ImageGenerator()
+        
+        self._logger.debug("Creating PromptEnhancer...")
         prompt_enhancer = PromptEnhancer(ai_processor=ai_processor)
+        
+        self._logger.debug("Creating ImageHandler...")
         self._image_handler = ImageHandler(
             ai_processor=ai_processor,
             image_generator=image_generator,
             prompt_enhancer=prompt_enhancer
         )
         
+        self._logger.debug("Creating CategorizationHandler...")
         self._categorization_handler = CategorizationHandler()
+        
+        self._logger.debug("EventHandlers initialization complete")
 
     def _normalize_text(self, text: str) -> str:
         """Normalize text for TTS processing."""

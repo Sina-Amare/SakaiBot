@@ -72,6 +72,8 @@ CLAUDE.md
 # IDE and editor specific files
 .vscode/
 .idea/
+.cursor/
+.agents/
 *.swp
 *.swo
 *~
@@ -145,8 +147,8 @@ tmp/
 temp/
 *.tmp
 venv.linux
-.cursor/
 acli
+acli.exe
 
 # Image generation temp files
 temp/images/
@@ -162,3 +164,7 @@ scripts/convert_to_english.py
 
 # Antigravity AI artifacts
 .gemini/
+
+# Others
+prompt.md
+*.md.backup

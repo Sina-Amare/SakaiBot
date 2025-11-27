@@ -81,25 +81,36 @@ async def _start_monitoring(verbose: bool):
             display_info(line)
         
         # Setup event handlers
-        from src.telegram.handlers import EventHandlers
-        from src.ai.processor import AIProcessor
-        from src.ai.stt import SpeechToTextProcessor
-        from src.ai.tts import TextToSpeechProcessor
-        from src.telegram.utils import TelegramUtils
-        from src.utils.cache import CacheManager
-        
-        ai_processor = AIProcessor(config)
-        stt_processor = SpeechToTextProcessor()
-        tts_processor = TextToSpeechProcessor()
-        telegram_utils = TelegramUtils()
-        cache_manager = CacheManager()
-        
-        event_handlers = EventHandlers(
-            ai_processor=ai_processor,
-            stt_processor=stt_processor,
-            tts_processor=tts_processor,
-            ffmpeg_path=config.ffmpeg_path_resolved
-        )
+        try:
+            from src.telegram.handlers import EventHandlers
+            from src.ai.processor import AIProcessor
+            from src.ai.stt import SpeechToTextProcessor
+            from src.ai.tts import TextToSpeechProcessor
+            from src.telegram.utils import TelegramUtils
+            from src.utils.cache import CacheManager
+            
+            ai_processor = AIProcessor(config)
+            stt_processor = SpeechToTextProcessor()
+            tts_processor = TextToSpeechProcessor()
+            telegram_utils = TelegramUtils()
+            cache_manager = CacheManager()
+            
+            event_handlers = EventHandlers(
+                ai_processor=ai_processor,
+                stt_processor=stt_processor,
+                tts_processor=tts_processor,
+                ffmpeg_path=config.ffmpeg_path_resolved
+            )
+            
+            # Verify event_handlers was initialized properly
+            if not hasattr(event_handlers, 'process_command_logic') or event_handlers.process_command_logic is None:
+                raise RuntimeError("EventHandlers.process_command_logic is not initialized")
+                
+        except Exception as e:
+            display_error(f"Failed to initialize event handlers: {e}")
+            if client_manager:
+                await client_manager.disconnect()
+            return
         
         # Register handlers
         from telethon import events

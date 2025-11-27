@@ -72,15 +72,16 @@ async def test_prompt_enhancement_integration():
     if not config.is_ai_enabled:
         pytest.skip("AI processor not configured for integration testing")
     
-    processor = AIProcessor()
+    processor = AIProcessor(config)
     enhancer = PromptEnhancer(ai_processor=processor)
     
     user_prompt = "sunset"
-    enhanced = await enhancer.enhance_prompt(user_prompt)
+    enhanced, model_used = await enhancer.enhance_prompt(user_prompt)
     
     assert enhanced is not None
     assert len(enhanced) > len(user_prompt)  # Should be enhanced
     assert user_prompt.lower() in enhanced.lower()  # Should contain original concept
+    assert model_used is not None  # Should return the model name
 
 
 @pytest.mark.integration
@@ -96,15 +97,16 @@ async def test_full_image_generation_flow():
     if not config.flux_worker_url:
         pytest.skip("Flux worker not configured")
     
-    processor = AIProcessor()
+    processor = AIProcessor(config)
     enhancer = PromptEnhancer(ai_processor=processor)
     generator = ImageGenerator()
     
     try:
         # Enhance prompt
         user_prompt = "mountain landscape"
-        enhanced = await enhancer.enhance_prompt(user_prompt)
+        enhanced, model_used = await enhancer.enhance_prompt(user_prompt)
         assert enhanced is not None
+        assert model_used is not None
         
         # Generate image
         success, image_path, error = await generator.generate_with_flux(enhanced)

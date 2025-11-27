@@ -1,6 +1,6 @@
 """LLM-based prompt enhancement for image generation."""
 
-from typing import Optional
+from typing import Optional, Tuple
 
 from ..core.constants import MAX_IMAGE_PROMPT_LENGTH
 from ..core.exceptions import AIProcessorError
@@ -25,27 +25,59 @@ class PromptEnhancer:
         self._ai_processor = ai_processor
         self._logger = get_logger(self.__class__.__name__)
     
-    async def enhance_prompt(self, user_prompt: str) -> str:
+    async def enhance_prompt(self, user_prompt: str) -> Tuple[str, str]:
         """
         Enhance user prompt using LLM.
+        Tries OpenRouter first, falls back to Gemini on error.
         
         Args:
             user_prompt: Original user prompt
             
         Returns:
-            Enhanced prompt (or original if enhancement fails)
+            Tuple of (enhanced_prompt, model_used)
+            - enhanced_prompt: Enhanced prompt (or original if all enhancement fails)
+            - model_used: "openrouter", "gemini", or "none" (fallback to original)
         """
         if not self._ai_processor.is_configured:
             self._logger.warning("AI processor not configured, using original prompt")
-            return user_prompt
+            return (user_prompt, "none")
         
+        # Try OpenRouter first
+        enhanced, model_used = await self._try_enhance_with_openrouter(user_prompt)
+        if enhanced:
+            return (enhanced, model_used)
+        
+        # Fallback to Gemini
+        enhanced, model_used = await self._try_enhance_with_gemini(user_prompt)
+        if enhanced:
+            return (enhanced, model_used)
+        
+        # All failed, return original
+        self._logger.warning("All enhancement methods failed, using original prompt")
+        return (user_prompt, "none")
+    
+    async def _try_enhance_with_openrouter(self, user_prompt: str) -> Tuple[Optional[str], str]:
+        """
+        Try to enhance prompt using OpenRouter.
+        
+        Returns:
+            Tuple of (enhanced_prompt or None, "openrouter" or "")
+        """
         try:
+            # Check if OpenRouter is configured
+            from ..core.config import get_settings
+            config = get_settings()
+            
+            if config.llm_provider != "openrouter" or not config.openrouter_api_key:
+                self._logger.info("OpenRouter not configured, skipping")
+                return (None, "")
+            
+            self._logger.info(f"Enhancing prompt with OpenRouter: '{user_prompt[:50]}...'")
+            
             # Format the enhancement prompt
             enhancement_prompt = IMAGE_PROMPT_ENHANCEMENT_PROMPT.format(
                 user_prompt=user_prompt
             )
-            
-            self._logger.info(f"Enhancing prompt: '{user_prompt[:50]}...'")
             
             # Call AI processor to enhance the prompt
             enhanced = await self._ai_processor.execute_custom_prompt(
@@ -54,46 +86,116 @@ class PromptEnhancer:
             )
             
             if not enhanced or not enhanced.strip():
-                self._logger.warning("Empty response from LLM, using original prompt")
-                return user_prompt
+                self._logger.warning("Empty response from OpenRouter")
+                return (None, "")
             
             # Clean and validate enhanced prompt
-            enhanced = enhanced.strip()
+            cleaned = self._clean_enhanced_prompt(enhanced)
+            if cleaned:
+                self._logger.info(f"Successfully enhanced with OpenRouter: '{cleaned[:100]}...'")
+                return (cleaned, "openrouter")
             
-            # Remove any markdown formatting that might have been added
-            if enhanced.startswith("```"):
-                # Remove code block markers
-                lines = enhanced.split("\n")
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                enhanced = "\n".join(lines).strip()
+            return (None, "")
             
-            # Validate length
-            if len(enhanced) > MAX_IMAGE_PROMPT_LENGTH:
-                self._logger.warning(
-                    f"Enhanced prompt too long ({len(enhanced)} chars), truncating to {MAX_IMAGE_PROMPT_LENGTH}"
-                )
-                enhanced = enhanced[:MAX_IMAGE_PROMPT_LENGTH].rsplit(" ", 1)[0]  # Truncate at word boundary
-            
-            # Sanitize: remove any extra commentary or explanations
-            # The LLM should only return the enhanced prompt, but sometimes it adds explanations
-            lines = enhanced.split("\n")
-            # Take the first substantial line (usually the enhanced prompt)
-            for line in lines:
-                line = line.strip()
-                if line and len(line) > 10 and not line.startswith(("Enhanced", "Here", "The")):
-                    enhanced = line
-                    break
-            
-            self._logger.info(f"Enhanced prompt: '{enhanced[:100]}...'")
-            return enhanced
-            
-        except AIProcessorError as e:
-            self._logger.warning(f"AI processor error during enhancement: {e}, using original prompt")
-            return user_prompt
         except Exception as e:
-            self._logger.error(f"Unexpected error during prompt enhancement: {e}", exc_info=True)
-            return user_prompt
+            self._logger.warning(f"OpenRouter enhancement failed: {e}, will try Gemini fallback")
+            return (None, "")
+    
+    async def _try_enhance_with_gemini(self, user_prompt: str) -> Tuple[Optional[str], str]:
+        """
+        Try to enhance prompt using Gemini (fallback).
+        
+        Returns:
+            Tuple of (enhanced_prompt or None, "gemini" or "")
+        """
+        try:
+            # Check if Gemini is configured
+            from ..core.config import get_settings
+            config = get_settings()
+            
+            if not config.gemini_api_key:
+                self._logger.warning("Gemini not configured, cannot use fallback")
+                return (None, "")
+            
+            self._logger.info(f"Enhancing prompt with Gemini (fallback): '{user_prompt[:50]}...'")
+            
+            # Temporarily switch to Gemini
+            original_provider = config.llm_provider
+            config.llm_provider = "gemini"
+            
+            try:
+                # Format the enhancement prompt
+                enhancement_prompt = IMAGE_PROMPT_ENHANCEMENT_PROMPT.format(
+                    user_prompt=user_prompt
+                )
+                
+                # Call AI processor to enhance the prompt
+                enhanced = await self._ai_processor.execute_custom_prompt(
+                    user_prompt=enhancement_prompt,
+                    system_message=IMAGE_PROMPT_ENHANCEMENT_SYSTEM_MESSAGE
+                )
+                
+                if not enhanced or not enhanced.strip():
+                    self._logger.warning("Empty response from Gemini")
+                    return (None, "")
+                
+                # Clean and validate enhanced prompt
+                cleaned = self._clean_enhanced_prompt(enhanced)
+                if cleaned:
+                    self._logger.info(f"Successfully enhanced with Gemini: '{cleaned[:100]}...'")
+                    return (cleaned, "gemini")
+                
+                return (None, "")
+            finally:
+                # Restore original provider
+                config.llm_provider = original_provider
+                
+        except Exception as e:
+            self._logger.error(f"Gemini enhancement failed: {e}", exc_info=True)
+            return (None, "")
+    
+    def _clean_enhanced_prompt(self, enhanced: str) -> Optional[str]:
+        """
+        Clean and validate enhanced prompt output.
+        
+        Args:
+            enhanced: Raw LLM output
+            
+        Returns:
+            Cleaned prompt or None if invalid
+        """
+        enhanced = enhanced.strip()
+        
+        # Remove any markdown formatting that might have been added
+        if enhanced.startswith("```"):
+            # Remove code block markers
+            lines = enhanced.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            enhanced = "\n".join(lines).strip()
+        
+        # Validate length
+        if len(enhanced) > MAX_IMAGE_PROMPT_LENGTH:
+            self._logger.warning(
+                f"Enhanced prompt too long ({len(enhanced)} chars), truncating to {MAX_IMAGE_PROMPT_LENGTH}"
+            )
+            enhanced = enhanced[:MAX_IMAGE_PROMPT_LENGTH].rsplit(" ", 1)[0]  # Truncate at word boundary
+        
+        # Sanitize: remove any extra commentary or explanations
+        # The LLM should only return the enhanced prompt, but sometimes it adds explanations
+        lines = enhanced.split("\n")
+        # Take the first substantial line (usually the enhanced prompt)
+        for line in lines:
+            line = line.strip()
+            if line and len(line) > 10 and not line.startswith(("Enhanced", "Here", "The")):
+                enhanced = line
+                break
+        
+        # Final validation
+        if not enhanced or len(enhanced) < 10:
+            return None
+        
+        return enhanced
 

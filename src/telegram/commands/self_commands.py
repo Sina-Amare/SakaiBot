@@ -134,49 +134,279 @@ async def handle_auth_command(event: events.NewMessage.Event, args: str):
 
 
 async def handle_help_command(event: events.NewMessage.Event, args: str):
-    """Handle /help command."""
+    """Handle /help command - comprehensive bot usage guide."""
     try:
         if not args:
-            # Show all commands
+            # Main help message
             msg = """
-🤖 <b>SakaiBot Self-Commands</b>
+🤖 <b>SakaiBot - Complete Guide</b>
 
-<b>📋 AUTHORIZATION</b>
+<i>Smart userbot with AI, image generation, voice, and monitoring</i>
+
+<b>🎨 IMAGE GENERATION</b>
+<code>/image=flux=your prompt here</code>
+Generate images with FLUX model (fast, high quality)
+
+<code>/image=sdxl=your prompt here</code>
+Generate images with SDXL model (stable, detailed)
+
+<i>• Prompts auto-enhanced by OpenRouter AI
+• Max 1000 characters per prompt
+• Rate limit: 10 requests per 60 seconds</i>
+
+<b>🤖 AI COMMANDS</b>
+<code>/prompt=your question</code>
+Ask AI any question or give instructions
+
+<code>/translate=en=text here</code>
+Translate text to any language (en, fa, es, etc.)
+<i>Can also reply to a message with /translate=lang</i>
+
+<code>/analyze=100</code>
+AI analyzes last 100 messages in chat
+<i>Modes: /analyze=fun=50, /analyze=romance=200</i>
+
+<code>/tellme=50=your question</code>
+Ask AI about last 50 messages in chat
+
+<b>🎧 VOICE & AUDIO</b>
+<code>/tts=text to speak</code>
+Convert text to speech (reply to message also works)
+<i>Supports multiple voices and languages</i>
+
+<code>/stt</code> (reply to voice message)
+Transcribe voice to text + AI summary
+
+<b>📋 USERBOT COMMANDS</b>
 <code>/auth list</code> - View authorized users
-<code>/auth add @user</code> - Add authorized user  
-<code>/auth remove @user</code> - Remove user
+<code>/auth add @user</code> - Authorize a user
+<code>/auth remove @user</code> - Remove authorization
 
-<b>⚙️ STATUS</b>
-<code>/status</code> - Bot statistics
+<code>/status</code> - Bot statistics & system info
 
-<b>❓ HELP</b>
-<code>/help</code> - This message
-<code>/help auth</code> - Help for auth commands
+<code>/help</code> - This comprehensive guide
+<code>/help images</code> - Image generation details
+<code>/help ai</code> - AI commands details
+<code>/help voice</code> - Voice features details
 
-<i>💡 All existing commands (/tts, /translate, /prompt, etc.) still work!</i>
+<b>⚠️ LIMITATIONS & NOTES</b>
+• Rate limit: 10 AI/image requests per 60 seconds
+• Monitoring must be started from CLI (not Telegram)
+• Only authorized users can use bot features
+• Image generation requires configured worker URLs
+• Max message history for analyze: 10,000 messages
+
+<b>💡 TIPS</b>
+• Use specific, detailed prompts for better images
+• AI prompt enhancement works automatically
+• Voice messages auto-transcribed if monitoring active
+• Check /status for current bot configuration
+
+<i>🔗 SakaiBot v1.0 | Powered by OpenRouter & Gemini</i>
 """
             await event.edit(msg, parse_mode='html')
+        
+        elif args == 'images' or args == 'image':
+            msg = """
+<b>🎨 Image Generation Guide</b>
+
+<b>Basic Usage:</b>
+<code>/image=flux=a beautiful sunset over mountains</code>
+<code>/image=sdxl=cyberpunk city at night, neon lights</code>
+
+<b>Models Available:</b>
+
+<b>FLUX</b> - Fast, modern, high quality
+• Best for: Creative, artistic images
+• Speed: ~15-30 seconds
+• Style: Modern, vibrant, detailed
+
+<b>SDXL</b> - Stable, detailed, realistic
+• Best for: Realistic photos, portraits
+• Speed: ~20-40 seconds
+• Style: Photorealistic, stable output
+
+<b>Prompt Tips:</b>
+✅ Be specific: "golden retriever puppy playing in grass"
+✅ Add style: "..., photorealistic, 4k, detailed"
+✅ Describe details: colors, lighting, composition
+❌ Too vague: "dog"
+❌ Too complex: 500+ words
+
+<b>Features:</b>
+• Automatic AI prompt enhancement (OpenRouter → Gemini fallback)
+• Queue system handles multiple requests
+• Real-time status updates
+• Auto-cleanup of temporary files
+
+<b>Rate Limits:</b>
+• 10 requests per 60 seconds per user
+• If limit exceeded, wait 60 seconds
+
+<b>Troubleshooting:</b>
+• "Rate limit exceeded" → Wait 60 seconds
+• "Content filtered" → Try different prompt
+• "Timeout" → Worker overloaded, try again
+• "Invalid model" → Use 'flux' or 'sdxl' only
+
+<i>Images are auto-deleted after sending to save space</i>
+"""
+            await event.edit(msg, parse_mode='html')
+        
+        elif args == 'ai':
+            msg = """
+<b>🤖 AI Commands Guide</b>
+
+<b>1. PROMPT - General AI Queries</b>
+<code>/prompt=what is quantum computing?</code>
+<code>/prompt=write a poem about stars</code>
+<code>/prompt=explain this code: [paste code]</code>
+
+<i>Use for: Questions, explanations, creative writing</i>
+
+<b>2. TRANSLATE - Language Translation</b>
+<code>/translate=en=سلام دنیا</code>
+<code>/translate=fa=Hello world</code>
+<code>/translate=es,en=Hola amigo</code> (Spanish to English)
+
+<i>Reply to any message with /translate=lang</i>
+
+Supported languages:
+• en (English), fa (Persian), es (Spanish)
+• ar (Arabic), fr (French), de (German)
+• zh (Chinese), ja (Japanese), ru (Russian)
+• And many more...
+
+<b>3. ANALYZE - Chat Analysis</b>
+<code>/analyze=100</code> - Analyze last 100 messages
+<code>/analyze=fun=50</code> - Fun analysis mode
+<code>/analyze=romance=200</code> - Romance analysis
+<code>/analyze=general=500</code> - General insights
+
+<i>AI provides summary, themes, and insights</i>
+
+<b>4. TELLME - Chat Q&A</b>
+<code>/tellme=50=what topics were discussed?</code>
+<code>/tellme=100=who talked the most?</code>
+<code>/tellme=200=summarize the conversation</code>
+
+<i>Ask questions about recent chat history</i>
+
+<b>Rate Limits:</b>
+All AI commands share: 10 requests per 60 seconds
+
+<b>Max History:</b>
+• Analyze: Up to 10,000 messages
+• Tellme: Up to 10,000 messages
+
+<i>Powered by OpenRouter & Google Gemini</i>
+"""
+            await event.edit(msg, parse_mode='html')
+        
+        elif args == 'voice':
+            msg = """
+<b>🎧 Voice & Audio Guide</b>
+
+<b>TEXT-TO-SPEECH (TTS)</b>
+<code>/tts=Hello, this is a test message</code>
+<code>/tts=سلام، این یک پیام تست است</code>
+
+<i>Or reply to any text message with:</i>
+<code>/tts</code>
+
+<b>Features:</b>
+• Multiple voice options (Alloy, Echo, Fable, etc.)
+• Supports multiple languages
+• Queue system for multiple requests
+• Real-time status updates
+
+<b>SPEECH-TO-TEXT (STT)</b>
+Reply to any voice message with:
+<code>/stt</code>
+
+<b>What you get:</b>
+1. 📝 Transcribed text (accurate transcription)
+2. 🔍 AI Summary & Analysis (key points, insights)
+
+<i>Works with voice notes, audio files, and videos</i>
+
+<b>Auto-Transcription:</b>
+When monitoring is active, voice messages are automatically transcribed without needing /stt command.
+
+<b>Supported Formats:</b>
+• Voice notes (.ogg, .opus)
+• Audio files (.mp3, .wav, .m4a)
+• Video audio tracks (.mp4, .mkv)
+
+<b>Rate Limits:</b>
+• TTS: Shared 10 req/60s limit
+• STT: No specific limit (uses AI quota)
+
+<b>Quality Notes:</b>
+• Clear audio = better transcription
+• Background noise may affect accuracy
+• Long files may take time to process
+
+<i>Powered by advanced AI speech models</i>
+"""
+            await event.edit(msg, parse_mode='html')
+        
         elif args == 'auth':
             msg = """
-<b>Authorization Commands</b>
+<b>🔐 Authorization Commands</b>
 
+<b>📋 LIST USERS</b>
 <code>/auth list</code>
-View all authorized users with details
+View all authorized users with:
+• Full name and username
+• User ID (for reference)
+• Total count
 
+<b>➕ ADD USER</b>
 <code>/auth add @username</code>
 <code>/auth add 123456789</code>
-Add a user to authorized list
-Supports username or user ID
 
+Supports both:
+• Username format: @username
+• Direct user ID: 123456789
+
+<b>➖ REMOVE USER</b>
 <code>/auth remove @username</code>
 <code>/auth remove 123456789</code>
-Remove a user from authorized list
 
-<i>Authorized users can interact with the bot</i>
+Remove authorization from user
+
+<b>How Authorization Works:</b>
+• Only authorized users can use bot commands
+• Unauthorized users are ignored
+• Admin (you) has full access always
+• Changes save immediately
+
+<b>Use Cases:</b>
+• Allow trusted friends to use bot
+• Revoke access when needed
+• Control who can generate images
+• Manage AI command access
+
+<i>⚠️ Only add users you trust</i>
 """
             await event.edit(msg, parse_mode='html')
+        
         else:
-            await event.edit(f"❌ No help available for: {args}", parse_mode='html')
+            # Unknown help topic
+            msg = f"""
+❌ <b>Unknown help topic:</b> <code>{args}</code>
+
+<b>Available help topics:</b>
+<code>/help</code> - Main guide (all features)
+<code>/help images</code> - Image generation
+<code>/help ai</code> - AI commands
+<code>/help voice</code> - Voice features
+<code>/help auth</code> - Authorization
+
+<i>Type /help to see the complete guide</i>
+"""
+            await event.edit(msg, parse_mode='html')
     
     except Exception as e:
         logger.error(f"Error in /help command: {e}", exc_info=True)

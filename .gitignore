@@ -168,3 +168,9 @@ scripts/convert_to_english.py
 # Others
 prompt.md
 *.md.backup
+AGENTS.md
+Agents.md
+agents.md
+AGENTS.local.md
+Agents.local.md
+agents.local.md

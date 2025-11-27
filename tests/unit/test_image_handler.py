@@ -158,7 +158,7 @@ async def test_process_image_command_success_flux(
     image_queue._sdxl_processing = False
     
     # Setup mocks
-    mock_prompt_enhancer.enhance_prompt = AsyncMock(return_value="enhanced prompt")
+    mock_prompt_enhancer.enhance_prompt = AsyncMock(return_value=("enhanced prompt", "openrouter"))
     mock_image_generator.generate_with_flux = AsyncMock(
         return_value=(True, "/tmp/test_image.png", None)
     )
@@ -202,7 +202,7 @@ async def test_process_image_command_generation_failure(
     image_queue._flux_processing = False
     image_queue._sdxl_processing = False
     
-    mock_prompt_enhancer.enhance_prompt = AsyncMock(return_value="enhanced prompt")
+    mock_prompt_enhancer.enhance_prompt = AsyncMock(return_value=("enhanced prompt", "openrouter"))
     mock_image_generator.generate_with_flux = AsyncMock(
         return_value=(False, None, "Generation failed")
     )

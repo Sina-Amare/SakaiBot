@@ -11,13 +11,13 @@ from ..core.exceptions import (
     AIProcessorError,
     ValidationError
 )
-from .logging import get_logger
-from .security import sanitize_log_message
+from ..utils.logging import get_logger
 
+# Define type variable for generic functions
 T = TypeVar('T')
-logger = get_logger(__name__)
 
-# Persian error messages for users
+logger = get_logger(__name__)
+# English error messages for users
 ERROR_MESSAGES = {
     ConfigurationError: "⚠️ Configuration Error: Please check your settings.",
     TelegramError: "⚠️ Telegram Error: Failed to communicate with Telegram. Please try again.",
@@ -68,7 +68,7 @@ class ErrorHandler:
             if issubclass(error_type, exc_type):
                 # Add details if available
                 if hasattr(error, 'details') and error.details:
-                    return f"{message}\n\nجزئیات: {error.details}"
+                    return f"{message}\n\nDetails: {error.details}"
                 return message
         
         # Default message
@@ -121,10 +121,9 @@ class ErrorHandler:
         """
         context_str = f" [{context}]" if context else ""
         error_message = str(error)
-        # Sanitize error message to mask API keys and sensitive data
-        sanitized_message = sanitize_log_message(error_message)
+        # Log error message
         logger.error(
-            f"Error{context_str}: {type(error).__name__}: {sanitized_message}",
+            f"Error{context_str}: {type(error).__name__}: {error_message}",
             exc_info=True
         )
 

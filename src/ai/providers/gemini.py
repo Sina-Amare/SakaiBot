@@ -272,7 +272,8 @@ class GeminiProvider(LLMProvider):
     async def analyze_messages(
         self,
         messages: List[Dict[str, Any]],
-        analysis_type: str = "summary"
+        analysis_type: str = "summary",
+        output_language: str = "english"
     ) -> str:
         """Analyze messages using Google Gemini with Persian analysis."""
         if not messages:
@@ -361,9 +362,15 @@ Messages:
             f"Sending conversation ({num_messages} messages) for {analysis_type} analysis"
         )
         
+        # Append language instruction to prompt
+        lang_instr = f"\n\n**CRITICAL**: Write ENTIRE response in {output_language}. "
+        if output_language == "persian":
+            lang_instr += "Use colloquial Persian (یارو, رفیق), natural spacing (می‌آد not می اورد)."
+        formatted_prompt = prompt + lang_instr
+        
         # Use lower temperature for analysis accuracy
         return await self.execute_prompt(
-            prompt, 
+            formatted_prompt, 
             max_tokens=100000, 
             temperature=0.4,
             system_message=system_message

@@ -187,6 +187,10 @@ async def _start_monitoring(verbose: bool):
                 client.add_event_handler(auth_handler, auth_filter)
                 auth_handlers.append((auth_handler, auth_filter))
         
+        # Start analyze queue cleanup task
+        from src.ai.analyze_queue import analyze_queue
+        await analyze_queue.start_cleanup_task()
+        
         monitoring_active = True
         display_success("Monitoring started. Press Ctrl+C to stop.")
         
@@ -201,6 +205,10 @@ async def _start_monitoring(verbose: bool):
             client.remove_event_handler(owner_handler, owner_filter)
             for handler, filter in auth_handlers:
                 client.remove_event_handler(handler, filter)
+            
+            # Stop analyze queue cleanup task
+            from src.ai.analyze_queue import analyze_queue
+            await analyze_queue.stop_cleanup_task()
             
             monitoring_active = False
             display_info("Monitoring stopped")

@@ -22,6 +22,49 @@ from ...utils.metrics import get_metrics_collector, TimingContext
 from .base import BaseHandler
 
 
+def format_analysis_metadata(
+    num_messages: int,
+    unique_senders: list,
+    first_date,
+    last_date,
+    analysis_type: str,
+    language: str
+) -> str:
+    """
+    Generate metadata footer for analysis results.
+    
+    Args:
+        num_messages: Total number of messages analyzed
+        unique_senders: List of unique sender names
+        first_date: First message timestamp
+        last_date: Last message timestamp
+        analysis_type: Type of analysis performed
+        language: Output language
+        
+    Returns:
+        Formatted metadata string
+    """
+    # Format sender names (max 10, then truncate)
+    names = ', '.join(unique_senders[:10])
+    if len(unique_senders) > 10:
+        names += f', +{len(unique_senders)-10} more'
+    
+    # Format dates
+    first = first_date.strftime('%b %d, %H:%M')
+    last = last_date.strftime('%b %d, %H:%M')
+    
+    return f"""
+
+───────────────────────
+📊 **Analysis Metadata**
+**Messages:** {num_messages}
+**Participants:** {len(unique_senders)} ({names})
+**Timeframe:** {first} - {last}
+**Type:** {analysis_type.title()}
+**Language:** {language.title()}
+"""
+
+
 class AIHandler(BaseHandler):
     """Handles AI commands (prompt, translate, analyze, tellme)."""
     
@@ -228,14 +271,20 @@ class AIHandler(BaseHandler):
             messages_data = []
             for msg in reversed(history):
                 if msg and msg.text:
-                    sender_name = (
-                        "You" if msg.sender_id == me_user.id
-                        else (
-                            getattr(msg.sender, 'first_name', None) or
-                            getattr(msg.sender, 'username', None) or
-                            f"User_{msg.sender_id}"
+                    # Fetch sender entity explicitly
+                    try:
+                        sender = await msg.get_sender()
+                        sender_name = (
+                            "You" if msg.sender_id == me_user.id
+                            else (
+                                getattr(sender, 'first_name', None) or
+                                getattr(sender, 'username', None) or
+                                f"User_{msg.sender_id}"
+                            )
                         )
-                    )
+                    except Exception:
+                        sender_name = f"User_{msg.sender_id}"
+
                     messages_data.append({
                         'sender': sender_name,
                         'text': msg.text,
@@ -245,31 +294,30 @@ class AIHandler(BaseHandler):
             if not messages_data:
                 return "📭 No text messages found in the specified history to analyze."
             
-            # Generate English analysis first
-            english_analysis = await self._ai_processor.analyze_conversation_messages(
+            # Generate analysis DIRECTLY in target language
+            analysis_result = await self._ai_processor.analyze_conversation_messages(
                 messages_data,
-                analysis_mode=analysis_mode
+                analysis_mode=analysis_mode,
+                output_language=output_language
             )
             
-            if not english_analysis or not english_analysis.strip():
-                self._logger.warning(f"Empty response from AI for analysis. Response was: {english_analysis}")
+            # Validate and return result
+            if not analysis_result or not analysis_result.strip():
+                self._logger.warning(f"Empty response from AI for analysis. Response was: {analysis_result}")
                 return "⚠️ Analysis incomplete - the AI processed your messages but couldn't generate a summary. This might be due to content in the messages. Try analyzing fewer messages."
             
-            # Translate to Persian if requested
-            if output_language == "persian":
-                try:
-                    self._logger.info(f"Translating {analysis_mode} analysis to Persian...")
-                    persian_analysis = await translate_analysis(
-                        english_analysis=english_analysis,
-                        analysis_type=analysis_mode,
-                        output_language="persian"
-                    )
-                    return persian_analysis
-                except TranslationError as e:
-                    self._logger.error(f"Translation failed: {e}. Falling back to English.")
-                    return english_analysis
-            else:
-                return english_analysis
+            # Generate metadata footer
+            unique_senders = list(set(m['sender'] for m in messages_data))
+            metadata = format_analysis_metadata(
+                num_messages=len(messages_data),
+                unique_senders=unique_senders,
+                first_date=messages_data[0]['timestamp'],
+                last_date=messages_data[-1]['timestamp'],
+                analysis_type=analysis_mode,
+                language=output_language
+            )
+            
+            return analysis_result.strip() + metadata
         
         except AIProcessorError as e:
             return f"AI Error: {e}"
@@ -303,14 +351,20 @@ class AIHandler(BaseHandler):
             messages_data = []
             for msg in reversed(history):
                 if msg and msg.text:
-                    sender_name = (
-                        "You" if msg.sender_id == me_user.id
-                        else (
-                            getattr(msg.sender, 'first_name', None) or
-                            getattr(msg.sender, 'username', None) or
-                            f"User_{msg.sender_id}"
+                    # Fetch sender entity explicitly
+                    try:
+                        sender = await msg.get_sender()
+                        sender_name = (
+                            "You" if msg.sender_id == me_user.id
+                            else (
+                                getattr(sender, 'first_name', None) or
+                                getattr(sender, 'username', None) or
+                                f"User_{msg.sender_id}"
+                            )
                         )
-                    )
+                    except Exception:
+                        sender_name = f"User_{msg.sender_id}"
+
                     messages_data.append({
                         'sender': sender_name,
                         'text': msg.text,

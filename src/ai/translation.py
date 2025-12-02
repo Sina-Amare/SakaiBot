@@ -103,7 +103,7 @@ async def translate_analysis(
     
     # Initialize Gemini 2.5 Flash model
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash-002",  # Stable version, not experimental
+        model_name="gemini-2.5-flash",  # Stable version, not experimental
         generation_config={
             "temperature": 0.3,  # Low temperature for consistency
             "top_p": 0.9,

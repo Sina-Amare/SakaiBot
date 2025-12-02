@@ -82,7 +82,8 @@ class LLMProvider(ABC):
     async def analyze_messages(
         self,
         messages: List[Dict[str, Any]],
-        analysis_type: str = "summary"
+        analysis_type: str = "summary",
+        output_language: str = "english"
     ) -> str:
         """
         Analyze a list of messages.

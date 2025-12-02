@@ -120,7 +120,8 @@ class AIProcessor:
         messages: List[Dict[str, Any]],
         participant_mapping: Optional[Dict[int, str]] = None,
         max_messages: int = 10000,
-        analysis_mode: str = "general"
+        analysis_mode: str = "general",
+        output_language: str = "english"
     ) -> str:
         """Analyze a collection of messages."""
         if not self.is_configured:
@@ -132,7 +133,7 @@ class AIProcessor:
             raise AIProcessorError("No messages provided for analysis")
         
         self._logger.info(
-            f"Analyzing {len(messages)} messages with {self.provider_name}"
+            f"Analyzing {len(messages)} messages with {self.provider_name}, output={output_language}"
         )
         
         # Prepare messages for analysis
@@ -150,7 +151,8 @@ class AIProcessor:
         
         return await self._provider.analyze_messages(
             messages=processed_messages,
-            analysis_type=analysis_mode
+            analysis_type=analysis_mode,
+            output_language=output_language
         )
     
     async def close(self) -> None:
@@ -176,7 +178,8 @@ class AIProcessor:
     async def analyze_conversation_messages(
         self, 
         messages_data: List[Dict[str, Any]],
-        analysis_mode: str = "general"
+        analysis_mode: str = "general",
+        output_language: str = "english"
     ) -> str:
         """Analyze conversation messages (compatibility wrapper)."""
         # Convert to expected format for analyze_messages
@@ -197,7 +200,8 @@ class AIProcessor:
         return await self.analyze_messages(
             messages=messages,
             participant_mapping=participant_mapping,
-            analysis_mode=analysis_mode
+            analysis_mode=analysis_mode,
+            output_language=output_language
         )
     
     async def answer_question_from_chat_history(

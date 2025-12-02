@@ -8,7 +8,7 @@ from telethon import TelegramClient
 from telethon.tl.types import Message
 
 from ...ai.processor import AIProcessor
-from ...ai.translation import translate_analysis, TranslationError
+
 from ...core.constants import MAX_MESSAGE_LENGTH
 from ...core.exceptions import AIProcessorError
 from ...utils.helpers import split_message

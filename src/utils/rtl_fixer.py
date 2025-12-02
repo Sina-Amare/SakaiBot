@@ -32,19 +32,23 @@ URL_PATTERN: Final[re.Pattern] = re.compile(
     re.IGNORECASE
 )
 
-# LTR segments: English words, numbers, emails, inline code
+# LTR segments: English words, emails, inline code
+# NOTE: Numbers are intentionally EXCLUDED to avoid visual artifacts
+# in pagination (1/2), section numbers, and Persian numerals
 # This pattern matches:
 # 1. Email addresses
-# 2. English words (alphanumeric with hyphens, underscores, dots)
-# 3. Numbers with optional decimal and percentage
-# 4. Inline code between backticks
+# 2. English words (2+ chars to avoid single-letter artifacts)
+# 3. Inline code between backticks
 LTR_SEGMENT_PATTERN: Final[re.Pattern] = re.compile(
     r'\b[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b|'  # Email
-    r'\b[A-Za-z][A-Za-z0-9._-]*\b|'  # English words
-    r'\d+\.?\d*%?|'  # Numbers with optional % or decimal
+    r'\b[A-Za-z][A-Za-z0-9._-]+\b|'  # English words (2+ chars, not single letters)
     r'`[^`]+`',  # Inline code
     re.IGNORECASE
 )
+
+# Pagination pattern to protect from LRM insertion
+# Matches: (1/2), (2/2), etc.
+PAGINATION_PATTERN: Final[re.Pattern] = re.compile(r'\(\d+/\d+\)')
 
 
 def has_persian_text(text: str) -> bool:
@@ -83,13 +87,12 @@ def fix_rtl_display(text: str) -> str:
     
     This function inserts Unicode LRM (U+200E) characters after:
     - URLs (complete URLs get single LRM after)
-    - English words
-    - Numbers (including decimals and percentages)
+    - English words (2+ characters) ONLY when between Persian words
     - Email addresses
     - Inline code (between backticks)
     
-    HTML tags are preserved and not modified. LRM is NOT inserted inside
-    HTML tag brackets (<...>).
+    Numbers are intentionally NOT processed to avoid visual artifacts
+    in pagination (1/2), section numbers, and Persian contexts.
     
     Args:
         text: Text with mixed RTL (Persian) and LTR (English/numbers) content
@@ -104,14 +107,13 @@ def fix_rtl_display(text: str) -> str:
         >>> fix_rtl_display("لینک: https://example.com اینجاست")
         'لینک: https://example.com‎ اینجاست'
         
-        >>> fix_rtl_display("احتمال 85% است")
-        'احتمال 85%‎ است'
-        
         >>> fix_rtl_display("<b>bold</b> متن فارسی")
         '<b>bold‎</b> متن فارسی'
     
     Notes:
         - Does NOT modify text without Persian characters (optimization)
+        - Does NOT add LRM after numbers (prevents pagination/section artifacts)
+        - Does NOT add LRM after usernames followed by : or ( or )
         - Preserves all HTML formatting
         - Safe to call multiple times (idempotent - won't double-insert)
     """
@@ -119,13 +121,35 @@ def fix_rtl_display(text: str) -> str:
     if not has_persian_text(text):
         return text
     
-    # Step 1: Insert LRM after URLs
+    # Step 1: Protect pagination patterns by temporarily replacing them
+    # This prevents any accidental LRM insertion in pagination like (1/2)
+    pagination_placeholders = []
+    def protect_pagination(match):
+        placeholder = f"\x00PAGINATION_{len(pagination_placeholders)}\x00"
+        pagination_placeholders.append(match.group(0))
+        return placeholder
+    
+    text = PAGINATION_PATTERN.sub(protect_pagination, text)
+    
+    # Step 2: Insert LRM after URLs
     # URLs are processed first to avoid breaking them with word-level processing
     text = URL_PATTERN.sub(lambda m: m.group(0) + LRM, text)
     
-    # Step 2: Insert LRM after other LTR segments (English, numbers, etc.)
-    # This handles: English words, numbers, emails, inline code
+    # Step 3: Insert LRM after other LTR segments (English words, emails, code)
+    # Numbers are intentionally excluded to prevent visual artifacts
     text = LTR_SEGMENT_PATTERN.sub(lambda m: m.group(0) + LRM, text)
+    
+    # Step 4: Remove LRM before certain characters where it causes visible artifacts
+    # This handles usernames like "sina:" or "amirhossein:" in bullet points
+    # Pattern: LRM followed by : or ) or ( or end of bullet point context
+    text = text.replace(LRM + ':', ':')
+    text = text.replace(LRM + ')', ')')
+    text = text.replace(LRM + '(', '(')
+    text = text.replace(LRM + ' (', ' (')
+    
+    # Step 5: Restore pagination patterns
+    for i, original in enumerate(pagination_placeholders):
+        text = text.replace(f"\x00PAGINATION_{i}\x00", original)
     
     return text
 

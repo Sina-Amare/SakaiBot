@@ -13,6 +13,8 @@ from ...core.exceptions import AIProcessorError
 from ...utils.logging import get_logger
 from ..prompts import (
     TRANSLATION_SYSTEM_MESSAGE,
+    TRANSLATION_AUTO_DETECT_PROMPT,
+    TRANSLATION_SOURCE_TARGET_PROMPT,
     CONVERSATION_ANALYSIS_PROMPT,
     CONVERSATION_ANALYSIS_SYSTEM_MESSAGE,
     QUESTION_ANSWER_PROMPT,
@@ -21,7 +23,11 @@ from ..prompts import (
     ANALYZE_GENERAL_PROMPT,
     ANALYZE_FUN_PROMPT,
     ANALYZE_ROMANCE_PROMPT,
-    ANALYZE_FUN_SYSTEM_MESSAGE
+    ANALYZE_FUN_SYSTEM_MESSAGE,
+    ENGLISH_ANALYSIS_SYSTEM_MESSAGE,
+    DEFAULT_CHAT_SUMMARY_PROMPT,
+    get_telegram_formatting_guidelines,
+    get_response_scaling_instructions
 )
 
 
@@ -218,31 +224,18 @@ class OpenRouterProvider(LLMProvider):
         # Log the exact text being translated for debugging purposes
         self._logger.debug(f"Translation request - Text: '{text[:100]}...', Target: {target_language} ({target_language_name}), Source: {source_language}")
         
-        # Build a clean translation prompt without sarcastic commentary
+        # Build translation prompt from centralized prompts
         if source_language.lower() == "auto":
-            prompt = (
-                f"Detect the language of the following text and then translate it to {target_language_name}.\n"
-                f"Provide the Persian phonetic pronunciation for the translated text.\n\n"
-                f"Text to translate:\n\"{text}\"\n\n"
-                f"Output format:\n"
-                f"Translation: [translated text]\n"
-                f"Phonetic: ([Persian phonetic pronunciation])\n\n"
-                f"Example:\n"
-                f"Translation: Hello world\n"
-                f"Phonetic: (هِلو وَرلد)"
+            prompt = TRANSLATION_AUTO_DETECT_PROMPT.format(
+                target_language_name=target_language_name,
+                text=text
             )
         else:
             source_language_name = get_language_name(source_language)
-            prompt = (
-                f"Translate the following text from {source_language_name} to {target_language_name}.\n"
-                f"Provide the Persian phonetic pronunciation for the translated text.\n\n"
-                f"Text to translate:\n\"{text}\"\n\n"
-                f"Output format:\n"
-                f"Translation: [translated text]\n"
-                f"Phonetic: ([Persian phonetic pronunciation])\n\n"
-                f"Example:\n"
-                f"Translation: Hello world\n"
-                f"Phonetic: (هِلو وَرلد)"
+            prompt = TRANSLATION_SOURCE_TARGET_PROMPT.format(
+                source_language_name=source_language_name,
+                target_language_name=target_language_name,
+                text=text
             )
         
         self._logger.info(
@@ -346,27 +339,32 @@ class OpenRouterProvider(LLMProvider):
             )
             system_message = None
         else:
-            # Default summary
-            prompt = f"""Please analyze and summarize the following chat messages.
-Provide a comprehensive summary including:
-1. Main topics discussed
-2. Key participants and their contributions
-3. Important decisions or conclusions
-4. Overall sentiment
-
-Messages:
-{messages_text}"""
+            # Default summary (from centralized prompts)
+            prompt = DEFAULT_CHAT_SUMMARY_PROMPT.format(messages_text=messages_text)
             system_message = None
         
         self._logger.info(
-            f"Sending conversation ({num_messages} messages) for {analysis_type} analysis"
+            f"Sending conversation ({num_messages} messages) for {analysis_type} analysis, language={output_language}"
         )
         
+        # Override system message for English output (from centralized prompts)
+        if output_language == "english":
+            system_message = ENGLISH_ANALYSIS_SYSTEM_MESSAGE
+        
         # Append language instruction to prompt
-        lang_instr = f"\n\n**CRITICAL**: Write ENTIRE response in {output_language}. "
+        lang_instr = f"\n\n**CRITICAL**: Write your ENTIRE response in {output_language.upper()}. "
         if output_language == "persian":
             lang_instr += "Use colloquial Persian (یارو, رفیق), natural spacing (می‌آد not می اورد)."
-        formatted_prompt = prompt + lang_instr
+        else:
+            lang_instr += "Do NOT use Persian/Farsi. Write everything in English only."
+        
+        # Add Telegram-specific formatting guidelines (centralized in prompts.py)
+        format_guidelines = get_telegram_formatting_guidelines(output_language)
+        
+        # Add response scaling instructions based on message count and analysis type
+        scaling_instructions = get_response_scaling_instructions(num_messages, analysis_type)
+        
+        formatted_prompt = prompt + lang_instr + format_guidelines + scaling_instructions
         
         return await self.execute_prompt(
             formatted_prompt, 
@@ -400,18 +398,22 @@ Messages:
         
         combined_history = "\n".join(formatted_messages)
         
-        # Build Persian question-answering prompt
+        # Build Persian question-answering prompt with formatting guidelines
         prompt = QUESTION_ANSWER_PROMPT.format(
             combined_history_text=combined_history,
             user_question=question
         )
+        
+        # Add centralized formatting guidelines
+        format_guidelines = get_telegram_formatting_guidelines("persian")
+        formatted_prompt = prompt + format_guidelines
         
         self._logger.info(
             f"Answering question '{question[:50]}...' based on {len(formatted_messages)} messages"
         )
         
         return await self.execute_prompt(
-            prompt,
+            formatted_prompt,
             max_tokens=100000,
             temperature=0.5,
             system_message=QUESTION_ANSWER_SYSTEM_MESSAGE

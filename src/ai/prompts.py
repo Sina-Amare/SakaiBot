@@ -8,6 +8,152 @@ Centralized location for easy maintenance and updates.
 from typing import Final
 
 # ============================================================================
+# TELEGRAM FORMATTING CONSTANTS (Single Source of Truth)
+# ============================================================================
+# These constants ensure consistent formatting across ALL commands and providers.
+# Change here = changes everywhere automatically.
+
+TELEGRAM_SEPARATOR: Final[str] = "━━━━━━━━━━━━━━━━━━"  # U+2501 heavy box line
+TELEGRAM_BULLET: Final[str] = "•"  # Standard bullet point
+TELEGRAM_LIGHT_SEPARATOR: Final[str] = "━━━━━━━━━━━━━━━━━━"  # For metadata footer
+
+# Allowed emojis for section headers (curated list)
+TELEGRAM_ALLOWED_EMOJIS: Final[str] = "📝 💡 🎭 🎤 ✨ 💬 📊 🔍 ⚡ 🎯 💰 📈 🔥 ✔ ✘ 👤 🎬 💎"
+TELEGRAM_FORBIDDEN_EMOJIS: Final[str] = "💩 🤮 🖕"
+
+
+def get_response_scaling_instructions(num_messages: int, analysis_type: str = "fun") -> str:
+    """
+    Get scaling instructions for LLM response length based on input message count and analysis type.
+    
+    This ensures longer conversations get more detailed analysis, tailored to each mode.
+    
+    Args:
+        num_messages: Number of messages in the conversation
+        analysis_type: Type of analysis ('fun', 'general', 'romance')
+    
+    Returns:
+        Scaling instructions string to append to prompts
+    """
+    # Define scaling tiers
+    if num_messages < 100:
+        tier = "small"
+        detail_level = "concise"
+    elif num_messages < 500:
+        tier = "medium"
+        detail_level = "detailed"
+    elif num_messages < 2000:
+        tier = "large"
+        detail_level = "comprehensive"
+    else:  # 2000-5000+
+        tier = "massive"
+        detail_level = "exhaustive and deeply analytical"
+    
+    # Mode-specific scaling
+    if analysis_type == "fun":
+        scaling = {
+            "small": {"highlights": "3-5", "profiles": "1-2 sentences per person", "summary": "3-4 sentences"},
+            "medium": {"highlights": "8-10", "profiles": "2-3 sentences with examples", "summary": "5-7 sentences"},
+            "large": {"highlights": "10-15", "profiles": "3-5 sentences with quotes", "summary": "8-10 sentences"},
+            "massive": {"highlights": "15-20", "profiles": "5-8 sentences with extensive quotes and patterns", "summary": "10-15 sentences"}
+        }
+        section_name = "Golden Moments/Highlights"
+        
+    elif analysis_type == "general":
+        scaling = {
+            "small": {"highlights": "3-5", "profiles": "1-2 sentences per topic", "summary": "3-4 sentences"},
+            "medium": {"highlights": "6-10", "profiles": "2-4 sentences with evidence", "summary": "5-8 sentences"},
+            "large": {"highlights": "10-15", "profiles": "4-6 sentences with detailed evidence", "summary": "8-12 sentences"},
+            "massive": {"highlights": "15-25", "profiles": "6-10 sentences with comprehensive evidence and analysis", "summary": "12-18 sentences"}
+        }
+        section_name = "Key Topics/Insights"
+        
+    elif analysis_type == "romance":
+        scaling = {
+            "small": {"highlights": "3-5", "profiles": "1-2 sentences per pattern", "summary": "3-4 sentences"},
+            "medium": {"highlights": "5-8", "profiles": "2-4 sentences with quotes as evidence", "summary": "5-7 sentences"},
+            "large": {"highlights": "8-12", "profiles": "4-6 sentences with multiple examples", "summary": "7-10 sentences"},
+            "massive": {"highlights": "12-18", "profiles": "6-10 sentences with extensive behavioral analysis", "summary": "10-15 sentences"}
+        }
+        section_name = "Romantic/Emotional Signals"
+        
+    else:  # Default/fallback
+        scaling = {
+            "small": {"highlights": "3-5", "profiles": "1-2 sentences", "summary": "3-4 sentences"},
+            "medium": {"highlights": "6-8", "profiles": "2-3 sentences", "summary": "5-6 sentences"},
+            "large": {"highlights": "8-12", "profiles": "3-5 sentences", "summary": "6-8 sentences"},
+            "massive": {"highlights": "12-15", "profiles": "5-8 sentences", "summary": "8-12 sentences"}
+        }
+        section_name = "Key Points"
+    
+    s = scaling[tier]
+    
+    return (
+        f"\n\n**RESPONSE LENGTH SCALING (CRITICAL)**:\n"
+        f"This conversation has {num_messages} messages. Your response MUST be proportionally {detail_level}.\n"
+        f"- {section_name}: Include {s['highlights']} items with quotes and commentary\n"
+        f"- Profiles/Patterns: {s['profiles']}\n"
+        f"- Executive Summary: {s['summary']}\n"
+        f"- Overall: The more messages provided, the longer and more detailed your analysis should be.\n"
+        f"- Do NOT give a short response for a long conversation. Match depth to input volume.\n"
+    )
+
+
+def get_telegram_formatting_guidelines(language: str = "persian") -> str:
+    """
+    Get Telegram-specific formatting guidelines for LLM output.
+    
+    This is the SINGLE SOURCE OF TRUTH for formatting rules.
+    All providers and commands should use this function.
+    
+    Args:
+        language: Output language ('persian' or 'english')
+    
+    Returns:
+        Formatting guidelines string to append to prompts
+    """
+    base_guidelines = (
+        f"\n\n**TELEGRAM FORMATTING RULES (MANDATORY FOR ALL LANGUAGES)**:\n"
+        f"\nSEPARATORS (CRITICAL - USE EXACTLY THIS):\n"
+        f"- Section separator: {TELEGRAM_SEPARATOR}\n"
+        f"- This is Unicode U+2501 (heavy box line)\n"
+        f"- Do NOT use: — (em dash), ━━━━━━━━━━━━━━━━━━ (light line), --- (dashes)\n"
+        f"- Place separator on its own line with blank line before and after\n"
+        f"\nSTRUCTURE:\n"
+        f"- Start each section with ONE emoji from: {TELEGRAM_ALLOWED_EMOJIS}\n"
+        f"- Keep paragraphs short (2-3 sentences max)\n"
+        f"- Add blank line between sections\n"
+        f"\nTEXT STYLING (Telegram Markdown):\n"
+        f"- Bold headers: **Section Title** (double asterisks)\n"
+        f"- Inline code for names/usernames: `username` (backticks)\n"
+        f"- Use {TELEGRAM_BULLET} for bullet lists (not * or -)\n"
+        f"\nEMOJI RULES:\n"
+        f"- ALLOWED: {TELEGRAM_ALLOWED_EMOJIS}\n"
+        f"- FORBIDDEN: {TELEGRAM_FORBIDDEN_EMOJIS} or any vulgar emoji\n"
+        f"- Use sparingly - one emoji per section header only\n"
+    )
+    
+    # Add language-specific rules
+    if language == "persian":
+        base_guidelines += (
+            f"\nPERSIAN-SPECIFIC RULES:\n"
+            f"- Use Persian numerals for sections: ۱. ۲. ۳. ۴. (not 1. 2. 3. 4.)\n"
+            f"- Section header format: **۱. 📝 عنوان**\n"
+            f"- Use {TELEGRAM_BULLET} (bullet) for lists, not * (asterisk)\n"
+            f"- Keep English names/terms in English: `sina`, `ChatGPT`\n"
+        )
+    else:
+        base_guidelines += (
+            f"\nENGLISH-SPECIFIC RULES:\n"
+            f"- Use English numerals: 1. 2. 3. 4.\n"
+            f"- Section header format: **1. 📝 Title**\n"
+            f"- Write ENTIRELY in English - no Persian/Farsi text\n"
+        )
+    
+    return base_guidelines
+
+
+# ============================================================================
 # UNIVERSAL PERSIAN COMEDIAN PERSONALITY
 # ============================================================================
 
@@ -21,8 +167,52 @@ PERSIAN_COMEDIAN_SYSTEM: Final[str] = (
 )
 
 # ============================================================================
+# ENGLISH ANALYSIS SYSTEM MESSAGE (for 'en' flag)
+# ============================================================================
+
+ENGLISH_ANALYSIS_SYSTEM_MESSAGE: Final[str] = (
+    "You are a sharp, witty analyst with a Bill Burr-style observational humor. "
+    "Write ENTIRELY in English. Be direct, funny, and insightful. "
+    "Use dry wit and sarcasm while maintaining analytical accuracy. "
+    "Structure your response with clear sections and appropriate emojis."
+)
+
+# ============================================================================
+# GENERIC AI ASSISTANT (for /prompt command)
+# ============================================================================
+
+GENERIC_ASSISTANT_SYSTEM_MESSAGE: Final[str] = (
+    "You are a helpful AI assistant. Provide comprehensive, detailed, "
+    "and informative responses to questions."
+)
+
+# ============================================================================
 # TRANSLATION PROMPTS
 # ============================================================================
+
+TRANSLATION_AUTO_DETECT_PROMPT: Final[str] = (
+    "Detect the language of the following text and then translate it to {target_language_name}.\n"
+    "Provide the Persian phonetic pronunciation for the translated text.\n\n"
+    "Text to translate:\n\"{text}\"\n\n"
+    "Output format:\n"
+    "Translation: [translated text]\n"
+    "Phonetic: ([Persian phonetic pronunciation])\n\n"
+    "Example:\n"
+    "Translation: Hello world\n"
+    "Phonetic: (هِلو وَرلد)"
+)
+
+TRANSLATION_SOURCE_TARGET_PROMPT: Final[str] = (
+    "Translate the following text from {source_language_name} to {target_language_name}.\n"
+    "Provide the Persian phonetic pronunciation for the translated text.\n\n"
+    "Text to translate:\n\"{text}\"\n\n"
+    "Output format:\n"
+    "Translation: [translated text]\n"
+    "Phonetic: ([Persian phonetic pronunciation])\n\n"
+    "Example:\n"
+    "Translation: Hello world\n"
+    "Phonetic: (هِلو وَرلد)"
+)
 
 TRANSLATION_SYSTEM_MESSAGE: Final[str] = (
     "You are a precise translation assistant. ALWAYS respond in Persian.\n"
@@ -36,6 +226,21 @@ TRANSLATION_SYSTEM_MESSAGE: Final[str] = (
     "Examples:\n"
     "- If target is English: Translation: Hello\nPhonetic: (ظ‡ظگظ„ظˆ)\n"
     "- If target is German: Translation: Guten Tag\nPhonetic: (ع¯ظˆطھظگظ† طھط§ع¯)"
+)
+
+# ============================================================================
+# DEFAULT CHAT SUMMARY PROMPT (fallback)
+# ============================================================================
+
+DEFAULT_CHAT_SUMMARY_PROMPT: Final[str] = (
+    "Please analyze and summarize the following chat messages.\n"
+    "Provide a comprehensive summary including:\n"
+    "1. Main topics discussed\n"
+    "2. Key participants and their contributions\n"
+    "3. Important decisions or conclusions\n"
+    "4. Overall sentiment\n\n"
+    "Messages:\n"
+    "{messages_text}"
 )
 
 # ============================================================================

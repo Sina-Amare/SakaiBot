@@ -203,7 +203,7 @@ Transcribe voice to text + AI summary
 • Voice messages auto-transcribed if monitoring active
 • Check /status for current bot configuration
 
-<i>🔗 SakaiBot v1.0 | Powered by OpenRouter & Gemini</i>
+<i>🔗 SakaiBot v2.0.0 | Powered by OpenRouter & Gemini</i>
 """
             await event.edit(msg, parse_mode='html')
         
@@ -274,7 +274,7 @@ Transcribe voice to text + AI summary
 • پیام‌های صوتی به صورت خودکار رونویسی می‌شوند (اگر مانیتورینگ فعال باشد)
 • برای مشاهده تنظیمات فعلی /status را بزنید
 
-<i>🔗 ساکای‌بات نسخه ۱.۰ | قدرت گرفته از OpenRouter و Gemini</i>
+<i>🔗 ساکای‌بات نسخه ۲.۰.۰ | قدرت گرفته از OpenRouter و Gemini</i>
 """
             await event.edit(msg, parse_mode='html')
         

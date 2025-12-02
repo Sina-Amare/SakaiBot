@@ -8,6 +8,7 @@ from telethon import TelegramClient
 from telethon.tl.types import Message
 
 from ...ai.processor import AIProcessor
+from ...ai.translation import translate_analysis, TranslationError
 from ...core.constants import MAX_MESSAGE_LENGTH
 from ...core.exceptions import AIProcessorError
 from ...utils.helpers import split_message
@@ -196,9 +197,21 @@ class AIHandler(BaseHandler):
         client: TelegramClient,
         chat_id: int,
         num_messages: int,
-        analysis_mode: str = "general"
+        analysis_mode: str = "general",
+        output_language: str = "persian"
     ) -> str:
-        """Handle /analyze command."""
+        """Handle /analyze command with optional Persian translation.
+        
+        Args:
+            client: Telegram client
+            chat_id: Chat ID
+            num_messages: Number of messages to analyze
+            analysis_mode: Analysis type (general/fun/romance)
+            output_language: Output language ('persian' or 'english')
+        
+        Returns:
+            Analysis text in requested language
+        """
         # Validate number of messages
         if not InputValidator.validate_number(str(num_messages), min_val=1, max_val=10000):
             return f"❌ Invalid number of messages: {num_messages}. Must be between 1 and 10000."
@@ -232,15 +245,31 @@ class AIHandler(BaseHandler):
             if not messages_data:
                 return "📭 No text messages found in the specified history to analyze."
             
-            response = await self._ai_processor.analyze_conversation_messages(
+            # Generate English analysis first
+            english_analysis = await self._ai_processor.analyze_conversation_messages(
                 messages_data,
                 analysis_mode=analysis_mode
             )
-            if response and response.strip():
-                return response
-            else:
-                self._logger.warning(f"Empty response from AI for analysis. Response was: {response}")
+            
+            if not english_analysis or not english_analysis.strip():
+                self._logger.warning(f"Empty response from AI for analysis. Response was: {english_analysis}")
                 return "⚠️ Analysis incomplete - the AI processed your messages but couldn't generate a summary. This might be due to content in the messages. Try analyzing fewer messages."
+            
+            # Translate to Persian if requested
+            if output_language == "persian":
+                try:
+                    self._logger.info(f"Translating {analysis_mode} analysis to Persian...")
+                    persian_analysis = await translate_analysis(
+                        english_analysis=english_analysis,
+                        analysis_type=analysis_mode,
+                        output_language="persian"
+                    )
+                    return persian_analysis
+                except TranslationError as e:
+                    self._logger.error(f"Translation failed: {e}. Falling back to English.")
+                    return english_analysis
+            else:
+                return english_analysis
         
         except AIProcessorError as e:
             return f"AI Error: {e}"
@@ -448,17 +477,27 @@ class AIHandler(BaseHandler):
     def _parse_analyze_command(
         self, command_text: str, cli_state_ref: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Parse analyze command parameters with optional mode.
+        """Parse analyze command parameters with optional mode and language flag.
 
         Supported:
           /analyze=<N>
           /analyze=fun=<N>
           /analyze=romance=<N>
           /analyze <N>
+          
+          Add 'en' flag for English output:
+          /analyze=fun=500 en
+          /analyze=500 en
         """
         try:
             text = command_text.strip()
             max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
+
+            # Check for 'en' language flag and remove it for parsing
+            output_language = "persian"  # Default
+            if text.lower().endswith(" en"):
+                output_language = "english"
+                text = text[:-3].strip()  # Remove ' en' from end
 
             # Backward compatibility: '/analyze 5000'
             if text.lower().startswith("/analyze "):
@@ -466,7 +505,11 @@ class AIHandler(BaseHandler):
                 if tail.isdigit():
                     n = int(tail)
                     if 1 <= n <= max_limit:
-                        return {"num_messages": n, "analysis_mode": "general"}
+                        return {
+                            "num_messages": n,
+                            "analysis_mode": "general",
+                            "output_language": output_language
+                        }
                 return None
 
             # Must start with '/analyze='
@@ -498,7 +541,11 @@ class AIHandler(BaseHandler):
             if not (1 <= n <= max_limit):
                 return None
 
-            return {"num_messages": n, "analysis_mode": mode}
+            return {
+                "num_messages": n,
+                "analysis_mode": mode,
+                "output_language": output_language
+            }
         except Exception:
             return None
     

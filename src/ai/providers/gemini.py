@@ -122,7 +122,7 @@ class GeminiProvider(LLMProvider):
                     "temperature": temperature,
                     "top_p": 0.95,
                     "top_k": 40,
-                    "max_output_tokens": 8192,
+                    "max_output_tokens": 16000,
                 }
 
                 # Use asyncio to run the async call with timeout

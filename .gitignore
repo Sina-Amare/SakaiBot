@@ -144,26 +144,157 @@ dmypy.json
 # Local development
 local/
 tmp/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# Telegram Session files
+*.session
+*.session-journal
+*.session-wal
+*.session-shm
+
+# Configuration files with sensitive data
+config.ini
+config.yaml
+config.json
+settings.ini
+settings.json
+
+# User data and cache
+cache/
+!cache/.gitkeep
+data/
+!data/.gitkeep
+user_settings.json
+sakaibot_user_settings.json
+*_cache.json
+pv_cache.json
+group_cache.json
+
+# Log files
+logs/
+!logs/.gitkeep
+*.log
+*.log.*
+
+# Claude Code specific
+.claude/
+claude.md
+CLAUDE.md
+
+# IDE and editor specific files
+.vscode/
+.idea/
+.cursor/
+.agents/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-project
+*.sublime-workspace
+.kate-swp
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Backup files
+*.bak
+*.backup
+*~
+*.old
+*.orig
+
+# Test coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Documentation builds
+docs/_build/
+site/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Local development
+local/
+tmp/
 temp/
 *.tmp
 venv.linux
 acli
 acli.exe
-
-# Image generation temp files
-temp/images/
-*.png
-*.jpg
-*.jpeg
-!docs/**/*.png
-!docs/**/*.jpg
-
-# Utility scripts
-scripts/apply_image_fixes.py
-scripts/convert_to_english.py
-
-# Antigravity AI artifacts
-.gemini/
 
 # Others
 prompt.md
@@ -174,3 +305,12 @@ agents.md
 AGENTS.local.md
 Agents.local.md
 agents.local.md
+
+# Development and temporary files
+TODO.md
+NOTES.md
+fix_*.py
+test_*.py
+
+scripts/
+prompts.md

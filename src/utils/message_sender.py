@@ -11,6 +11,7 @@ from ..core.constants import MAX_MESSAGE_LENGTH
 from ..utils.logging import get_logger
 from ..utils.helpers import split_message
 from ..utils.retry import retry_with_backoff
+from ..utils.rtl_fixer import ensure_rtl_safe
 
 
 class MessageSender:
@@ -40,7 +41,7 @@ class MessageSender:
         max_retries: int = 3
     ) -> Optional[Message]:
         """
-        Send a message with retry logic.
+        Send a message with retry logic and automatic RTL fixing.
         
         Args:
             chat_id: Target chat ID
@@ -52,6 +53,9 @@ class MessageSender:
         Returns:
             Sent message or None if failed
         """
+        # Apply RTL fix for Persian text (auto-detects Persian)
+        text = ensure_rtl_safe(text)
+        
         @retry_with_backoff(max_retries=max_retries, base_delay=1.0)
         async def _send():
             return await self._client.send_message(

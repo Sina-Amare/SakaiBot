@@ -181,6 +181,9 @@ class GeminiProvider(LLMProvider):
         keys_tried = 0
         max_key_attempts = 3 if self._key_manager else 1
         
+        # Track web search usage - may be disabled if 403 error occurs
+        actual_use_web_search = use_web_search
+        
         while keys_tried < max_key_attempts:
             # Get current API key
             current_key = self._key_manager.get_current_key() if self._key_manager else self._api_key
@@ -210,21 +213,22 @@ class GeminiProvider(LLMProvider):
 
                     # Prepare tools for web search if enabled
                     tools = None
-                    if use_web_search:
+                    if actual_use_web_search:
                         try:
                             import google.generativeai as genai
-                            # Enable Google Search tool - try protobuf format first, fallback to dict
-                            try:
-                                google_search_tool = genai.protos.Tool(
-                                    google_search=genai.protos.GoogleSearch()
-                                )
-                                tools = [google_search_tool]
-                            except (AttributeError, TypeError):
-                                # Fallback to dictionary format if protobuf doesn't work
-                                tools = [{"google_search": {}}]
+                            # Enable Google Search tool using correct protobuf format
+                            # Tool.GoogleSearch is a nested class, not a top-level GoogleSearch
+                            google_search_tool = genai.protos.Tool(
+                                google_search=genai.protos.Tool.GoogleSearch()
+                            )
+                            tools = [google_search_tool]
                             self._logger.info("Google Search tool enabled for this request")
                         except Exception as e:
-                            self._logger.warning(f"Failed to enable Google Search tool: {e}. Continuing without web search.")
+                            self._logger.warning(
+                                f"Failed to enable Google Search tool: {e}. "
+                                "Continuing without web search."
+                            )
+                            tools = None  # Ensure tools is None if setup fails
                     
                     # Use asyncio to run the async call with timeout
                     try:
@@ -304,6 +308,22 @@ class GeminiProvider(LLMProvider):
                     response = getattr(e, "response", None)
                     if response is not None:
                         status_code = getattr(response, "status_code", None)
+                    
+                    # Check for 403 Permission Denied (often means Google Search tool not available)
+                    is_403 = (status_code == 403) or ("403" in error_str) or ("permissiondenied" in error_str)
+                    
+                    # If 403 and web search was enabled, disable it and retry
+                    if is_403 and actual_use_web_search:
+                        self._logger.warning(
+                            f"Google Search tool returned 403 (Permission Denied). "
+                            f"This may indicate the tool is not available for your API key or requires special permissions. "
+                            f"Continuing without web search..."
+                        )
+                        # Disable web search for remaining attempts
+                        actual_use_web_search = False
+                        # Continue to retry without web search
+                        if attempt < max_retries - 1:
+                            continue
 
                     is_429 = (status_code == 429) or ("429" in error_str)
 

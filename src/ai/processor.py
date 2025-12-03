@@ -6,6 +6,7 @@ import pytz
 
 from .llm_interface import LLMProvider
 from .providers import OpenRouterProvider, GeminiProvider
+from .prompts import GENERIC_ASSISTANT_SYSTEM_MESSAGE
 from ..core.config import Config
 from ..core.exceptions import AIProcessorError, ConfigurationError
 from ..utils.logging import get_logger
@@ -69,12 +70,33 @@ class AIProcessor:
             return self._provider.model_name
         return "None"
     
+    def get_model_for_task(self, task_type: str) -> str:
+        """
+        Get the model name that will be used for a specific task.
+        
+        Args:
+            task_type: Task type (e.g., "analyze", "prompt", "tellme", "translate")
+            
+        Returns:
+            Model name that will be used for this task
+        """
+        if not self._provider:
+            return "None"
+        
+        # Check if provider has get_model_for_task method
+        if hasattr(self._provider, 'get_model_for_task'):
+            return self._provider.get_model_for_task(task_type)
+        
+        # Fallback to default model_name
+        return self._provider.model_name
+    
     async def execute_custom_prompt(
         self,
         user_prompt: str,
         max_tokens: int = 1500,
         temperature: float = 0.7,
-        system_message: Optional[str] = None
+        system_message: Optional[str] = None,
+        task_type: str = "prompt"
     ) -> str:
         """Execute a custom prompt using the configured LLM provider."""
         if not self.is_configured:
@@ -83,14 +105,15 @@ class AIProcessor:
             )
         
         self._logger.info(
-            f"Executing prompt with {self.provider_name} using model {self.model_name}"
+            f"Executing {task_type} prompt with {self.provider_name}"
         )
         
         return await self._provider.execute_prompt(
             user_prompt=user_prompt,
             max_tokens=max_tokens,
             temperature=temperature,
-            system_message=system_message
+            system_message=system_message,
+            task_type=task_type
         )
     
     async def translate_text_with_phonetics(
@@ -164,15 +187,12 @@ class AIProcessor:
     # Backward compatibility methods
     async def execute_tellme_mode(self, prompt: str) -> str:
         """Execute tellme mode (backward compatibility)."""
-        system_message = (
-            "You are a helpful AI assistant. Provide comprehensive, detailed, "
-            "and informative responses to questions."
-        )
         return await self.execute_custom_prompt(
             user_prompt=prompt,
             max_tokens=2000,
             temperature=0.7,
-            system_message=system_message
+            system_message=GENERIC_ASSISTANT_SYSTEM_MESSAGE,
+            task_type="tellme"
         )
     
     async def analyze_conversation_messages(
@@ -186,9 +206,11 @@ class AIProcessor:
         messages = []
         participant_mapping = {}
         
-        for msg in messages_data:
-            from_id = msg.get('from_id', 0)
-            sender_name = msg.get('sender_name', f'User_{from_id}')
+        for idx, msg in enumerate(messages_data):
+            # Support both 'sender' (from ai_handler) and 'sender_name' keys
+            sender_name = msg.get('sender') or msg.get('sender_name') or f'User_{idx}'
+            # Use index as fallback ID since ai_handler doesn't provide from_id
+            from_id = msg.get('from_id', idx)
             participant_mapping[from_id] = sender_name
             
             messages.append({

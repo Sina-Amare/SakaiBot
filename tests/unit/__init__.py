@@ -1,2 +1,3 @@
-"""Unit tests for SakaiBot."""
+"""Unit tests package."""
+
 

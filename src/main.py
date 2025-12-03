@@ -20,6 +20,7 @@ from .utils.cache import CacheManager
 from .utils.logging import setup_logging, get_logger
 from .utils.task_manager import get_task_manager
 from .utils.instance_lock import InstanceLock
+from .ai.analyze_queue import analyze_queue
 from .cli.handler import CLIHandler
 
 
@@ -94,6 +95,13 @@ class SakaiBot:
         """Perform graceful shutdown tasks."""
         self._logger.info(f"Performing graceful shutdown tasks (source: {source})...")
         
+        # Stop analyze queue cleanup task
+        try:
+            await analyze_queue.stop_cleanup_task()
+            self._logger.info(f"Graceful shutdown ({source}): Analyze queue cleanup task stopped")
+        except Exception as e:
+            self._logger.error(f"Graceful shutdown ({source}): Error stopping analyze queue: {e}")
+        
         try:
             # Save settings if not already saved
             if not self._cli_handler.cli_state.settings_saved_on_cli_exit:
@@ -153,6 +161,10 @@ class SakaiBot:
             # Initialize Telegram client
             client = await self._client_manager.initialize()
             print(f"Signed in as: {(await client.get_me()).first_name}")
+            
+            # Start analyze queue cleanup task
+            await analyze_queue.start_cleanup_task()
+            self._logger.info("Analyze queue cleanup task started")
             
             # Hand control to CLI
             self._logger.info("Handing control to CLI Handler...")

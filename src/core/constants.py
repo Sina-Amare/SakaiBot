@@ -24,10 +24,25 @@ DEFAULT_MAX_ANALYZE_MESSAGES: Final[int] = 10000
 
 # AI Constants
 MAX_OUTPUT_TOKENS: Final[int] = 100000
-DEFAULT_OPENROUTER_MODEL: Final[str] = "google/gemini-2.5-flash"
-DEFAULT_GEMINI_MODEL: Final[str] = "gemini-2.5-flash"
+
+# Model Configuration - Pro (for complex tasks: analyze, tellme, prompt)
+DEFAULT_GEMINI_MODEL_PRO: Final[str] = "gemini-2.5-pro"
+DEFAULT_OPENROUTER_MODEL_PRO: Final[str] = "google/gemini-2.5-pro"
+
+# Model Configuration - Flash (for simple tasks: translate, image enhancement)
+DEFAULT_GEMINI_MODEL_FLASH: Final[str] = "gemini-2.5-flash"
+DEFAULT_OPENROUTER_MODEL_FLASH: Final[str] = "google/gemini-2.5-flash"
+
+# Legacy defaults (for backward compatibility)
+DEFAULT_OPENROUTER_MODEL: Final[str] = DEFAULT_OPENROUTER_MODEL_FLASH
+DEFAULT_GEMINI_MODEL: Final[str] = DEFAULT_GEMINI_MODEL_FLASH
+
 DEFAULT_TTS_VOICE: Final[str] = "Orus"  # Google GenAI TTS voice (masculine)
 CONFIRMATION_KEYWORD: Final[str] = "confirm"
+
+# Task type definitions for model selection
+COMPLEX_TASKS: Final[tuple[str, ...]] = ("analyze", "tellme", "prompt")
+SIMPLE_TASKS: Final[tuple[str, ...]] = ("translate", "image_enhance")
 
 # Logging Constants
 LOG_FORMAT: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

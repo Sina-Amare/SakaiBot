@@ -1,18 +1,23 @@
 """
-Analyze Queue System for /analyze command.
+AI Command Queue System for rate-limiting expensive LLM operations.
 
-Prevents concurrent analysis requests on the same chat by implementing
+Prevents concurrent AI requests on the same chat by implementing
 a chat-level lock system with timeout protection.
 
+Supported Commands:
+- /analyze (all modes: fun, romance, general)
+- /prompt
+- /tellme
+
 Key Features:
-- One analysis per chat at a time
+- One AI command per chat at a time
 - Immediate rejection (no queueing)
 - 5-minute timeout auto-release
 - Background cleanup task
 - Graceful shutdown support
 
 Note: Queue state is in-memory and doesn't persist across bot restarts.
-On restart, all locks are cleared and users with in-progress analyses
+On restart, all locks are cleared and users with in-progress requests
 won't receive results. This is acceptable to keep implementation simple.
 """
 
@@ -31,29 +36,35 @@ logger = get_logger(__name__)
 TIMEOUT_SECONDS = 300  # 5 minutes
 CLEANUP_INTERVAL = 60  # 1 minute
 
+# Commands that should be queue-protected (use pro model, expensive)
+PROTECTED_COMMANDS = {"analyze", "prompt", "tellme"}
+
 
 @dataclass
 class AnalyzeRequest:
-    """Represents an active analysis request."""
+    """Represents an active AI command request."""
     chat_id: int
     user_id: int
-    analysis_type: str
+    command_type: str  # analyze, prompt, tellme
+    analysis_type: str  # For analyze: fun/romance/general; for others: "default"
     started_at: datetime
     request_id: str
 
 
 class AnalyzeQueue:
     """
-    Manages analyze command execution to prevent concurrent analyses per chat.
+    Manages AI command execution to prevent concurrent operations per chat.
     
-    Uses a chat-level lock system where only one analysis can run per chat
+    Uses a chat-level lock system where only one AI command can run per chat
     at a time. New requests are rejected immediately with a friendly message.
     
     Locks automatically release after TIMEOUT_SECONDS to prevent stuck states.
+    
+    Supports /analyze, /prompt, and /tellme commands.
     """
     
     def __init__(self):
-        """Initialize the analyze queue."""
+        """Initialize the AI command queue."""
         self._active: Dict[int, AnalyzeRequest] = {}
         self._lock = asyncio.Lock()
         self._cleanup_task: Optional[asyncio.Task] = None
@@ -95,15 +106,17 @@ class AnalyzeQueue:
         self,
         chat_id: int,
         user_id: int,
-        analysis_type: str
+        analysis_type: str,
+        command_type: str = "analyze"
     ) -> Tuple[bool, Optional[str]]:
         """
-        Try to start an analysis for a chat.
+        Try to start an AI command for a chat.
         
         Args:
             chat_id: Telegram chat ID
-            user_id: User who requested analysis
-            analysis_type: Type of analysis (fun, romance, general)
+            user_id: User who requested the command
+            analysis_type: Type of analysis (fun, romance, general) or "default" for other commands
+            command_type: Type of command (analyze, prompt, tellme)
             
         Returns:
             Tuple of (success: bool, error_message: Optional[str])
@@ -111,18 +124,22 @@ class AnalyzeQueue:
             message to send to user.
         """
         async with self._lock:
-            # Check if chat already has active analysis
+            # Check if chat already has active AI command
             if chat_id in self._active:
                 active = self._active[chat_id]
                 self._logger.info(
-                    f"Rejected analyze request for chat {chat_id} "
-                    f"(active: {active.request_id})"
+                    f"Rejected {command_type} request for chat {chat_id} "
+                    f"(active: {active.request_id}, command: {active.command_type})"
                 )
                 
+                # Dynamic error message based on what's running
+                active_cmd = active.command_type.title()
+                requested_cmd = command_type.title()
+                
                 error_msg = (
-                    "⏳ <b>Analysis In Progress</b>\n\n"
-                    "Another analysis is currently running for this chat.\n\n"
-                    "<i>Please wait for it to complete before starting a new one.</i>"
+                    f"⏳ <b>AI Command In Progress</b>\n\n"
+                    f"A <b>{active_cmd}</b> command is currently processing for this chat.\n\n"
+                    f"<i>Please wait for it to complete before starting a new {requested_cmd} request.</i>"
                 )
                 return False, error_msg
                 
@@ -130,15 +147,16 @@ class AnalyzeQueue:
             request = AnalyzeRequest(
                 chat_id=chat_id,
                 user_id=user_id,
+                command_type=command_type,
                 analysis_type=analysis_type,
                 started_at=datetime.now(),
-                request_id=f"analyze_{uuid.uuid4().hex[:8]}"
+                request_id=f"{command_type}_{uuid.uuid4().hex[:8]}"
             )
             
             self._active[chat_id] = request
             self._logger.info(
-                f"Started analysis {request.request_id} for chat {chat_id} "
-                f"(type: {analysis_type})"
+                f"Started {command_type} {request.request_id} for chat {chat_id} "
+                f"(analysis_type: {analysis_type})"
             )
             
             return True, None

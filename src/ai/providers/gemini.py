@@ -1,4 +1,4 @@
-"""Google Gemini LLM provider implementation."""
+"""Google Gemini LLM provider implementation with key rotation."""
 
 import os
 import asyncio
@@ -9,7 +9,9 @@ import pytz
 
 from ..llm_interface import LLMProvider
 from ...core.exceptions import AIProcessorError
+from ...core.constants import COMPLEX_TASKS, SIMPLE_TASKS
 from ...utils.logging import get_logger
+from ..api_key_manager import GeminiKeyManager, initialize_gemini_key_manager, get_gemini_key_manager
 from ..prompts import (
     TRANSLATION_SYSTEM_MESSAGE,
     TRANSLATION_AUTO_DETECT_PROMPT,
@@ -31,19 +33,37 @@ from ..prompts import (
 
 
 class GeminiProvider(LLMProvider):
-    """Google Gemini provider for LLM operations."""
+    """Google Gemini provider for LLM operations with key rotation support."""
     
     def __init__(self, config: Any) -> None:
-        """Initialize Gemini provider."""
+        """Initialize Gemini provider with key manager."""
         self._config = config
         self._logger = get_logger(self.__class__.__name__)
         self._client = None
-        self._api_key = config.gemini_api_key
-        self._model = config.gemini_model
+        self._clients: Dict[str, Any] = {}  # Cache clients per API key
+        
+        # Initialize key manager if multiple keys available
+        api_keys = getattr(config, 'gemini_api_keys', [])
+        if api_keys:
+            self._key_manager = initialize_gemini_key_manager(api_keys, cooldown_seconds=60)
+            self._api_key = self._key_manager.get_current_key() if self._key_manager else None
+            self._logger.info(f"Initialized with {len(api_keys)} Gemini API keys for rotation")
+        else:
+            # Fallback to single key
+            self._key_manager = None
+            self._api_key = config.gemini_api_key
+        
+        # Model configuration - pro for complex tasks, flash for simple
+        self._model_pro = getattr(config, 'gemini_model_pro', 'gemini-2.5-pro')
+        self._model_flash = getattr(config, 'gemini_model_flash', 'gemini-2.5-flash')
+        self._model = config.gemini_model  # Legacy default
     
     @property
     def is_configured(self) -> bool:
         """Check if Gemini is properly configured."""
+        # Check if key manager has keys or fallback to single key
+        if self._key_manager:
+            return not self._key_manager.all_keys_exhausted()
         return bool(
             self._api_key
             and "YOUR_GEMINI_API_KEY_HERE" not in (self._api_key or "")
@@ -60,22 +80,37 @@ class GeminiProvider(LLMProvider):
         """Get the current model name."""
         return self._model
     
-    def _get_client(self):
-        """Get or create Gemini client."""
-        if not self.is_configured:
+    def get_model_for_task(self, task_type: str) -> str:
+        """Get appropriate model based on task complexity."""
+        if task_type in COMPLEX_TASKS:
+            return self._model_pro
+        elif task_type in SIMPLE_TASKS:
+            return self._model_flash
+        return self._model  # Legacy default
+    
+    def _get_client(self, api_key: Optional[str] = None, model: Optional[str] = None):
+        """Get or create Gemini client for specified key and model."""
+        key = api_key or self._api_key
+        model_name = model or self._model
+        
+        if not key:
             raise AIProcessorError("Gemini API key not configured or invalid")
         
-        if self._client is None:
+        # Create cache key
+        cache_key = f"{key[:8]}_{model_name}"
+        
+        if cache_key not in self._clients:
             try:
                 import google.generativeai as genai
                 
                 # Configure the GenAI library with the API key
-                genai.configure(api_key=self._api_key)
+                genai.configure(api_key=key)
                 
-                # Create client with API key
-                self._client = genai.GenerativeModel(self._model)
+                # Create client with model
+                self._clients[cache_key] = genai.GenerativeModel(model_name)
                 
-                self._logger.info(f"Initialized Gemini client with model: {self._model}")
+                masked_key = f"{key[:8]}...{key[-4:]}" if len(key) > 12 else "***"
+                self._logger.info(f"Initialized Gemini client: key={masked_key}, model={model_name}")
                 
             except ImportError:
                 raise AIProcessorError(
@@ -84,21 +119,25 @@ class GeminiProvider(LLMProvider):
             except Exception as e:
                 raise AIProcessorError(f"Failed to initialize Gemini client: {e}")
         
-        return self._client
+        return self._clients[cache_key]
     
     async def execute_prompt(
         self,
         user_prompt: str,
         max_tokens: int = 1500,
         temperature: float = 0.7,
-        system_message: Optional[str] = None
+        system_message: Optional[str] = None,
+        task_type: str = "default"
     ) -> str:
-        """Execute a prompt using Google Gemini with retry logic."""
+        """Execute a prompt using Google Gemini with retry logic and key rotation."""
         if not user_prompt:
             raise AIProcessorError("Prompt cannot be empty")
         
         if not self.is_configured:
             raise AIProcessorError("Gemini API key not configured or invalid")
+        
+        # Select model based on task type
+        model = self.get_model_for_task(task_type)
         
         # Combine system message and user prompt if needed
         if system_message and system_message.strip():
@@ -110,99 +149,155 @@ class GeminiProvider(LLMProvider):
         # Log the exact prompt being sent for debugging
         self._logger.debug(f"Sending prompt to Gemini: '{full_prompt[:100]}...'")
         
-        # Retry logic with exponential backoff
+        # Retry logic with key rotation support
         max_retries = 3
         retry_delay = 1.0
+        keys_tried = 0
+        max_key_attempts = 3 if self._key_manager else 1
         
-        for attempt in range(max_retries):
-            try:
-                client = self._get_client()
-                
-                self._logger.info(
-                    f"Attempt {attempt + 1}: Sending prompt to Gemini '{self._model}'. "
-                    f"Prompt length: {len(full_prompt)} chars"
-                )
-                
-                # Configure the generation parameters
-                generation_config = {
-                    "temperature": temperature,
-                    "top_p": 0.95,
-                    "top_k": 40,
-                    "max_output_tokens": 16000,
-                }
-
-                # Use asyncio to run the async call with timeout
+        while keys_tried < max_key_attempts:
+            # Get current API key
+            current_key = self._key_manager.get_current_key() if self._key_manager else self._api_key
+            
+            if not current_key:
+                if self._key_manager and self._key_manager.all_keys_exhausted():
+                    raise AIProcessorError("All Gemini API keys are rate-limited. Please try again later.")
+                raise AIProcessorError("No valid Gemini API key available")
+            
+            for attempt in range(max_retries):
                 try:
-                    response = await asyncio.wait_for(
-                        client.generate_content_async(
-                            full_prompt
-                        ),
-                        timeout=300 # 5 minute timeout for LLM response
+                    client = self._get_client(api_key=current_key, model=model)
+
+                    self._logger.info(
+                        f"Attempt {attempt + 1}: Sending prompt to Gemini '{model}'. "
+                        f"Prompt length: {len(full_prompt)} chars"
                     )
-                except asyncio.TimeoutError:
-                    self._logger.error(f"LLM response timed out after 5 minutes for model '{self._model}'")
-                    raise AIProcessorError("Request timed out. The LLM did not respond within the expected time. Try again later or with a shorter prompt.")
-                
-                # Extract text from response
-                response_text = None
-                
-                # First try direct text attribute
-                if response and hasattr(response, 'text') and response.text:
-                    response_text = response.text.strip()
-                    self._logger.info(f"Got response text directly: {len(response_text)} chars")
-                elif response and hasattr(response, 'candidates') and response.candidates:
-                    # If text attribute not available, check candidates
-                    for candidate in response.candidates:
-                        if hasattr(candidate, 'content') and candidate.content:
-                            if hasattr(candidate.content, 'parts') and candidate.content.parts:
-                                # Extract text from parts
-                                text_parts = []
-                                for part in candidate.content.parts:
-                                    if hasattr(part, 'text') and part.text:
-                                        text_parts.append(part.text)
-                                if text_parts:
-                                    response_text = ' '.join(text_parts).strip()
-                                    self._logger.info(f"Got response text from parts: {len(response_text)} chars")
-                                    break
-                
-                # Check for safety blocks or other issues
-                if not response_text:
-                    if hasattr(response, 'prompt_feedback'):
-                        feedback = response.prompt_feedback
-                        self._logger.error(f"Prompt feedback: {feedback}")
-                        if 'block_reason' in str(feedback).lower():
-                            raise AIProcessorError("Content was blocked by safety filters. Try rephrasing.")
                     
+                    # Configure the generation parameters
+                    generation_config = {
+                        "temperature": temperature,
+                        "top_p": 0.95,
+                        "top_k": 40,
+                        "max_output_tokens": 16000,
+                    }
+
+                    # Use asyncio to run the async call with timeout
+                    try:
+                        response = await asyncio.wait_for(
+                            client.generate_content_async(
+                                full_prompt
+                            ),
+                            timeout=300 # 5 minute timeout for LLM response
+                        )
+                    except asyncio.TimeoutError:
+                        self._logger.error(f"LLM response timed out after 5 minutes for model '{model}'")
+                        raise AIProcessorError("Request timed out. The LLM did not respond within the expected time. Try again later or with a shorter prompt.")
+                    
+                    # Extract text from response
+                    response_text = None
+                    
+                    # First try direct text attribute
+                    if response and hasattr(response, 'text') and response.text:
+                        response_text = response.text.strip()
+                        self._logger.info(f"Got response text directly: {len(response_text)} chars")
+                    elif response and hasattr(response, 'candidates') and response.candidates:
+                        # If text attribute not available, check candidates
+                        for candidate in response.candidates:
+                            if hasattr(candidate, 'content') and candidate.content:
+                                if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                                    # Extract text from parts
+                                    text_parts = []
+                                    for part in candidate.content.parts:
+                                        if hasattr(part, 'text') and part.text:
+                                            text_parts.append(part.text)
+                                    if text_parts:
+                                        response_text = ' '.join(text_parts).strip()
+                                        self._logger.info(f"Got response text from parts: {len(response_text)} chars")
+                                        break
+                    
+                    # Check for safety blocks or other issues
+                    if not response_text:
+                        if hasattr(response, 'prompt_feedback'):
+                            feedback = response.prompt_feedback
+                            self._logger.error(f"Prompt feedback: {feedback}")
+                            if 'block_reason' in str(feedback).lower():
+                                raise AIProcessorError("Content was blocked by safety filters. Try rephrasing.")
+                        
+                        # If this is not the last attempt, retry
+                        if attempt < max_retries - 1:
+                            self._logger.warning(f"No response on attempt {attempt + 1}, retrying in {retry_delay} seconds...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                            continue
+                        else:
+                            # Last attempt failed
+                            response_text = "من درخواست شما رو دریافت کردم ولی نتونستم جواب مناسبی بدم. ممکنه مشکل از API باشه یا محتوا فیلتر شده. دوباره امتحان کن."
+                    
+                    if response_text:
+                        # Mark key as successful
+                        if self._key_manager:
+                            self._key_manager.mark_success()
+
+                        self._logger.info(
+                            f"Gemini '{model}' completed successfully. Response: {len(response_text)} chars"
+                        )
+                        return response_text
+
+                except Exception as e:
+                    error_str = str(e).lower()
+
+                    # Try to get an HTTP status code if available (no regex needed)
+                    status_code = None
+                    response = getattr(e, "response", None)
+                    if response is not None:
+                        status_code = getattr(response, "status_code", None)
+
+                    is_429 = (status_code == 429) or ("429" in error_str)
+
+                    if is_429 and self._key_manager:
+                        # For free tier usage, treat any 429 as daily quota exhaustion.
+                        # Gemini RPD limits reset at midnight Pacific time:
+                        # https://ai.google.dev/gemini-api/docs/rate-limits#free-tier
+                        self._logger.warning(
+                            "Gemini returned 429 (rate limit / quota). "
+                            "Marking current key exhausted until next Pacific midnight "
+                            "and rotating to another key if available."
+                        )
+                        has_more_keys = self._key_manager.mark_key_exhausted_for_day()
+                        if has_more_keys:
+                            # Break inner loop to try next key
+                            keys_tried += 1
+                            retry_delay = 1.0  # Reset delay for new key
+                            break
+                        else:
+                            raise AIProcessorError(
+                                "All Gemini API keys are exhausted for today. "
+                                "Requests per day (RPD) reset at midnight Pacific time. "
+                                "See https://ai.google.dev/gemini-api/docs/rate-limits#free-tier"
+                            )
+
+                    self._logger.error(
+                        f"Attempt {attempt + 1} failed for Gemini '{model}': {e}",
+                        exc_info=True
+                    )
+
                     # If this is not the last attempt, retry
                     if attempt < max_retries - 1:
-                        self._logger.warning(f"No response on attempt {attempt + 1}, retrying in {retry_delay} seconds...")
+                        self._logger.info(f"Retrying in {retry_delay} seconds...")
                         await asyncio.sleep(retry_delay)
-                        retry_delay *= 2  # Exponential backoff
-                        continue
+                        retry_delay *= 2
                     else:
-                        # Last attempt failed
-                        response_text = "من درخواست شما رو دریافت کردم ولی نتونستم جواب مناسبی بدم. ممکنه مشکل از API باشه یا محتوا فیلتر شده. دوباره امتحان کن."
-                
-                if response_text:
-                    self._logger.info(
-                        f"Gemini '{self._model}' completed successfully. Response: {len(response_text)} chars"
-                    )
-                    return response_text
-                
-            except Exception as e:
-                self._logger.error(
-                    f"Attempt {attempt + 1} failed for Gemini '{self._model}': {e}",
-                    exc_info=True
-                )
-                
-                # If this is not the last attempt, retry
-                if attempt < max_retries - 1:
-                    self._logger.info(f"Retrying in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 2
-                else:
-                    # All attempts failed
-                    raise AIProcessorError(f"Failed after {max_retries} attempts: {e}")
+                        # All attempts failed for this key
+                        if self._key_manager:
+                            self._key_manager.mark_key_error()
+                            if not self._key_manager.all_keys_exhausted():
+                                keys_tried += 1
+                                retry_delay = 1.0
+                                break  # Try next key
+                        raise AIProcessorError(f"Failed after {max_retries} attempts: {e}")
+            else:
+                # Inner loop completed without break - success or exhausted retries
+                break
         
         # Should not reach here
         raise AIProcessorError("Unexpected error in Gemini execution")
@@ -244,10 +339,12 @@ class GeminiProvider(LLMProvider):
         
         # Use lower temperature for translation accuracy
         # No max_tokens limit to allow full translation
+        # Use flash model for translation (simple task)
         raw_response = await self.execute_prompt(
             prompt,
             temperature=0.2,
-            system_message=TRANSLATION_SYSTEM_MESSAGE
+            system_message=TRANSLATION_SYSTEM_MESSAGE,
+            task_type="translate"
         )
         
         # Extract translation and pronunciation from the response
@@ -367,11 +464,13 @@ class GeminiProvider(LLMProvider):
         formatted_prompt = prompt + lang_instr + format_guidelines + scaling_instructions
         
         # Use lower temperature for analysis accuracy
+        # Use pro model for analysis (complex task)
         return await self.execute_prompt(
             formatted_prompt, 
             max_tokens=100000, 
             temperature=0.4,
-            system_message=system_message
+            system_message=system_message,
+            task_type="analyze"
         )
     
     async def answer_question_from_history(
@@ -413,13 +512,16 @@ class GeminiProvider(LLMProvider):
             f"Answering question '{question[:50]}...' based on {len(formatted_messages)} messages"
         )
         
+        # Use pro model for tellme (complex task)
         return await self.execute_prompt(
             formatted_prompt,
             max_tokens=100000,
             temperature=0.5,
-            system_message=QUESTION_ANSWER_SYSTEM_MESSAGE
+            system_message=QUESTION_ANSWER_SYSTEM_MESSAGE,
+            task_type="tellme"
         )
     
     async def close(self) -> None:
-        """Clean up Gemini client."""
+        """Clean up Gemini clients."""
         self._client = None
+        self._clients.clear()

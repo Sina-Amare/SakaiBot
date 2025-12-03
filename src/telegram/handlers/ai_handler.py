@@ -19,6 +19,8 @@ from ...utils.validators import InputValidator
 from ...utils.message_sender import MessageSender
 from ...utils.error_handler import ErrorHandler
 from ...utils.metrics import get_metrics_collector, TimingContext
+from ...utils.rtl_fixer import ensure_rtl_safe
+from ...ai.analyze_queue import analyze_queue
 from .base import BaseHandler
 
 
@@ -28,10 +30,14 @@ def format_analysis_metadata(
     first_date,
     last_date,
     analysis_type: str,
-    language: str
+    language: str,
+    model_name: Optional[str] = None
 ) -> str:
     """
     Generate metadata footer for analysis results.
+    
+    Uses Unicode LTR embedding to ensure proper display in RTL context.
+    The metadata is primarily English/numbers and should display LTR.
     
     Args:
         num_messages: Total number of messages analyzed
@@ -40,10 +46,15 @@ def format_analysis_metadata(
         last_date: Last message timestamp
         analysis_type: Type of analysis performed
         language: Output language
+        model_name: Name of the LLM model used (e.g., "gemini-2.5-pro")
         
     Returns:
-        Formatted metadata string
+        Formatted metadata string with proper directional formatting
     """
+    # Unicode directional controls for LTR display in RTL context
+    LRE = '\u202A'  # Left-to-Right Embedding
+    PDF = '\u202C'  # Pop Directional Formatting
+    
     # Format sender names (max 10, then truncate)
     names = ', '.join(unique_senders[:10])
     if len(unique_senders) > 10:
@@ -53,15 +64,27 @@ def format_analysis_metadata(
     first = first_date.strftime('%b %d, %H:%M')
     last = last_date.strftime('%b %d, %H:%M')
     
+    # Build metadata lines
+    metadata_lines = [
+        f"📊 **Analysis Metadata**",
+        f"**Messages:** {num_messages}",
+        f"**Participants:** {len(unique_senders)} ({names})",
+        f"**Timeframe:** {first} - {last}",
+        f"**Type:** {analysis_type.title()}",
+        f"**Language:** {language.title()}"
+    ]
+    
+    # Add model name if provided
+    if model_name:
+        metadata_lines.append(f"**Model:** {model_name}")
+    
+    # Wrap entire metadata block in LTR embedding for proper display
+    # This ensures English labels and values display correctly in RTL context
+    metadata_content = "\n".join(metadata_lines)
     return f"""
 
 ───────────────────────
-📊 **Analysis Metadata**
-**Messages:** {num_messages}
-**Participants:** {len(unique_senders)} ({names})
-**Timeframe:** {first} - {last}
-**Type:** {analysis_type.title()}
-**Language:** {language.title()}
+{LRE}{metadata_content}{PDF}
 """
 
 
@@ -101,23 +124,50 @@ class AIHandler(BaseHandler):
             remaining = await rate_limiter.get_remaining_requests(user_id)
             metrics.increment('ai_command.rate_limited', tags={'command': command_type})
             error_msg = (
-                f"⚠️ Rate Limit Exceeded\n\n"
-                f"You have reached your request limit.\n"
-                f"Please wait {rate_limiter._window_seconds} seconds.\n"
-                f"Remaining requests: {remaining}"
+                f"⚠️ **Rate Limit Exceeded**\n\n"
+                f"You have reached the maximum number of requests allowed.\n\n"
+                f"**Please wait:** {rate_limiter._window_seconds} seconds\n"
+                f"**Remaining requests:** {remaining}"
             )
             await client.send_message(chat_id, error_msg, reply_to=reply_to_id)
             return
         
-        thinking_msg_text = f"🤖 Processing your {command_type} command from {command_sender_info}..."
-        thinking_msg = await client.send_message(chat_id, thinking_msg_text, reply_to=reply_to_id)
+        # For expensive AI commands, check the queue to prevent concurrent operations per chat
+        # This applies to /analyze, /prompt, and /tellme (all use pro model)
+        analysis_mode = command_args.get('analysis_mode', 'general')
+        protected_commands = {"/analyze", "/prompt", "/tellme"}
+        
+        if command_type in protected_commands:
+            cmd_name = command_type.lstrip("/")
+            analysis_type = analysis_mode if command_type == "/analyze" else "default"
+            
+            can_start, queue_error_msg = await analyze_queue.try_start_analysis(
+                chat_id=chat_id,
+                user_id=user_id,
+                analysis_type=analysis_type,
+                command_type=cmd_name
+            )
+            if not can_start:
+                self._logger.info(f"{cmd_name} request rejected for chat {chat_id} - queue locked")
+                await client.send_message(
+                    chat_id,
+                    queue_error_msg,
+                    reply_to=reply_to_id,
+                    parse_mode='html'
+                )
+                return
+        
+        # Professional processing message
+        command_display = command_type.replace("/", "").title()
+        thinking_msg_text = f"⚙️ **Processing {command_display} Request**\n\nAnalyzing your request... Please wait."
+        thinking_msg = await client.send_message(chat_id, thinking_msg_text, reply_to=reply_to_id, parse_mode='md')
         
         try:
             # Track timing
             with TimingContext('ai_command.duration', tags={'command': command_type}):
                 if not self._ai_processor.is_configured:
                     provider_name = self._ai_processor.provider_name if self._ai_processor else "AI"
-                    response = f"AI Error: {provider_name} API key or model name not configured correctly."
+                    response = f"❌ **Configuration Error**\n\n{provider_name} API key or model name is not configured correctly. Please check your configuration settings."
                 elif command_type == "/prompt":
                     response = await self._handle_prompt_command(**command_args)
                 elif command_type == "/translate":
@@ -127,7 +177,7 @@ class AIHandler(BaseHandler):
                 elif command_type == "/tellme":
                     response = await self._handle_tellme_command(client, chat_id, **command_args)
                 else:
-                    response = f"Unknown command type: {command_type}"
+                    response = f"❌ **Invalid Command**\n\nUnknown command type: `{command_type}`. Please use a valid command."
             
             # Log successful response and track metrics
             self._logger.info(f"AI command {command_type} completed. Response length: {len(response)} chars")
@@ -135,26 +185,38 @@ class AIHandler(BaseHandler):
             metrics.set_gauge('ai_command.response_length', len(response), tags={'command': command_type})
             
             # Use MessageSender for reliable delivery with pagination
+            # For /analyze, RTL fix is pre-applied to content only (not metadata)
             message_sender = MessageSender(client)
+            skip_rtl = command_type == "/analyze"  # Pre-applied RTL fix for analyze
             sent_messages = await message_sender.send_long_message(
                 chat_id=chat_id,
                 text=response,
                 reply_to=reply_to_id,
                 parse_mode='md',
-                edit_message=thinking_msg
+                edit_message=thinking_msg,
+                skip_rtl_fix=skip_rtl
             )
             
             # Send completion message if we successfully sent response
             if sent_messages:
                 time_str = datetime.now().strftime('%H:%M')
-                completion_msg = f"✅ Done - {time_str}"
+                command_display = command_type.replace("/", "").title()
+                completion_msg = f"✅ **{command_display} Completed**\n\nCompleted at {time_str}"
                 await message_sender.send_message_safe(
                     chat_id,
                     completion_msg,
-                    reply_to=reply_to_id
+                    reply_to=reply_to_id,
+                    parse_mode='md'
                 )
+            
+            # Release AI command queue lock on success
+            if command_type in protected_commands:
+                await analyze_queue.complete_analysis(chat_id)
         
         except Exception as e:
+            # Release AI command queue lock on failure
+            if command_type in protected_commands:
+                await analyze_queue.fail_analysis(chat_id)
             metrics.increment('ai_command.errors', tags={'command': command_type, 'error_type': type(e).__name__})
             ErrorHandler.log_error(e, context=f"AI command {command_type}")
             user_message = ErrorHandler.get_user_message(e)
@@ -178,26 +240,31 @@ class AIHandler(BaseHandler):
     async def _handle_prompt_command(self, user_prompt_text: str) -> str:
         """Handle /prompt command."""
         if not user_prompt_text:
-            return "❓ **Usage:** `/prompt=<your question or instruction>`"
+            return "📋 **Command Usage**\n\n**Format:** `/prompt=<your question or instruction>`\n\nPlease provide a question or instruction after the equals sign."
         
         try:
             # Validate and sanitize prompt
             try:
                 user_prompt_text = InputValidator.validate_prompt(user_prompt_text)
             except ValueError as e:
-                return f"❌ Invalid prompt: {str(e)}"
-            # Import Persian comedian system message
-            from ...ai.prompts import PERSIAN_COMEDIAN_SYSTEM
+                return f"❌ **Invalid Input**\n\n{str(e)}\n\nPlease check your prompt and try again."
+            # Import Persian comedian system message and formatting
+            from ...ai.prompts import PERSIAN_COMEDIAN_SYSTEM, get_telegram_formatting_guidelines
+            
+            # Append formatting guidelines to user prompt
+            format_guidelines = get_telegram_formatting_guidelines("persian")
+            enhanced_prompt = user_prompt_text + format_guidelines
             
             response = await self._ai_processor.execute_custom_prompt(
-                user_prompt=user_prompt_text,
-                system_message=PERSIAN_COMEDIAN_SYSTEM
+                user_prompt=enhanced_prompt,
+                system_message=PERSIAN_COMEDIAN_SYSTEM,
+                task_type="prompt"
             )
             if response and response.strip():
                 return response
             else:
                 self._logger.warning(f"Empty response from AI for prompt command. Response was: {response}")
-                return "⚠️ AI responded but the message was empty. This might be due to content filtering. Try rephrasing your request."
+                return "⚠️ **Empty Response**\n\nThe AI processed your request but returned an empty message. This may be due to content filtering.\n\n**Suggestion:** Try rephrasing your request or using different wording."
         except AIProcessorError as e:
             return f"AI Error: {e}"
     
@@ -209,17 +276,17 @@ class AIHandler(BaseHandler):
     ) -> str:
         """Handle /translate command."""
         if not text_for_ai or not target_language:
-            return "🌐 **Usage:** `/translate=<lang>=<text>` or reply with `/translate=<lang>`"
+            return "📋 **Translation Command Usage**\n\n**Format:** `/translate=<target_language>=<text>`\n\n**Or:** Reply to a message with `/translate=<target_language>`\n\n**Example:** `/translate=en=Hello world`"
         
         # Validate language code
         if not InputValidator.validate_language_code(target_language):
-            return f"❌ Invalid language code: {target_language}. Please use a valid ISO 639-1 language code (e.g., 'en', 'fa', 'es')."
+            return f"❌ **Invalid Language Code**\n\n`{target_language}` is not a valid language code.\n\n**Please use:** ISO 639-1 language codes (e.g., `en`, `fa`, `es`, `de`, `fr`)"
         
         # Validate and sanitize text
         try:
             text_for_ai = InputValidator.validate_prompt(text_for_ai, max_length=5000)
         except ValueError as e:
-            return f"❌ Invalid text: {str(e)}"
+                return f"❌ **Invalid Text Input**\n\n{str(e)}\n\nPlease check your text and try again."
         
         try:
             response = await self._ai_processor.translate_text_with_phonetics(
@@ -231,7 +298,7 @@ class AIHandler(BaseHandler):
                 return response.strip()
             else:
                 self._logger.warning(f"Empty response from AI for translation. Response was: {response}")
-                return "⚠️ Translation failed - the AI couldn't generate a translation. Try with different text or language."
+                return "⚠️ **Translation Failed**\n\nThe AI was unable to generate a translation for your request.\n\n**Suggestions:**\n• Try with different text\n• Use a different target language\n• Ensure the text is clear and readable"
         except AIProcessorError as e:
             return f"AI Error: {e}"
     
@@ -257,11 +324,11 @@ class AIHandler(BaseHandler):
         """
         # Validate number of messages
         if not InputValidator.validate_number(str(num_messages), min_val=1, max_val=10000):
-            return f"❌ Invalid number of messages: {num_messages}. Must be between 1 and 10000."
+            return f"❌ **Invalid Message Count**\n\n`{num_messages}` is not a valid number.\n\n**Valid range:** 1 to 10,000 messages"
         
         # Validate analysis mode
         if analysis_mode not in ("general", "fun", "romance"):
-            return f"❌ Invalid analysis mode: {analysis_mode}. Valid modes: general, fun, romance"
+            return f"❌ **Invalid Analysis Mode**\n\n`{analysis_mode}` is not a valid analysis mode.\n\n**Valid modes:** `general`, `fun`, `romance`"
         
         try:
             # Get chat history
@@ -275,7 +342,9 @@ class AIHandler(BaseHandler):
                     try:
                         sender = await msg.get_sender()
                         sender_name = (
-                            "You" if msg.sender_id == me_user.id
+                            # Use actual Telegram name instead of "You" for bot's own messages
+                            (me_user.first_name or me_user.username or "You")
+                            if msg.sender_id == me_user.id
                             else (
                                 getattr(sender, 'first_name', None) or
                                 getattr(sender, 'username', None) or
@@ -292,7 +361,7 @@ class AIHandler(BaseHandler):
                     })
             
             if not messages_data:
-                return "📭 No text messages found in the specified history to analyze."
+                return "📭 **No Messages Found**\n\nNo text messages were found in the specified message history to analyze.\n\n**Suggestion:** Try analyzing a different number of messages or ensure the chat contains text messages."
             
             # Generate analysis DIRECTLY in target language
             analysis_result = await self._ai_processor.analyze_conversation_messages(
@@ -304,26 +373,34 @@ class AIHandler(BaseHandler):
             # Validate and return result
             if not analysis_result or not analysis_result.strip():
                 self._logger.warning(f"Empty response from AI for analysis. Response was: {analysis_result}")
-                return "⚠️ Analysis incomplete - the AI processed your messages but couldn't generate a summary. This might be due to content in the messages. Try analyzing fewer messages."
+                return "⚠️ **Analysis Incomplete**\n\nThe AI processed your messages but was unable to generate a summary.\n\n**Possible reasons:**\n• Content filtering restrictions\n• Insufficient message content\n• Processing limitations\n\n**Suggestion:** Try analyzing fewer messages or a different time range."
             
-            # Generate metadata footer
+            # Apply RTL fix to analysis content ONLY (not metadata)
+            # This prevents LRM markers from being inserted into the English metadata
+            rtl_fixed_content = ensure_rtl_safe(analysis_result.strip())
+            
+            # Generate metadata footer (English, should NOT be RTL-fixed)
             unique_senders = list(set(m['sender'] for m in messages_data))
+            # Get the actual model used for analysis (pro model for analyze task)
+            model_name = self._ai_processor.get_model_for_task("analyze")
             metadata = format_analysis_metadata(
                 num_messages=len(messages_data),
                 unique_senders=unique_senders,
                 first_date=messages_data[0]['timestamp'],
                 last_date=messages_data[-1]['timestamp'],
                 analysis_type=analysis_mode,
-                language=output_language
+                language=output_language,
+                model_name=model_name
             )
             
-            return analysis_result.strip() + metadata
+            # Return pre-RTL-fixed content + clean metadata
+            return rtl_fixed_content + metadata
         
         except AIProcessorError as e:
-            return f"AI Error: {e}"
+            return f"❌ **Analysis Processing Error**\n\n{e}\n\nPlease try again or contact support if the issue persists."
         except Exception as e:
             self._logger.error(f"Error in analyze command: {e}", exc_info=True)
-            return f"Error: {e}"
+            return f"❌ **Unexpected Error**\n\nAn unexpected error occurred while processing your analysis request.\n\n**Error:** {e}\n\nPlease try again later."
     
     async def _handle_tellme_command(
         self,
@@ -335,13 +412,13 @@ class AIHandler(BaseHandler):
         """Handle /tellme command."""
         # Validate number of messages
         if not InputValidator.validate_number(str(num_messages), min_val=1, max_val=10000):
-            return f"❌ Invalid number of messages: {num_messages}. Must be between 1 and 10000."
+            return f"❌ **Invalid Message Count**\n\n`{num_messages}` is not a valid number.\n\n**Valid range:** 1 to 10,000 messages"
         
         # Validate and sanitize question
         try:
             user_question = InputValidator.validate_prompt(user_question, max_length=1000)
         except ValueError as e:
-            return f"❌ Invalid question: {str(e)}"
+            return f"❌ **Invalid Question**\n\n{str(e)}\n\nPlease check your question and try again."
         
         try:
             # Get chat history
@@ -355,7 +432,9 @@ class AIHandler(BaseHandler):
                     try:
                         sender = await msg.get_sender()
                         sender_name = (
-                            "You" if msg.sender_id == me_user.id
+                            # Use actual Telegram name instead of "You" for bot's own messages
+                            (me_user.first_name or me_user.username or "You")
+                            if msg.sender_id == me_user.id
                             else (
                                 getattr(sender, 'first_name', None) or
                                 getattr(sender, 'username', None) or
@@ -372,7 +451,7 @@ class AIHandler(BaseHandler):
                     })
             
             if not messages_data:
-                return "📭 No text messages found in history to answer your question."
+                return "📭 **No Messages Found**\n\nNo text messages were found in the specified history to answer your question.\n\n**Suggestion:** Try analyzing a different number of messages or ensure the chat contains text messages."
             
             response = await self._ai_processor.answer_question_from_chat_history(
                 messages_data, user_question
@@ -381,13 +460,13 @@ class AIHandler(BaseHandler):
                 return response
             else:
                 self._logger.warning(f"Empty response from AI for tellme command. Response was: {response}")
-                return "⚠️ The AI couldn't answer your question based on the chat history. Try asking a different question or including more message history."
+                return "⚠️ **Unable to Answer**\n\nThe AI couldn't answer your question based on the available chat history.\n\n**Suggestions:**\n• Try asking a different question\n• Include more message history\n• Rephrase your question"
         
         except AIProcessorError as e:
-            return f"AI Error: {e}"
+            return f"❌ **Question Processing Error**\n\n{e}\n\nPlease try again or contact support if the issue persists."
         except Exception as e:
             self._logger.error(f"Error in tellme command: {e}", exc_info=True)
-            return f"Error: {e}"
+            return f"❌ **Unexpected Error**\n\nAn unexpected error occurred while processing your question.\n\n**Error:** {e}\n\nPlease try again later."
     
     async def handle_other_ai_commands(
         self,
@@ -415,7 +494,7 @@ class AIHandler(BaseHandler):
             else:
                 await client.send_message(
                     chat_id,
-                    "❓ **Usage:** `/prompt=<your question or instruction>`",
+                    "📋 **Prompt Command Usage**\n\n**Format:** `/prompt=<your question or instruction>`\n\n**Example:** `/prompt=What is artificial intelligence?`",
                     reply_to=message.id,
                     parse_mode='md'
                 )
@@ -427,7 +506,7 @@ class AIHandler(BaseHandler):
             if not command_args:
                 await client.send_message(
                     chat_id,
-                    "🌐 **Usage:** `/translate=<lang>[,source_lang] [text]` or reply with `/translate=<lang>`",
+                    "📋 **Translation Command Usage**\n\n**Format:** `/translate=<target_language>=<text>`\n\n**Or:** Reply to a message with `/translate=<target_language>`\n\n**Example:** `/translate=en=Hello world`",
                     reply_to=message.id,
                     parse_mode='md'
                 )
@@ -439,7 +518,7 @@ class AIHandler(BaseHandler):
             if command_args and isinstance(command_args, dict) and command_args.get("error") == "unknown_mode":
                 await client.send_message(
                     chat_id,
-                    "❌ **Invalid analysis mode.** Valid modes: general, fun, romance",
+                    "❌ **Invalid Analysis Mode**\n\nThe analysis mode you specified is not valid.\n\n**Valid modes:**\n• `general` - Comprehensive analysis\n• `fun` - Humorous, entertaining analysis\n• `romance` - Emotional/romantic analysis",
                     reply_to=message.id,
                     parse_mode='md'
                 )
@@ -448,7 +527,7 @@ class AIHandler(BaseHandler):
                 max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
                 await client.send_message(
                     chat_id,
-                    f"📊 **Usage:** `/analyze=<number_between_1_and_{max_limit}>` or `/analyze=<mode>=<number>` (mode: fun, romance, general)",
+                    f"📋 **Analysis Command Usage**\n\n**Format 1:** `/analyze=<number>`\n**Format 2:** `/analyze=<mode>=<number>`\n\n**Modes:** `general`, `fun`, `romance`\n**Range:** 1 to {max_limit} messages\n\n**Examples:**\n• `/analyze=100`\n• `/analyze=fun=500`\n• `/analyze=romance=200 en`",
                     reply_to=message.id,
                     parse_mode='md'
                 )
@@ -460,7 +539,7 @@ class AIHandler(BaseHandler):
             if not command_args:
                 await client.send_message(
                     chat_id,
-                    "💬 **Usage:** `/tellme=<number_of_messages>=<your_question>`",
+                    "📋 **Tell Me Command Usage**\n\n**Format:** `/tellme=<number_of_messages>=<your_question>`\n\n**Example:** `/tellme=100=What did we discuss about the project?`",
                     reply_to=message.id,
                     parse_mode='md'
                 )

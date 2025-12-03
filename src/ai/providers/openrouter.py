@@ -1,4 +1,4 @@
-"""OpenRouter LLM provider implementation."""
+"""OpenRouter LLM provider implementation (fallback provider)."""
 
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 import httpx
 
 from ..llm_interface import LLMProvider
-from ...core.constants import OPENROUTER_HEADERS
+from ...core.constants import OPENROUTER_HEADERS, COMPLEX_TASKS, SIMPLE_TASKS
 from ...core.exceptions import AIProcessorError
 from ...utils.logging import get_logger
 from ..prompts import (
@@ -32,15 +32,19 @@ from ..prompts import (
 
 
 class OpenRouterProvider(LLMProvider):
-    """OpenRouter provider for LLM operations."""
+    """OpenRouter provider for LLM operations (used as Gemini fallback)."""
     
     def __init__(self, config: Any) -> None:
-        """Initialize OpenRouter provider."""
+        """Initialize OpenRouter provider with model selection support."""
         self._config = config
         self._logger = get_logger(self.__class__.__name__)
         self._client: Optional[AsyncOpenAI] = None
         self._api_key = config.openrouter_api_key
         self._model = config.openrouter_model
+        
+        # Model configuration - pro for complex tasks, flash for simple
+        self._model_pro = getattr(config, 'openrouter_model_pro', 'google/gemini-2.5-pro')
+        self._model_flash = getattr(config, 'openrouter_model_flash', 'google/gemini-2.5-flash')
     
     @property
     def is_configured(self) -> bool:
@@ -60,6 +64,14 @@ class OpenRouterProvider(LLMProvider):
     def model_name(self) -> str:
         """Get the current model name."""
         return self._model
+    
+    def get_model_for_task(self, task_type: str) -> str:
+        """Get appropriate model based on task complexity."""
+        if task_type in COMPLEX_TASKS:
+            return self._model_pro
+        elif task_type in SIMPLE_TASKS:
+            return self._model_flash
+        return self._model  # Legacy default
     
     def _get_client(self) -> AsyncOpenAI:
         """Get or create OpenAI client for OpenRouter."""
@@ -94,14 +106,18 @@ class OpenRouterProvider(LLMProvider):
         user_prompt: str,
         max_tokens: int = 1500,
         temperature: float = 0.7,
-        system_message: Optional[str] = None
+        system_message: Optional[str] = None,
+        task_type: str = "default"
     ) -> str:
-        """Execute a prompt using OpenRouter."""
+        """Execute a prompt using OpenRouter with task-based model selection."""
         if not user_prompt:
             raise AIProcessorError("Prompt cannot be empty")
         
         if not self.is_configured:
             raise AIProcessorError("OpenRouter API key not configured or invalid")
+        
+        # Select model based on task type
+        model = self.get_model_for_task(task_type)
         
         try:
             client = self._get_client()
@@ -114,7 +130,7 @@ class OpenRouterProvider(LLMProvider):
             messages.append({"role": "user", "content": user_prompt})
             
             self._logger.info(
-                f"Sending prompt to OpenRouter model '{self._model}'. "
+                f"Sending prompt to OpenRouter model '{model}'. "
                 f"System message: {'Yes' if system_message else 'No'}. "
                 f"Prompt preview: '{user_prompt[:100]}...'"
             )
@@ -122,7 +138,7 @@ class OpenRouterProvider(LLMProvider):
             # Add timeout for large requests
             try:
                 completion = await client.chat.completions.create(
-                    model=self._model,
+                    model=model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -130,7 +146,7 @@ class OpenRouterProvider(LLMProvider):
                     timeout=600.0  # 10 minute timeout for large requests
                 )
             except httpx.TimeoutException:
-                self._logger.error(f"Request timed out after 10 minutes for model '{self._model}'")
+                self._logger.error(f"Request timed out after 10 minutes for model '{model}'")
                 raise AIProcessorError("Request timed out. Try with fewer messages or a different model.")
             except httpx.HTTPStatusError as e:
                 self._logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
@@ -196,13 +212,13 @@ class OpenRouterProvider(LLMProvider):
                 )
             
             self._logger.info(
-                f"OpenRouter model '{self._model}' processing complete. Response length: {len(response_text)} chars"
+                f"OpenRouter model '{model}' processing complete. Response length: {len(response_text)} chars"
             )
             return response_text
         
         except Exception as e:
             self._logger.error(
-                f"Error calling OpenRouter API with model '{self._model}': {e}",
+                f"Error calling OpenRouter API with model '{model}': {e}",
                 exc_info=True
             )
             raise AIProcessorError(f"Could not get response from OpenRouter: {e}")
@@ -244,10 +260,12 @@ class OpenRouterProvider(LLMProvider):
         
         # Use lower temperature for translation accuracy
         # No max_tokens limit to allow full translation
+        # Use flash model for translation (simple task)
         raw_response = await self.execute_prompt(
             prompt,
             temperature=0.2,
-            system_message=TRANSLATION_SYSTEM_MESSAGE
+            system_message=TRANSLATION_SYSTEM_MESSAGE,
+            task_type="translate"
         )
         
         # Extract translation and pronunciation from the response
@@ -366,11 +384,13 @@ class OpenRouterProvider(LLMProvider):
         
         formatted_prompt = prompt + lang_instr + format_guidelines + scaling_instructions
         
+        # Use pro model for analysis (complex task)
         return await self.execute_prompt(
             formatted_prompt, 
             max_tokens=100000, 
             temperature=0.4,
-            system_message=system_message
+            system_message=system_message,
+            task_type="analyze"
         )
     
     async def answer_question_from_history(
@@ -412,11 +432,13 @@ class OpenRouterProvider(LLMProvider):
             f"Answering question '{question[:50]}...' based on {len(formatted_messages)} messages"
         )
         
+        # Use pro model for tellme (complex task)
         return await self.execute_prompt(
             formatted_prompt,
             max_tokens=100000,
             temperature=0.5,
-            system_message=QUESTION_ANSWER_SYSTEM_MESSAGE
+            system_message=QUESTION_ANSWER_SYSTEM_MESSAGE,
+            task_type="tellme"
         )
     
     async def close(self) -> None:

@@ -1,2 +1,3 @@
-"""Tests for SakaiBot."""
+"""Test package root for SakaiBot."""
+
 

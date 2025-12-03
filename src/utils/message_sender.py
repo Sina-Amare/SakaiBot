@@ -38,7 +38,8 @@ class MessageSender:
         text: str,
         reply_to: Optional[int] = None,
         parse_mode: Optional[str] = None,
-        max_retries: int = 3
+        max_retries: int = 3,
+        skip_rtl_fix: bool = False
     ) -> Optional[Message]:
         """
         Send a message with retry logic and automatic RTL fixing.
@@ -49,12 +50,14 @@ class MessageSender:
             reply_to: Reply to message ID
             parse_mode: Parse mode ('md' or 'html')
             max_retries: Maximum retry attempts
+            skip_rtl_fix: Skip RTL fix (use when RTL already applied to content)
             
         Returns:
             Sent message or None if failed
         """
-        # Apply RTL fix for Persian text (auto-detects Persian)
-        text = ensure_rtl_safe(text)
+        # Apply RTL fix for Persian text (auto-detects Persian) unless skipped
+        if not skip_rtl_fix:
+            text = ensure_rtl_safe(text)
         
         @retry_with_backoff(max_retries=max_retries, base_delay=1.0)
         async def _send():
@@ -149,7 +152,8 @@ class MessageSender:
         text: str,
         reply_to: Optional[int] = None,
         parse_mode: Optional[str] = None,
-        edit_message: Optional[Message] = None
+        edit_message: Optional[Message] = None,
+        skip_rtl_fix: bool = False
     ) -> List[Message]:
         """
         Send a long message, splitting if necessary with pagination.
@@ -160,6 +164,7 @@ class MessageSender:
             reply_to: Reply to message ID
             parse_mode: Parse mode ('md' or 'html')
             edit_message: Optional message to edit with first chunk
+            skip_rtl_fix: Skip RTL fix (use when RTL already applied to content)
             
         Returns:
             List of sent messages
@@ -194,7 +199,8 @@ class MessageSender:
                         chat_id,
                         full_text,
                         reply_to=reply_to,
-                        parse_mode=parse_mode
+                        parse_mode=parse_mode,
+                        skip_rtl_fix=skip_rtl_fix
                     )
                     if msg:
                         sent_messages.append(msg)
@@ -204,7 +210,8 @@ class MessageSender:
                     chat_id,
                     full_text,
                     reply_to=reply_to if i == 0 else None,  # Only first chunk replies
-                    parse_mode=parse_mode
+                    parse_mode=parse_mode,
+                    skip_rtl_fix=skip_rtl_fix
                 )
                 if msg:
                     sent_messages.append(msg)

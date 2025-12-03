@@ -7,11 +7,16 @@ from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from typing import List
 from .constants import (
     CONFIG_FILE_NAME,
     DEFAULT_MAX_ANALYZE_MESSAGES,
     DEFAULT_OPENROUTER_MODEL,
     DEFAULT_GEMINI_MODEL,
+    DEFAULT_GEMINI_MODEL_PRO,
+    DEFAULT_GEMINI_MODEL_FLASH,
+    DEFAULT_OPENROUTER_MODEL_PRO,
+    DEFAULT_OPENROUTER_MODEL_FLASH,
     DEFAULT_TTS_VOICE,
     DEFAULT_FLUX_WORKER_URL,
     DEFAULT_SDXL_WORKER_URL
@@ -39,12 +44,19 @@ class Config(BaseSettings):
     llm_provider: str = Field(default="openrouter", description="LLM Provider (openrouter or gemini)")
     
     # OpenRouter Configuration
-    openrouter_api_key: Optional[str] = Field(default=None, description="OpenRouter API Key")
-    openrouter_model: str = Field(default=DEFAULT_OPENROUTER_MODEL, description="OpenRouter Model Name")
+    openrouter_api_key: Optional[str] = Field(default=None, description="OpenRouter API Key (fallback)")
+    openrouter_model: str = Field(default=DEFAULT_OPENROUTER_MODEL, description="OpenRouter Model Name (legacy)")
+    openrouter_model_pro: str = Field(default=DEFAULT_OPENROUTER_MODEL_PRO, description="OpenRouter Pro Model (complex tasks)")
+    openrouter_model_flash: str = Field(default=DEFAULT_OPENROUTER_MODEL_FLASH, description="OpenRouter Flash Model (simple tasks)")
     
-    # Google Gemini Configuration
-    gemini_api_key: Optional[str] = Field(default=None, description="Google Gemini API Key")
-    gemini_model: str = Field(default=DEFAULT_GEMINI_MODEL, description="Gemini Model Name")
+    # Google Gemini Configuration - Multiple API Keys with rotation
+    gemini_api_key: Optional[str] = Field(default=None, description="Primary Gemini API Key (legacy, also used as key 1)")
+    gemini_api_key_1: Optional[str] = Field(default=None, description="Gemini API Key 1 (Primary)")
+    gemini_api_key_2: Optional[str] = Field(default=None, description="Gemini API Key 2 (Fallback 1)")
+    gemini_api_key_3: Optional[str] = Field(default=None, description="Gemini API Key 3 (Fallback 2)")
+    gemini_model: str = Field(default=DEFAULT_GEMINI_MODEL, description="Gemini Model Name (legacy)")
+    gemini_model_pro: str = Field(default=DEFAULT_GEMINI_MODEL_PRO, description="Gemini Pro Model (complex tasks: analyze, tellme, prompt)")
+    gemini_model_flash: str = Field(default=DEFAULT_GEMINI_MODEL_FLASH, description="Gemini Flash Model (simple tasks: translate, image)")
     
     # UserBot Configuration
     userbot_max_analyze_messages: int = Field(
@@ -117,7 +129,7 @@ class Config(BaseSettings):
             return None
         return v
     
-    @field_validator("gemini_api_key")
+    @field_validator("gemini_api_key", "gemini_api_key_1", "gemini_api_key_2", "gemini_api_key_3")
     @classmethod
     def validate_gemini_key(cls, v: Optional[str]) -> Optional[str]:
         """Validate Gemini API key format."""
@@ -134,6 +146,21 @@ class Config(BaseSettings):
         if not all(c.isalnum() or c in ['-', '_', '='] for c in v):
             return None
         return v
+    
+    @property
+    def gemini_api_keys(self) -> List[str]:
+        """Get all available Gemini API keys for rotation."""
+        keys = []
+        # Collect all valid keys, prioritizing numbered keys
+        for key in [self.gemini_api_key_1, self.gemini_api_key_2, self.gemini_api_key_3]:
+            if key and len(key) > 10:
+                keys.append(key)
+        
+        # If no numbered keys, fall back to legacy gemini_api_key
+        if not keys and self.gemini_api_key and len(self.gemini_api_key) > 10:
+            keys.append(self.gemini_api_key)
+        
+        return keys
     
     @field_validator("paths_ffmpeg_executable")
     @classmethod
@@ -198,11 +225,8 @@ class Config(BaseSettings):
                 and len(self.openrouter_api_key or "") > 10
             )
         elif self.llm_provider == "gemini":
-            return bool(
-                self.gemini_api_key
-                and "YOUR_GEMINI_API_KEY_HERE" not in (self.gemini_api_key or "")
-                and len(self.gemini_api_key or "") > 10
-            )
+            # Check if any Gemini API key is available
+            return len(self.gemini_api_keys) > 0
         return False
     
     @property

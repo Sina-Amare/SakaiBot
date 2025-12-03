@@ -7,7 +7,6 @@ from ..core.config import get_settings
 from ..utils.logging import get_logger
 from .processor import AIProcessor
 from .prompts import (
-    IMAGE_PROMPT_ENHANCEMENT_SYSTEM_MESSAGE,
     IMAGE_PROMPT_ENHANCEMENT_PROMPT
 )
 
@@ -86,7 +85,7 @@ class PromptEnhancer:
                 # Call AI processor to enhance the prompt
                 enhanced = await self._ai_processor.execute_custom_prompt(
                     user_prompt=enhancement_prompt,
-                    system_message=IMAGE_PROMPT_ENHANCEMENT_SYSTEM_MESSAGE
+                    task_type="prompt_enhancer"
                 )
                 
                 if not enhanced or not enhanced.strip():
@@ -138,7 +137,7 @@ class PromptEnhancer:
                 # Call AI processor to enhance the prompt
                 enhanced = await self._ai_processor.execute_custom_prompt(
                     user_prompt=enhancement_prompt,
-                    system_message=IMAGE_PROMPT_ENHANCEMENT_SYSTEM_MESSAGE
+                    task_type="prompt_enhancer"
                 )
                 
                 if not enhanced or not enhanced.strip():

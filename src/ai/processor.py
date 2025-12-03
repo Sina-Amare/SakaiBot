@@ -6,7 +6,6 @@ import pytz
 
 from .llm_interface import LLMProvider
 from .providers import OpenRouterProvider, GeminiProvider
-from .prompts import GENERIC_ASSISTANT_SYSTEM_MESSAGE
 from ..core.config import Config
 from ..core.exceptions import AIProcessorError, ConfigurationError
 from ..utils.logging import get_logger
@@ -95,8 +94,9 @@ class AIProcessor:
         user_prompt: str,
         max_tokens: int = 1500,
         temperature: float = 0.7,
-        system_message: Optional[str] = None,
-        task_type: str = "prompt"
+        task_type: str = "prompt",
+        use_thinking: bool = False,
+        use_web_search: bool = False
     ) -> str:
         """Execute a custom prompt using the configured LLM provider."""
         if not self.is_configured:
@@ -105,15 +105,17 @@ class AIProcessor:
             )
         
         self._logger.info(
-            f"Executing {task_type} prompt with {self.provider_name}"
+            f"Executing {task_type} prompt with {self.provider_name} "
+            f"(thinking={use_thinking}, web_search={use_web_search})"
         )
         
         return await self._provider.execute_prompt(
             user_prompt=user_prompt,
             max_tokens=max_tokens,
             temperature=temperature,
-            system_message=system_message,
-            task_type=task_type
+            task_type=task_type,
+            use_thinking=use_thinking,
+            use_web_search=use_web_search
         )
     
     async def translate_text_with_phonetics(
@@ -144,7 +146,8 @@ class AIProcessor:
         participant_mapping: Optional[Dict[int, str]] = None,
         max_messages: int = 10000,
         analysis_mode: str = "general",
-        output_language: str = "english"
+        output_language: str = "english",
+        use_thinking: bool = False
     ) -> str:
         """Analyze a collection of messages."""
         if not self.is_configured:
@@ -175,7 +178,8 @@ class AIProcessor:
         return await self._provider.analyze_messages(
             messages=processed_messages,
             analysis_type=analysis_mode,
-            output_language=output_language
+            output_language=output_language,
+            use_thinking=use_thinking
         )
     
     async def close(self) -> None:
@@ -191,7 +195,6 @@ class AIProcessor:
             user_prompt=prompt,
             max_tokens=2000,
             temperature=0.7,
-            system_message=GENERIC_ASSISTANT_SYSTEM_MESSAGE,
             task_type="tellme"
         )
     
@@ -199,7 +202,8 @@ class AIProcessor:
         self, 
         messages_data: List[Dict[str, Any]],
         analysis_mode: str = "general",
-        output_language: str = "english"
+        output_language: str = "english",
+        use_thinking: bool = False
     ) -> str:
         """Analyze conversation messages (compatibility wrapper)."""
         # Convert to expected format for analyze_messages
@@ -223,26 +227,36 @@ class AIProcessor:
             messages=messages,
             participant_mapping=participant_mapping,
             analysis_mode=analysis_mode,
-            output_language=output_language
+            output_language=output_language,
+            use_thinking=use_thinking
         )
     
     async def answer_question_from_chat_history(
         self,
         messages_data: List[Dict[str, Any]],
-        user_question: str
+        user_question: str,
+        use_thinking: bool = False,
+        use_web_search: bool = False
     ) -> str:
         """Answer a question based on chat history (compatibility wrapper)."""
-        # Format the conversation and question
-        conversation_text = "Conversation History:\n"
+        if not self.is_configured:
+            raise AIProcessorError(
+                f"AI processor not configured. Provider: {self._config.llm_provider}"
+            )
+        
+        # Use provider's answer_question_from_history method which handles formatting
+        # Convert messages_data format to expected format
+        formatted_messages = []
         for msg in messages_data:
-            sender = msg.get('sender', 'Unknown')
-            text = msg.get('text', '')
-            conversation_text += f"{sender}: {text}\n"
+            formatted_messages.append({
+                'sender_name': msg.get('sender', 'Unknown'),
+                'text': msg.get('text', ''),
+                'timestamp': msg.get('timestamp')
+            })
         
-        full_prompt = (
-            f"{conversation_text}\n\n"
-            f"Based on the above conversation, please answer this question:\n"
-            f"{user_question}"
+        return await self._provider.answer_question_from_history(
+            messages=formatted_messages,
+            question=user_question,
+            use_thinking=use_thinking,
+            use_web_search=use_web_search
         )
-        
-        return await self.execute_tellme_mode(full_prompt)

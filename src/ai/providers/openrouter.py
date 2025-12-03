@@ -12,19 +12,14 @@ from ...core.constants import OPENROUTER_HEADERS, COMPLEX_TASKS, SIMPLE_TASKS
 from ...core.exceptions import AIProcessorError
 from ...utils.logging import get_logger
 from ..prompts import (
-    TRANSLATION_SYSTEM_MESSAGE,
     TRANSLATION_AUTO_DETECT_PROMPT,
     TRANSLATION_SOURCE_TARGET_PROMPT,
     CONVERSATION_ANALYSIS_PROMPT,
-    CONVERSATION_ANALYSIS_SYSTEM_MESSAGE,
     QUESTION_ANSWER_PROMPT,
-    QUESTION_ANSWER_SYSTEM_MESSAGE,
     VOICE_MESSAGE_SUMMARY_PROMPT,
     ANALYZE_GENERAL_PROMPT,
     ANALYZE_FUN_PROMPT,
     ANALYZE_ROMANCE_PROMPT,
-    ANALYZE_FUN_SYSTEM_MESSAGE,
-    ENGLISH_ANALYSIS_SYSTEM_MESSAGE,
     DEFAULT_CHAT_SUMMARY_PROMPT,
     get_telegram_formatting_guidelines,
     get_response_scaling_instructions
@@ -73,6 +68,27 @@ class OpenRouterProvider(LLMProvider):
             return self._model_flash
         return self._model  # Legacy default
     
+    def _calculate_max_tokens(self, task_type: str, num_messages: Optional[int] = None) -> int:
+        """
+        Calculate fixed max_tokens based on task type.
+        
+        Args:
+            task_type: Type of task ('analyze', 'tellme', 'prompt', 'translate', etc.)
+            num_messages: Number of messages in conversation (unused, kept for compatibility)
+            
+        Returns:
+            Fixed max_tokens value based on task type
+        """
+        if task_type in ("analyze", "tellme", "prompt"):
+            # Fixed 32k cap for complex tasks
+            return 32000
+        elif task_type in ("translate", "prompt_enhancer"):
+            # Fixed 8k cap for simple tasks
+            return 8000
+        else:
+            # Default fallback
+            return 16000
+    
     def _get_client(self) -> AsyncOpenAI:
         """Get or create OpenAI client for OpenRouter."""
         if not self.is_configured:
@@ -106,8 +122,9 @@ class OpenRouterProvider(LLMProvider):
         user_prompt: str,
         max_tokens: int = 1500,
         temperature: float = 0.7,
-        system_message: Optional[str] = None,
-        task_type: str = "default"
+        task_type: str = "default",
+        use_thinking: bool = False,
+        use_web_search: bool = False
     ) -> str:
         """Execute a prompt using OpenRouter with task-based model selection."""
         if not user_prompt:
@@ -119,19 +136,31 @@ class OpenRouterProvider(LLMProvider):
         # Select model based on task type
         model = self.get_model_for_task(task_type)
         
+        # Add thinking mode instructions if enabled
+        if use_thinking:
+            thinking_instruction = (
+                "\n\n**THINKING MODE ENABLED:** "
+                "Before generating your final response, perform step-by-step reasoning internally. "
+                "Think through the problem systematically, consider multiple perspectives, "
+                "and reason through to a well-justified conclusion. "
+                "Do NOT show your intermediate reasoning steps in the output - only provide the final, "
+                "well-reasoned answer. The quality and depth of your internal reasoning should be "
+                "reflected in the thoroughness and accuracy of your final response."
+            )
+            user_prompt = user_prompt + thinking_instruction
+        
+        # Note: OpenRouter doesn't support Google Search tool directly
+        if use_web_search:
+            self._logger.warning("Web search requested but OpenRouter doesn't support Google Search tool")
+        
         try:
             client = self._get_client()
             
-            messages = []
-            if system_message and system_message.strip():
-                self._logger.debug(f"Using system message: '{system_message}'")
-                messages.append({"role": "system", "content": system_message})
-            
-            messages.append({"role": "user", "content": user_prompt})
+            # Prompt is already self-contained (system messages merged into prompts)
+            messages = [{"role": "user", "content": user_prompt}]
             
             self._logger.info(
                 f"Sending prompt to OpenRouter model '{model}'. "
-                f"System message: {'Yes' if system_message else 'No'}. "
                 f"Prompt preview: '{user_prompt[:100]}...'"
             )
             
@@ -263,8 +292,8 @@ class OpenRouterProvider(LLMProvider):
         # Use flash model for translation (simple task)
         raw_response = await self.execute_prompt(
             prompt,
+            max_tokens=self._calculate_max_tokens("translate"),
             temperature=0.2,
-            system_message=TRANSLATION_SYSTEM_MESSAGE,
             task_type="translate"
         )
         
@@ -284,7 +313,8 @@ class OpenRouterProvider(LLMProvider):
         self,
         messages: List[Dict[str, Any]],
         analysis_type: str = "summary",
-        output_language: str = "english"
+        output_language: str = "english",
+        use_thinking: bool = False
     ) -> str:
         """Analyze messages using OpenRouter."""
         if not messages:
@@ -340,34 +370,34 @@ class OpenRouterProvider(LLMProvider):
                 duration_minutes=duration_minutes,
                 actual_chat_messages=messages_text
             )
-            system_message = CONVERSATION_ANALYSIS_SYSTEM_MESSAGE
         elif analysis_type == "general":
             prompt = ANALYZE_GENERAL_PROMPT.format(messages_text=messages_text)
-            system_message = None
         elif analysis_type == "fun":
             prompt = ANALYZE_FUN_PROMPT.format(messages_text=messages_text)
-            system_message = ANALYZE_FUN_SYSTEM_MESSAGE
         elif analysis_type == "romance":
             prompt = ANALYZE_ROMANCE_PROMPT.format(messages_text=messages_text)
-            system_message = None
         elif analysis_type == "voice_summary":
             # Summary for voice messages
             prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
                 transcribed_text=messages_text
             )
-            system_message = None
         else:
             # Default summary (from centralized prompts)
             prompt = DEFAULT_CHAT_SUMMARY_PROMPT.format(messages_text=messages_text)
-            system_message = None
         
         self._logger.info(
             f"Sending conversation ({num_messages} messages) for {analysis_type} analysis, language={output_language}"
         )
         
-        # Override system message for English output (from centralized prompts)
+        # Add English analysis instructions if needed (system messages are merged into prompts)
         if output_language == "english":
-            system_message = ENGLISH_ANALYSIS_SYSTEM_MESSAGE
+            english_instructions = (
+                "\n\n**CRITICAL**: You are a sharp, witty analyst with a Bill Burr-style observational humor. "
+                "Write ENTIRELY in English. Be direct, funny, and insightful. "
+                "Use dry wit and sarcasm while maintaining analytical accuracy. "
+                "Structure your response with clear sections and appropriate emojis."
+            )
+            prompt = prompt + english_instructions
         
         # Append language instruction to prompt
         lang_instr = f"\n\n**CRITICAL**: Write your ENTIRE response in {output_language.upper()}. "
@@ -384,19 +414,28 @@ class OpenRouterProvider(LLMProvider):
         
         formatted_prompt = prompt + lang_instr + format_guidelines + scaling_instructions
         
+        # Calculate tiered max_tokens based on conversation size
+        max_tokens = self._calculate_max_tokens("analyze", num_messages)
+        
+        self._logger.info(
+            f"Analysis task: {num_messages} messages, using max_tokens={max_tokens}"
+        )
+        
         # Use pro model for analysis (complex task)
         return await self.execute_prompt(
             formatted_prompt, 
-            max_tokens=100000, 
+            max_tokens=max_tokens, 
             temperature=0.4,
-            system_message=system_message,
-            task_type="analyze"
+            task_type="analyze",
+            use_thinking=use_thinking
         )
     
     async def answer_question_from_history(
         self,
         messages: List[Dict[str, Any]],
-        question: str
+        question: str,
+        use_thinking: bool = False,
+        use_web_search: bool = False
     ) -> str:
         """Answer a question based on chat history using Persian prompts."""
         if not messages:
@@ -432,13 +471,21 @@ class OpenRouterProvider(LLMProvider):
             f"Answering question '{question[:50]}...' based on {len(formatted_messages)} messages"
         )
         
+        # Calculate max_tokens for tellme (always 32k for comprehensive Q&A)
+        max_tokens = self._calculate_max_tokens("tellme")
+        
+        # Note: OpenRouter doesn't support Google Search tool directly
+        if use_web_search:
+            self._logger.warning("Web search requested but OpenRouter doesn't support Google Search tool")
+        
         # Use pro model for tellme (complex task)
         return await self.execute_prompt(
             formatted_prompt,
-            max_tokens=100000,
+            max_tokens=max_tokens,
             temperature=0.5,
-            system_message=QUESTION_ANSWER_SYSTEM_MESSAGE,
-            task_type="tellme"
+            task_type="tellme",
+            use_thinking=use_thinking,
+            use_web_search=use_web_search
         )
     
     async def close(self) -> None:

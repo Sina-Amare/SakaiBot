@@ -13,8 +13,7 @@ from pydub import AudioSegment
 from ...ai.stt import SpeechToTextProcessor
 from ...ai.processor import AIProcessor
 from ...ai.prompts import (
-    VOICE_MESSAGE_SUMMARY_PROMPT,
-    VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE
+    VOICE_MESSAGE_SUMMARY_PROMPT
 )
 from ...core.constants import MAX_MESSAGE_LENGTH
 from ...core.exceptions import AIProcessorError
@@ -104,15 +103,14 @@ class STTHandler(BaseHandler):
             summary_prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
                 transcribed_text=transcribed_text
             )
-            system_message = VOICE_MESSAGE_SUMMARY_SYSTEM_MESSAGE
 
             if self._ai_processor.is_configured:
                 try:
                     summary_text = await self._ai_processor.execute_custom_prompt(
                         user_prompt=summary_prompt,
-                        system_message=system_message,
                         max_tokens=300,
-                        temperature=0.5
+                        temperature=0.5,
+                        task_type="voice_summary"
                     )
                 except AIProcessorError as e:
                     self._logger.error(f"AI summarization failed via primary provider: {e}")

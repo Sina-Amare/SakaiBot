@@ -157,6 +157,7 @@ Generate images with SDXL model (stable, detailed)
 <b>🤖 AI COMMANDS</b>
 <code>/prompt=your question</code>
 Ask AI any question or give instructions
+<i>Flags: /prompt=question=think (thinking mode), /prompt=question=web (web search)</i>
 
 <code>/translate=en=text here</code>
 Translate text to any language (en, fa, es, etc.)
@@ -165,9 +166,11 @@ Translate text to any language (en, fa, es, etc.)
 <code>/analyze=100</code>
 AI analyzes last 100 messages in chat
 <i>Modes: /analyze=fun=50, /analyze=romance=200</i>
+<i>Flags: /analyze=fun=3000=think (thinking mode for deeper reasoning)</i>
 
 <code>/tellme=50=your question</code>
 Ask AI about last 50 messages in chat
+<i>Flags: /tellme=100=question=think (thinking mode), /tellme=100=question=web (web search)</i>
 
 <b>🎧 VOICE & AUDIO</b>
 <code>/tts=text to speak</code>
@@ -228,6 +231,7 @@ Transcribe voice to text + AI summary
 <b>🤖 دستورات هوش مصنوعی</b>
 <code>/prompt=سوال یا دستور شما</code>
 از هوش مصنوعی هر سوالی بپرسید یا دستوری بدهید
+<i>فلگ‌ها: /prompt=سوال=think (حالت تفکر)، /prompt=سوال=web (جستجوی وب)</i>
 
 <code>/translate=fa=text here</code>
 ترجمه متن به هر زبانی (فارسی، انگلیسی، اسپانیایی و...)
@@ -236,9 +240,11 @@ Transcribe voice to text + AI summary
 <code>/analyze=100</code>
 هوش مصنوعی آخرین ۱۰۰ پیام چت را تحلیل می‌کند
 <i>حالت‌ها: /analyze=fun=50، /analyze=romance=200</i>
+<i>فلگ‌ها: /analyze=fun=3000=think (حالت تفکر برای استدلال عمیق‌تر)</i>
 
 <code>/tellme=50=سوال شما</code>
 از هوش مصنوعی درباره آخرین ۵۰ پیام چت سوال بپرسید
+<i>فلگ‌ها: /tellme=100=سوال=think (حالت تفکر)، /tellme=100=سوال=web (جستجوی وب)</i>
 
 <b>🎧 صدا و گفتار</b>
 <code>/tts=متن برای تبدیل به گفتار</code>
@@ -333,6 +339,8 @@ Transcribe voice to text + AI summary
 <code>/prompt=what is quantum computing?</code>
 <code>/prompt=write a poem about stars</code>
 <code>/prompt=explain this code: [paste code]</code>
+<code>/prompt=question=think</code> - Thinking mode (deeper reasoning)
+<code>/prompt=question=web</code> - Web search enabled
 
 <i>Use for: Questions, explanations, creative writing</i>
 
@@ -354,6 +362,7 @@ Supported languages:
 <code>/analyze=fun=50</code> - Fun analysis mode
 <code>/analyze=romance=200</code> - Romance analysis
 <code>/analyze=general=500</code> - General insights
+<code>/analyze=fun=3000=think</code> - Thinking mode (deeper analysis)
 
 <i>AI provides summary, themes, and insights</i>
 
@@ -361,6 +370,8 @@ Supported languages:
 <code>/tellme=50=what topics were discussed?</code>
 <code>/tellme=100=who talked the most?</code>
 <code>/tellme=200=summarize the conversation</code>
+<code>/tellme=100=question=think</code> - Thinking mode (deeper reasoning)
+<code>/tellme=100=question=web</code> - Web search enabled
 
 <i>Ask questions about recent chat history</i>
 

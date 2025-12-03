@@ -42,7 +42,7 @@ CONFIRMATION_KEYWORD: Final[str] = "confirm"
 
 # Task type definitions for model selection
 COMPLEX_TASKS: Final[tuple[str, ...]] = ("analyze", "tellme", "prompt")
-SIMPLE_TASKS: Final[tuple[str, ...]] = ("translate", "image_enhance")
+SIMPLE_TASKS: Final[tuple[str, ...]] = ("translate", "image_enhance", "prompt_enhancer")
 
 # Logging Constants
 LOG_FORMAT: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

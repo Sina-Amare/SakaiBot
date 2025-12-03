@@ -31,7 +31,9 @@ def format_analysis_metadata(
     last_date,
     analysis_type: str,
     language: str,
-    model_name: Optional[str] = None
+    model_name: Optional[str] = None,
+    use_thinking: bool = False,
+    use_web_search: bool = False
 ) -> str:
     """
     Generate metadata footer for analysis results.
@@ -77,6 +79,15 @@ def format_analysis_metadata(
     # Add model name if provided
     if model_name:
         metadata_lines.append(f"**Model:** {model_name}")
+    
+    # Add flags if enabled
+    flags = []
+    if use_thinking:
+        flags.append("Thinking")
+    if use_web_search:
+        flags.append("Web Search")
+    if flags:
+        metadata_lines.append(f"**Mode:** {', '.join(flags)}")
     
     # Wrap entire metadata block in LTR embedding for proper display
     # This ensures English labels and values display correctly in RTL context
@@ -237,8 +248,13 @@ class AIHandler(BaseHandler):
                 except Exception:
                     pass
     
-    async def _handle_prompt_command(self, user_prompt_text: str) -> str:
-        """Handle /prompt command."""
+    async def _handle_prompt_command(
+        self, 
+        user_prompt_text: str, 
+        use_thinking: bool = False,
+        use_web_search: bool = False
+    ) -> str:
+        """Handle /prompt command with optional thinking and web search flags."""
         if not user_prompt_text:
             return "📋 **Command Usage**\n\n**Format:** `/prompt=<your question or instruction>`\n\nPlease provide a question or instruction after the equals sign."
         
@@ -248,17 +264,21 @@ class AIHandler(BaseHandler):
                 user_prompt_text = InputValidator.validate_prompt(user_prompt_text)
             except ValueError as e:
                 return f"❌ **Invalid Input**\n\n{str(e)}\n\nPlease check your prompt and try again."
-            # Import Persian comedian system message and formatting
-            from ...ai.prompts import PERSIAN_COMEDIAN_SYSTEM, get_telegram_formatting_guidelines
+            # Import unified prompt and formatting
+            from ...ai.prompts import PROMPT_COMEDIAN_PROMPT, get_telegram_formatting_guidelines
             
             # Append formatting guidelines to user prompt
             format_guidelines = get_telegram_formatting_guidelines("persian")
-            enhanced_prompt = user_prompt_text + format_guidelines
+            user_prompt_with_format = user_prompt_text + format_guidelines
+            
+            # Use unified prompt that includes system message content
+            full_prompt = PROMPT_COMEDIAN_PROMPT.format(user_prompt=user_prompt_with_format)
             
             response = await self._ai_processor.execute_custom_prompt(
-                user_prompt=enhanced_prompt,
-                system_message=PERSIAN_COMEDIAN_SYSTEM,
-                task_type="prompt"
+                user_prompt=full_prompt,
+                task_type="prompt",
+                use_thinking=use_thinking,
+                use_web_search=use_web_search
             )
             if response and response.strip():
                 return response
@@ -308,7 +328,8 @@ class AIHandler(BaseHandler):
         chat_id: int,
         num_messages: int,
         analysis_mode: str = "general",
-        output_language: str = "persian"
+        output_language: str = "persian",
+        use_thinking: bool = False
     ) -> str:
         """Handle /analyze command with optional Persian translation.
         
@@ -367,7 +388,8 @@ class AIHandler(BaseHandler):
             analysis_result = await self._ai_processor.analyze_conversation_messages(
                 messages_data,
                 analysis_mode=analysis_mode,
-                output_language=output_language
+                output_language=output_language,
+                use_thinking=use_thinking
             )
             
             # Validate and return result
@@ -390,7 +412,8 @@ class AIHandler(BaseHandler):
                 last_date=messages_data[-1]['timestamp'],
                 analysis_type=analysis_mode,
                 language=output_language,
-                model_name=model_name
+                model_name=model_name,
+                use_thinking=use_thinking
             )
             
             # Return pre-RTL-fixed content + clean metadata
@@ -407,7 +430,9 @@ class AIHandler(BaseHandler):
         client: TelegramClient,
         chat_id: int,
         num_messages: int,
-        user_question: str
+        user_question: str,
+        use_thinking: bool = False,
+        use_web_search: bool = False
     ) -> str:
         """Handle /tellme command."""
         # Validate number of messages
@@ -454,7 +479,10 @@ class AIHandler(BaseHandler):
                 return "📭 **No Messages Found**\n\nNo text messages were found in the specified history to answer your question.\n\n**Suggestion:** Try analyzing a different number of messages or ensure the chat contains text messages."
             
             response = await self._ai_processor.answer_question_from_chat_history(
-                messages_data, user_question
+                messages_data, 
+                user_question,
+                use_thinking=use_thinking,
+                use_web_search=use_web_search
             )
             if response and response.strip():
                 return response
@@ -487,14 +515,30 @@ class AIHandler(BaseHandler):
         # Parse different command types
         if command_text.lower().startswith("/prompt="):
             command_type = "/prompt"
-            user_prompt_text = command_text[len("/prompt="):].strip()
-            if user_prompt_text:
+            payload = command_text[len("/prompt="):].strip()
+            
+            # Check for flags at the end
+            use_thinking = False
+            use_web_search = False
+            
+            if payload.lower().endswith("=think"):
+                use_thinking = True
+                payload = payload[:-6].strip()  # Remove '=think'
+            elif payload.lower().endswith("=web"):
+                use_web_search = True
+                payload = payload[:-4].strip()  # Remove '=web'
+            
+            if payload:
                 # Additional validation will happen in _handle_prompt_command
-                command_args = {"user_prompt_text": user_prompt_text}
+                command_args = {
+                    "user_prompt_text": payload,
+                    "use_thinking": use_thinking,
+                    "use_web_search": use_web_search
+                }
             else:
                 await client.send_message(
                     chat_id,
-                    "📋 **Prompt Command Usage**\n\n**Format:** `/prompt=<your question or instruction>`\n\n**Example:** `/prompt=What is artificial intelligence?`",
+                    "📋 **Prompt Command Usage**\n\n**Format:** `/prompt=<your question or instruction>`\n\n**Example:** `/prompt=What is artificial intelligence?`\n\n**Flags:** Add `=think` for thinking mode or `=web` for web search",
                     reply_to=message.id,
                     parse_mode='md'
                 )
@@ -610,7 +654,7 @@ class AIHandler(BaseHandler):
     def _parse_analyze_command(
         self, command_text: str, cli_state_ref: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Parse analyze command parameters with optional mode and language flag.
+        """Parse analyze command parameters with optional mode, language flag, and thinking mode.
 
         Supported:
           /analyze=<N>
@@ -621,6 +665,10 @@ class AIHandler(BaseHandler):
           Add 'en' flag for English output:
           /analyze=fun=500 en
           /analyze=500 en
+          
+          Add 'think' flag for thinking mode:
+          /analyze=fun=500=think
+          /analyze=500=think
         """
         try:
             text = command_text.strip()
@@ -632,6 +680,12 @@ class AIHandler(BaseHandler):
                 output_language = "english"
                 text = text[:-3].strip()  # Remove ' en' from end
 
+            # Check for 'think' flag
+            use_thinking = False
+            if text.lower().endswith("=think"):
+                use_thinking = True
+                text = text[:-6].strip()  # Remove '=think' from end
+
             # Backward compatibility: '/analyze 5000'
             if text.lower().startswith("/analyze "):
                 tail = text[len("/analyze "):].strip()
@@ -641,7 +695,8 @@ class AIHandler(BaseHandler):
                         return {
                             "num_messages": n,
                             "analysis_mode": "general",
-                            "output_language": output_language
+                            "output_language": output_language,
+                            "use_thinking": use_thinking
                         }
                 return None
 
@@ -659,7 +714,7 @@ class AIHandler(BaseHandler):
                 # /analyze=<N>
                 num_part = parts[0]
             elif len(parts) >= 2:
-                # /analyze=<mode>=<N>
+                # /analyze=<mode>=<N> or /analyze=<mode>=<N>=think
                 mode_candidate = parts[0].strip().lower()
                 num_part = parts[1].strip()
                 if mode_candidate in ("fun", "romance", "general"):
@@ -677,7 +732,8 @@ class AIHandler(BaseHandler):
             return {
                 "num_messages": n,
                 "analysis_mode": mode,
-                "output_language": output_language
+                "output_language": output_language,
+                "use_thinking": use_thinking
             }
         except Exception:
             return None
@@ -685,9 +741,16 @@ class AIHandler(BaseHandler):
     def _parse_tellme_command(
         self, command_text: str, cli_state_ref: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Parse tellme command parameters."""
+        """Parse tellme command parameters with optional think and web flags.
+        
+        Supported:
+          /tellme=<N>=<question>
+          /tellme=<N>=<question>=think
+          /tellme=<N>=<question>=web
+        """
+        # Match with optional flags at the end
         tellme_match = re.match(
-            r"/tellme=(\d+)=(.+)", command_text, re.IGNORECASE | re.DOTALL
+            r"/tellme=(\d+)=(.+?)(?:=(think|web))?$", command_text, re.IGNORECASE | re.DOTALL
         )
         
         if not tellme_match:
@@ -696,15 +759,21 @@ class AIHandler(BaseHandler):
         try:
             num_messages = int(tellme_match.group(1))
             user_question = tellme_match.group(2).strip()
+            flag = tellme_match.group(3)
             
             max_limit = cli_state_ref.get("MAX_ANALYZE_MESSAGES_CLI", 10000)
             
             if not (1 <= num_messages <= max_limit) or not user_question:
                 return None
             
+            use_thinking = flag and flag.lower() == "think"
+            use_web_search = flag and flag.lower() == "web"
+            
             return {
                 "num_messages": num_messages,
-                "user_question": user_question
+                "user_question": user_question,
+                "use_thinking": use_thinking,
+                "use_web_search": use_web_search
             }
         except ValueError:
             return None

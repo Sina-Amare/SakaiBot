@@ -278,14 +278,14 @@ class AIHandler(BaseHandler):
             except ValueError as e:
                 return f"❌ **Invalid Input**\n\n{str(e)}\n\nPlease check your prompt and try again."
             # Import unified prompt and formatting
-            from ...ai.prompts import PROMPT_COMEDIAN_PROMPT, get_telegram_formatting_guidelines
+            from ...ai.prompts import PROMPT_ADAPTIVE_PROMPT, get_telegram_formatting_guidelines
             
             # Append formatting guidelines to user prompt
             format_guidelines = get_telegram_formatting_guidelines("persian")
             user_prompt_with_format = user_prompt_text + format_guidelines
             
-            # Use unified prompt that includes system message content
-            full_prompt = PROMPT_COMEDIAN_PROMPT.format(user_prompt=user_prompt_with_format)
+            # Use adaptive prompt that detects tone and responds appropriately
+            full_prompt = PROMPT_ADAPTIVE_PROMPT.format(user_prompt=user_prompt_with_format)
             
             response = await self._ai_processor.execute_custom_prompt(
                 user_prompt=full_prompt,

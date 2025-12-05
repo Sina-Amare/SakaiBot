@@ -17,13 +17,33 @@ from ..utils.logging import get_logger
 T = TypeVar('T')
 
 logger = get_logger(__name__)
-# English error messages for users
+# English error messages for users (HTML formatted)
 ERROR_MESSAGES = {
-    ConfigurationError: "⚠️ Configuration Error: Please check your settings.",
-    TelegramError: "⚠️ Telegram Error: Failed to communicate with Telegram. Please try again.",
-    AIProcessorError: "⚠️ AI Processing Error: Failed to process your request. Please try again.",
-    ValidationError: "⚠️ Validation Error: Invalid input. Please check and try again.",
-    Exception: "⚠️ Unexpected Error: Something went wrong. Please try again later."
+    ConfigurationError: (
+        "⚙️ <b>Configuration Error</b>\n\n"
+        "Please check your settings.\n\n"
+        "<i>💡 Run /status to verify configuration</i>"
+    ),
+    TelegramError: (
+        "📡 <b>Connection Error</b>\n\n"
+        "Failed to communicate with Telegram.\n\n"
+        "<i>💡 Please try again in a few moments</i>"
+    ),
+    AIProcessorError: (
+        "🤖 <b>AI Processing Error</b>\n\n"
+        "Failed to process your request.\n\n"
+        "<i>💡 Try with simpler input or wait a moment</i>"
+    ),
+    ValidationError: (
+        "⚠️ <b>Invalid Input</b>\n\n"
+        "Please check your input and try again.\n\n"
+        "<i>💡 Use /help for correct command format</i>"
+    ),
+    Exception: (
+        "❌ <b>Unexpected Error</b>\n\n"
+        "Something went wrong.\n\n"
+        "<i>💡 Please try again later</i>"
+    )
 }
 
 
@@ -47,21 +67,53 @@ class ErrorHandler:
         # Image generation specific error messages
         if "image generation" in error_str or "sdxl" in error_str or "flux" in error_str:
             if "timeout" in error_str or "timed out" in error_str:
-                return "⏱️ Image generation timed out. Please try again."
+                return (
+                    "⏱️ <b>Image Timeout</b>\n\n"
+                    "Generation took too long.\n\n"
+                    "<i>💡 Try again - workers may be busy</i>"
+                )
             elif "rate limit" in error_str or "429" in error_str:
-                return "⚠️ Rate limit exceeded - please wait and try again."
+                return (
+                    "🚦 <b>Rate Limited</b>\n\n"
+                    "Too many requests.\n\n"
+                    "<i>💡 Wait 60 seconds and try again</i>"
+                )
             elif "unauthorized" in error_str or "401" in error_str or "api key" in error_str:
-                return "🔐 Authentication error: Invalid API key."
+                return (
+                    "🔐 <b>Auth Error</b>\n\n"
+                    "Invalid API key.\n\n"
+                    "<i>💡 Check your configuration</i>"
+                )
             elif "invalid" in error_str or "400" in error_str:
-                return "❌ Invalid request: Please check your prompt."
+                return (
+                    "⚠️ <b>Invalid Request</b>\n\n"
+                    "Please check your prompt.\n\n"
+                    "<i>💡 Try simpler, clearer description</i>"
+                )
             elif "network" in error_str or "connection" in error_str:
-                return "🌐 Network error connecting to image server. Please try again."
+                return (
+                    "🌐 <b>Network Error</b>\n\n"
+                    "Cannot reach image server.\n\n"
+                    "<i>💡 Try again in a moment</i>"
+                )
             elif "content" in error_str or "moderation" in error_str or "filter" in error_str:
-                return "🚫 Content was filtered by the system. Please try a different prompt."
+                return (
+                    "🚫 <b>Content Filtered</b>\n\n"
+                    "Prompt was blocked by safety filter.\n\n"
+                    "<i>💡 Try a different prompt</i>"
+                )
             elif "service" in error_str or "500" in error_str or "unavailable" in error_str:
-                return "🔧 Image generation service unavailable. Please try again later."
+                return (
+                    "🔧 <b>Service Unavailable</b>\n\n"
+                    "Image server is down.\n\n"
+                    "<i>💡 Try again later</i>"
+                )
             elif "model" in error_str and "invalid" in error_str:
-                return "❌ Invalid model. Supported models: flux, sdxl"
+                return (
+                    "❌ <b>Invalid Model</b>\n\n"
+                    "Use <code>flux</code> or <code>sdxl</code>\n\n"
+                    "<i>💡 /help images for more info</i>"
+                )
         
         # Check for specific error types
         for exc_type, message in ERROR_MESSAGES.items():

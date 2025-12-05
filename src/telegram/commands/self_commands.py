@@ -138,341 +138,370 @@ async def handle_help_command(event: events.NewMessage.Event, args: str):
     try:
         if not args:
             # Main help message
-            msg = """
-🤖 <b>SakaiBot - Complete Guide</b>
+            msg = """🤖 <b>SakaiBot Help</b>
+<i>Your AI-powered userbot assistant</i>
 
-<i>Smart userbot with AI, image generation, voice, and monitoring</i>
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>🎨 IMAGE GENERATION</b>
-<code>/image=flux=your prompt here</code>
-Generate images with FLUX model (fast, high quality)
+⚡ <b>QUICK START</b>
+<code>/prompt=Hello!</code> → Chat with AI
+<code>/image=flux=sunset</code> → Generate image
+<code>/help fa</code> → راهنمای فارسی
 
-<code>/image=sdxl=your prompt here</code>
-Generate images with SDXL model (stable, detailed)
+━━━━━━━━━━━━━━━━━━━━━━
 
-<i>• Prompts auto-enhanced by OpenRouter AI
-• Max 1000 characters per prompt
-• Rate limit: 10 requests per 60 seconds</i>
+🎨 <b>IMAGE GENERATION</b>
 
-<b>🤖 AI COMMANDS</b>
-<code>/prompt=your question</code>
-Ask AI any question or give instructions
-<i>Flags: /prompt=question=think (thinking mode), /prompt=question=web (web search)</i>
+<code>/image=flux=your prompt</code>
+Fast, high-quality artistic images
 
-<code>/translate=en=text here</code>
-Translate text to any language (en, fa, es, etc.)
-<i>Can also reply to a message with /translate=lang</i>
+<code>/image=sdxl=your prompt</code>
+Stable, photorealistic images
+
+<i>💡 Prompts auto-enhanced by AI</i>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🤖 <b>AI COMMANDS</b>
+
+<code>/prompt=question</code>
+Ask anything, get AI response
+  ├ <code>=think</code> → Deep reasoning
+  └ <code>=web</code> → Web search
+
+<code>/translate=en=متن</code>
+Translate to any language
 
 <code>/analyze=100</code>
-AI analyzes last 100 messages in chat
-<i>Modes: /analyze=fun=50, /analyze=romance=200</i>
-<i>Flags: /analyze=fun=3000=think (thinking mode for deeper reasoning)</i>
+Analyze chat messages
+  ├ <code>=fun</code> → Casual style
+  └ <code>=romance</code> → Relationship focus
 
-<code>/tellme=50=your question</code>
-Ask AI about last 50 messages in chat
-<i>Flags: /tellme=100=question=think (thinking mode), /tellme=100=question=web (web search)</i>
+<code>/tellme=50=question</code>
+Ask about chat history
 
-<b>🎧 VOICE & AUDIO</b>
-<code>/tts=text to speak</code>
-Convert text to speech (reply to message also works)
-<i>Supports multiple voices and languages</i>
+━━━━━━━━━━━━━━━━━━━━━━
 
-<code>/stt</code> (reply to voice message)
-Transcribe voice to text + AI summary
+🎧 <b>VOICE & AUDIO</b>
 
-<b>📋 USERBOT COMMANDS</b>
-<code>/auth list</code> - View authorized users
-<code>/auth add @user</code> - Authorize a user
-<code>/auth remove @user</code> - Remove authorization
+<code>/tts=text here</code>
+Text to speech
 
-<code>/status</code> - Bot statistics & system info
+<code>/stt</code> <i>(reply to voice)</i>
+Transcribe + AI summary
 
-<code>/help</code> - This comprehensive guide
-<code>/help fa</code> - Persian version (نسخه فارسی)
-<code>/help images</code> - Image generation details
-<code>/help ai</code> - AI commands details
-<code>/help voice</code> - Voice features details
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>⚠️ LIMITATIONS & NOTES</b>
-• Rate limit: 10 AI/image requests per 60 seconds
-• Monitoring must be started from CLI (not Telegram)
-• Only authorized users can use bot features
-• Image generation requires configured worker URLs
-• Max message history for analyze: 10,000 messages
+🔐 <b>MANAGEMENT</b>
 
-<b>💡 TIPS</b>
-• Use specific, detailed prompts for better images
-• AI prompt enhancement works automatically
-• Voice messages auto-transcribed if monitoring active
-• Check /status for current bot configuration
+<code>/auth list</code> → View users
+<code>/auth add @user</code> → Authorize
+<code>/auth remove @user</code> → Revoke
+<code>/status</code> → Bot stats
 
-<i>🔗 SakaiBot v2.0.0 | Powered by OpenRouter & Gemini</i>
-"""
+━━━━━━━━━━━━━━━━━━━━━━
+
+📚 <b>DETAILED GUIDES</b>
+<code>/help images</code> • <code>/help ai</code>
+<code>/help voice</code> • <code>/help auth</code>
+<code>/help fa</code> → نسخه فارسی
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ <b>LIMITS</b>
+• 10 requests per 60 seconds
+• Max 10,000 messages for analyze
+
+<i>🔗 SakaiBot v2.0 • OpenRouter + Gemini</i>"""
             await event.edit(msg, parse_mode='html')
         
         elif args == 'fa' or args == 'persian' or args == 'فارسی':
             # Persian version of help
-            msg = """
-🤖 <b>ساکای‌بات - راهنمای کامل</b>
+            msg = """🤖 <b>راهنمای ساکای‌بات</b>
+<i>دستیار هوشمند تلگرام شما</i>
 
-<i>ربات هوشمند با قابلیت هوش مصنوعی، تولید تصویر و پردازش صوتی</i>
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>🎨 تولید تصویر</b>
-<code>/image=flux=توضیحات تصویر به فارسی یا انگلیسی</code>
-تولید تصویر با مدل FLUX (سریع و با کیفیت بالا)
+⚡ <b>شروع سریع</b>
+<code>/prompt=سلام!</code> ← گفتگو با هوش مصنوعی
+<code>/image=flux=غروب</code> ← ساخت تصویر
+<code>/help</code> ← English Guide
 
-<code>/image=sdxl=توضیحات تصویر به فارسی یا انگلیسی</code>
-تولید تصویر با مدل SDXL (پایدار و دقیق)
+━━━━━━━━━━━━━━━━━━━━━━
 
-<i>• توضیحات به صورت خودکار با هوش مصنوعی بهبود می‌یابند
-• حداکثر ۱۰۰۰ کاراکتر برای هر درخواست
-• محدودیت: ۱۰ درخواست در هر ۶۰ ثانیه</i>
+🎨 <b>تولید تصویر</b>
 
-<b>🤖 دستورات هوش مصنوعی</b>
-<code>/prompt=سوال یا دستور شما</code>
-از هوش مصنوعی هر سوالی بپرسید یا دستوری بدهید
-<i>فلگ‌ها: /prompt=سوال=think (حالت تفکر)، /prompt=سوال=web (جستجوی وب)</i>
+<code>/image=flux=توضیحات</code>
+تصاویر هنری سریع و باکیفیت
 
-<code>/translate=fa=text here</code>
-ترجمه متن به هر زبانی (فارسی، انگلیسی، اسپانیایی و...)
-<i>می‌توانید روی یک پیام ریپلای کنید و /translate=fa بزنید</i>
+<code>/image=sdxl=توضیحات</code>
+تصاویر واقع‌گرایانه و دقیق
+
+<i>💡 توضیحات خودکار بهبود می‌یابند</i>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🤖 <b>دستورات هوش مصنوعی</b>
+
+<code>/prompt=سوال</code>
+پاسخ هوش مصنوعی
+  ├ <code>=think</code> ← تفکر عمیق
+  └ <code>=web</code> ← جستجوی وب
+
+<code>/translate=fa=text</code>
+ترجمه به هر زبانی
 
 <code>/analyze=100</code>
-هوش مصنوعی آخرین ۱۰۰ پیام چت را تحلیل می‌کند
-<i>حالت‌ها: /analyze=fun=50، /analyze=romance=200</i>
-<i>فلگ‌ها: /analyze=fun=3000=think (حالت تفکر برای استدلال عمیق‌تر)</i>
+تحلیل پیام‌های چت
+  ├ <code>=fun</code> ← سبک طنز
+  └ <code>=romance</code> ← تحلیل رابطه
 
-<code>/tellme=50=سوال شما</code>
-از هوش مصنوعی درباره آخرین ۵۰ پیام چت سوال بپرسید
-<i>فلگ‌ها: /tellme=100=سوال=think (حالت تفکر)، /tellme=100=سوال=web (جستجوی وب)</i>
+<code>/tellme=50=سوال</code>
+سوال درباره تاریخچه چت
 
-<b>🎧 صدا و گفتار</b>
-<code>/tts=متن برای تبدیل به گفتار</code>
-تبدیل متن به گفتار (روی پیام ریپلای هم کار می‌کند)
-<i>از صداها و زبان‌های مختلف پشتیبانی می‌کند</i>
+━━━━━━━━━━━━━━━━━━━━━━
 
-<code>/stt</code> (روی ویس پیام ریپلای کنید)
-تبدیل گفتار به متن + خلاصه‌سازی با هوش مصنوعی
+🎧 <b>صدا و گفتار</b>
 
-<b>📋 دستورات یوزربات</b>
-<code>/auth list</code> - مشاهده کاربران مجاز
-<code>/auth add @user</code> - اضافه کردن کاربر مجاز
-<code>/auth remove @user</code> - حذف مجوز کاربر
+<code>/tts=متن</code>
+تبدیل متن به گفتار
 
-<code>/status</code> - آمار ربات و اطلاعات سیستم
+<code>/stt</code> <i>(ریپلای روی ویس)</i>
+رونویسی + خلاصه‌سازی
 
-<code>/help</code> - این راهنمای کامل
-<code>/help fa</code> - نسخه فارسی راهنما
-<code>/help images</code> - جزئیات تولید تصویر
-<code>/help ai</code> - جزئیات دستورات هوش مصنوعی
-<code>/help voice</code> - جزئیات امکانات صوتی
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>⚠️ محدودیت‌ها و نکات</b>
-• محدودیت: ۱۰ درخواست هوش مصنوعی/تصویر در هر ۶۰ ثانیه
-• مانیتورینگ باید از CLI راه‌اندازی شود (نه از تلگرام)
-• فقط کاربران مجاز می‌توانند از امکانات استفاده کنند
-• تولید تصویر نیاز به تنظیم worker URLs دارد
-• حداکثر تاریخچه پیام برای تحلیل: ۱۰٬۰۰۰ پیام
+🔐 <b>مدیریت</b>
 
-<b>💡 نکات کاربردی</b>
-• از توضیحات دقیق و مفصل برای تصاویر بهتر استفاده کنید
-• بهبود خودکار توضیحات با هوش مصنوعی فعال است
-• پیام‌های صوتی به صورت خودکار رونویسی می‌شوند (اگر مانیتورینگ فعال باشد)
-• برای مشاهده تنظیمات فعلی /status را بزنید
+<code>/auth list</code> ← لیست کاربران
+<code>/auth add @user</code> ← افزودن
+<code>/auth remove @user</code> ← حذف
+<code>/status</code> ← آمار ربات
 
-<i>🔗 ساکای‌بات نسخه ۲.۰.۰ | قدرت گرفته از OpenRouter و Gemini</i>
-"""
+━━━━━━━━━━━━━━━━━━━━━━
+
+📚 <b>راهنماهای تفصیلی</b>
+<code>/help images</code> • <code>/help ai</code>
+<code>/help voice</code> • <code>/help auth</code>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ <b>محدودیت‌ها</b>
+• ۱۰ درخواست در هر ۶۰ ثانیه
+• حداکثر ۱۰٬۰۰۰ پیام برای تحلیل
+
+<i>🔗 ساکای‌بات v2.0 • OpenRouter + Gemini</i>"""
             await event.edit(msg, parse_mode='html')
         
         elif args == 'images' or args == 'image':
-            msg = """
-<b>🎨 Image Generation Guide</b>
+            msg = """🎨 <b>Image Generation Guide</b>
 
-<b>Basic Usage:</b>
-<code>/image=flux=a beautiful sunset over mountains</code>
-<code>/image=sdxl=cyberpunk city at night, neon lights</code>
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>Models Available:</b>
+📝 <b>BASIC USAGE</b>
 
-<b>FLUX</b> - Fast, modern, high quality
-• Best for: Creative, artistic images
+<code>/image=flux=a sunset over mountains</code>
+<code>/image=sdxl=cyberpunk city, neon lights</code>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🔥 <b>FLUX MODEL</b>
+<i>Fast • Artistic • Creative</i>
+
 • Speed: ~15-30 seconds
-• Style: Modern, vibrant, detailed
+• Best for: Art, creative concepts
+• Style: Vibrant, modern, detailed
 
-<b>SDXL</b> - Stable, detailed, realistic
-• Best for: Realistic photos, portraits
+⚡ <b>SDXL MODEL</b>
+<i>Stable • Realistic • Detailed</i>
+
 • Speed: ~20-40 seconds
-• Style: Photorealistic, stable output
+• Best for: Photos, portraits
+• Style: Photorealistic, natural
 
-<b>Prompt Tips:</b>
-✅ Be specific: "golden retriever puppy playing in grass"
-✅ Add style: "..., photorealistic, 4k, detailed"
-✅ Describe details: colors, lighting, composition
-❌ Too vague: "dog"
-❌ Too complex: 500+ words
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>Features:</b>
-• Automatic AI prompt enhancement (OpenRouter → Gemini fallback)
-• Queue system handles multiple requests
-• Real-time status updates
-• Auto-cleanup of temporary files
+💡 <b>PROMPT TIPS</b>
 
-<b>Rate Limits:</b>
-• 10 requests per 60 seconds per user
-• If limit exceeded, wait 60 seconds
+✅ <b>Do:</b>
+• Be specific: <code>golden retriever puppy in grass</code>
+• Add style: <code>..., photorealistic, 4k</code>
+• Describe: colors, lighting, mood
 
-<b>Troubleshooting:</b>
-• "Rate limit exceeded" → Wait 60 seconds
-• "Content filtered" → Try different prompt
-• "Timeout" → Worker overloaded, try again
-• "Invalid model" → Use 'flux' or 'sdxl' only
+❌ <b>Don't:</b>
+• Too vague: <code>dog</code>
+• Too long: 500+ words
 
-<i>Images are auto-deleted after sending to save space</i>
-"""
+━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️ <b>FEATURES</b>
+
+• 🪄 AI prompt enhancement
+• 📊 Queue system
+• 🔄 Real-time updates
+• 🗑️ Auto-cleanup
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 <b>TROUBLESHOOTING</b>
+
+<code>Rate limit</code> → Wait 60 seconds
+<code>Content filtered</code> → Change prompt
+<code>Timeout</code> → Try again later
+<code>Invalid model</code> → Use flux or sdxl
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+<i>📊 Limit: 10 requests per 60 seconds</i>"""
             await event.edit(msg, parse_mode='html')
         
         elif args == 'ai':
-            msg = """
-<b>🤖 AI Commands Guide</b>
+            msg = """🤖 <b>AI Commands Guide</b>
 
-<b>1. PROMPT - General AI Queries</b>
+━━━━━━━━━━━━━━━━━━━━━━
+
+💬 <b>1. PROMPT</b>
+<i>Ask AI anything</i>
+
 <code>/prompt=what is quantum computing?</code>
 <code>/prompt=write a poem about stars</code>
-<code>/prompt=explain this code: [paste code]</code>
-<code>/prompt=question=think</code> - Thinking mode (deeper reasoning)
-<code>/prompt=question=web</code> - Web search enabled
+<code>/prompt=explain this code: [paste]</code>
 
-<i>Use for: Questions, explanations, creative writing</i>
+<b>Flags:</b>
+<code>=think</code> → Deep reasoning mode
+<code>=web</code> → Web search enabled
 
-<b>2. TRANSLATE - Language Translation</b>
+━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 <b>2. TRANSLATE</b>
+<i>Translate to any language</i>
+
 <code>/translate=en=سلام دنیا</code>
 <code>/translate=fa=Hello world</code>
-<code>/translate=es,en=Hola amigo</code> (Spanish to English)
 
-<i>Reply to any message with /translate=lang</i>
+<i>💡 Reply to any message with /translate=lang</i>
 
-Supported languages:
-• en (English), fa (Persian), es (Spanish)
-• ar (Arabic), fr (French), de (German)
-• zh (Chinese), ja (Japanese), ru (Russian)
-• And many more...
+<b>Languages:</b> en, fa, es, ar, fr, de, zh, ja, ru...
 
-<b>3. ANALYZE - Chat Analysis</b>
-<code>/analyze=100</code> - Analyze last 100 messages
-<code>/analyze=fun=50</code> - Fun analysis mode
-<code>/analyze=romance=200</code> - Romance analysis
-<code>/analyze=general=500</code> - General insights
-<code>/analyze=fun=3000=think</code> - Thinking mode (deeper analysis)
+━━━━━━━━━━━━━━━━━━━━━━
 
-<i>AI provides summary, themes, and insights</i>
+📊 <b>3. ANALYZE</b>
+<i>Chat analysis & insights</i>
 
-<b>4. TELLME - Chat Q&A</b>
-<code>/tellme=50=what topics were discussed?</code>
-<code>/tellme=100=who talked the most?</code>
-<code>/tellme=200=summarize the conversation</code>
-<code>/tellme=100=question=think</code> - Thinking mode (deeper reasoning)
-<code>/tellme=100=question=web</code> - Web search enabled
+<code>/analyze=100</code> → Last 100 messages
+<code>/analyze=fun=50</code> → Fun style
+<code>/analyze=romance=200</code> → Relationship
+<code>/analyze=fun=3000=think</code> → +Deep analysis
 
-<i>Ask questions about recent chat history</i>
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>Rate Limits:</b>
-All AI commands share: 10 requests per 60 seconds
+❓ <b>4. TELLME</b>
+<i>Ask about chat history</i>
 
-<b>Max History:</b>
-• Analyze: Up to 10,000 messages
-• Tellme: Up to 10,000 messages
+<code>/tellme=50=what topics discussed?</code>
+<code>/tellme=100=who talked most?</code>
+<code>/tellme=200=summarize</code>
 
-<i>Powered by OpenRouter & Google Gemini</i>
-"""
+<b>Flags:</b> <code>=think</code> or <code>=web</code>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ <b>LIMITS</b>
+• 10 requests per 60 seconds
+• Max 10,000 messages for analyze
+
+<i>🔗 OpenRouter + Google Gemini</i>"""
             await event.edit(msg, parse_mode='html')
         
         elif args == 'voice':
-            msg = """
-<b>🎧 Voice & Audio Guide</b>
+            msg = """🎧 <b>Voice & Audio Guide</b>
 
-<b>TEXT-TO-SPEECH (TTS)</b>
-<code>/tts=Hello, this is a test message</code>
-<code>/tts=سلام، این یک پیام تست است</code>
+━━━━━━━━━━━━━━━━━━━━━━
 
-<i>Or reply to any text message with:</i>
-<code>/tts</code>
+🔊 <b>TEXT-TO-SPEECH (TTS)</b>
+<i>Convert text to voice</i>
 
-<b>Features:</b>
-• Multiple voice options (Alloy, Echo, Fable, etc.)
-• Supports multiple languages
-• Queue system for multiple requests
-• Real-time status updates
+<code>/tts=Hello world!</code>
+<code>/tts=سلام دنیا!</code>
 
-<b>SPEECH-TO-TEXT (STT)</b>
-Reply to any voice message with:
+<i>💡 Or reply to any message with /tts</i>
+
+<b>Voice Options:</b>
+Alloy • Echo • Fable • Onyx • Nova • Shimmer
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🎤 <b>SPEECH-TO-TEXT (STT)</b>
+<i>Transcribe voice messages</i>
+
+Reply to any voice with:
 <code>/stt</code>
 
-<b>What you get:</b>
-1. 📝 Transcribed text (accurate transcription)
-2. 🔍 AI Summary & Analysis (key points, insights)
+<b>You Get:</b>
+📝 Accurate transcription
+🔍 AI summary & insights
 
-<i>Works with voice notes, audio files, and videos</i>
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>Auto-Transcription:</b>
-When monitoring is active, voice messages are automatically transcribed without needing /stt command.
+📁 <b>SUPPORTED FORMATS</b>
 
-<b>Supported Formats:</b>
-• Voice notes (.ogg, .opus)
-• Audio files (.mp3, .wav, .m4a)
-• Video audio tracks (.mp4, .mkv)
+• Voice: .ogg, .opus
+• Audio: .mp3, .wav, .m4a
+• Video: .mp4, .mkv
 
-<b>Rate Limits:</b>
-• TTS: Shared 10 req/60s limit
-• STT: No specific limit (uses AI quota)
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>Quality Notes:</b>
-• Clear audio = better transcription
-• Background noise may affect accuracy
-• Long files may take time to process
+💡 <b>TIPS</b>
 
-<i>Powered by advanced AI speech models</i>
-"""
+• Clear audio = better results
+• Monitoring → auto-transcribe
+• Long files take more time
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+<i>🔗 Powered by AI speech models</i>"""
             await event.edit(msg, parse_mode='html')
         
         elif args == 'auth':
-            msg = """
-<b>🔐 Authorization Commands</b>
+            msg = """🔐 <b>Authorization Guide</b>
 
-<b>📋 LIST USERS</b>
+━━━━━━━━━━━━━━━━━━━━━━
+
+📋 <b>VIEW USERS</b>
+
 <code>/auth list</code>
-View all authorized users with:
-• Full name and username
-• User ID (for reference)
+
+Shows:
+• Name & username
+• User ID
 • Total count
 
-<b>➕ ADD USER</b>
+━━━━━━━━━━━━━━━━━━━━━━
+
+➕ <b>ADD USER</b>
+
 <code>/auth add @username</code>
 <code>/auth add 123456789</code>
 
-Supports both:
-• Username format: @username
-• Direct user ID: 123456789
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>➖ REMOVE USER</b>
+➖ <b>REMOVE USER</b>
+
 <code>/auth remove @username</code>
 <code>/auth remove 123456789</code>
 
-Remove authorization from user
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>How Authorization Works:</b>
-• Only authorized users can use bot commands
-• Unauthorized users are ignored
-• Admin (you) has full access always
-• Changes save immediately
+⚙️ <b>HOW IT WORKS</b>
 
-<b>Use Cases:</b>
-• Allow trusted friends to use bot
-• Revoke access when needed
-• Control who can generate images
-• Manage AI command access
+✅ Authorized → Can use all commands
+❌ Unauthorized → Ignored
+👑 You → Always full access
+💾 Changes → Save instantly
 
-<i>⚠️ Only add users you trust</i>
-"""
+━━━━━━━━━━━━━━━━━━━━━━
+
+<i>⚠️ Only add users you trust!</i>"""
             await event.edit(msg, parse_mode='html')
         
         else:
@@ -525,24 +554,32 @@ async def handle_status_command(event: events.NewMessage.Event):
         target_group = settings.get('selected_target_group')
         group_info = target_group.get('title', 'None') if target_group else 'None'
         
-        msg = f"""
-🤖 <b>SakaiBot Status</b>
+        msg = f"""🤖 <b>SakaiBot Status</b>
 
-<b>👤 Bot Account</b>
+━━━━━━━━━━━━━━━━━━━━━━
+
+👤 <b>ACCOUNT</b>
 {bot_name}
 
-<b>📊 Statistics</b>
-Authorized Users: {auth_count}
-Monitoring: {monitoring_status}
-Target Group: {group_info}
+━━━━━━━━━━━━━━━━━━━━━━
 
-<b>💻 System</b>
-CPU: {cpu_percent}%
-Memory: {memory.percent}%
-Platform: {platform.system()} {platform.release()}
+📊 <b>STATISTICS</b>
 
-<i>Updated: {datetime.now().strftime('%H:%M:%S')}</i>
-"""
+🔐 Authorized Users: <code>{auth_count}</code>
+📡 Monitoring: {monitoring_status}
+💬 Target: <code>{group_info}</code>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+💻 <b>SYSTEM</b>
+
+🖥️ CPU: <code>{cpu_percent}%</code>
+🧠 RAM: <code>{memory.percent}%</code>
+📟 OS: <code>{platform.system()}</code>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+<i>⏱️ {datetime.now().strftime('%H:%M:%S')}</i>"""
         await event.edit(msg, parse_mode='html')
     
     except Exception as e:

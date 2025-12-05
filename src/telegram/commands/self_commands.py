@@ -174,11 +174,16 @@ Translate to any language
 
 <code>/analyze=100</code>
 Analyze chat messages
-  ├ <code>=fun</code> → Casual style
-  └ <code>=romance</code> → Relationship focus
+  ├ <code>=general</code> → Formal analysis
+  ├ <code>=fun</code> → Casual comedy
+  ├ <code>=romance</code> → Relationship
+  └ <code>=think</code> → Deep analysis
 
 <code>/tellme=50=question</code>
 Ask about chat history
+  ├ <code>=think</code> → Deep reasoning
+  └ <code>=web</code> → Web search
+
 
 ━━━━━━━━━━━━━━━━━━━━━━
 

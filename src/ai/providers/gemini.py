@@ -198,25 +198,49 @@ class GeminiProvider(LLMProvider):
                 config=config
             )
             
-            # Extract thought summary and answer from response parts
-            thought_summary = None
+            # Extract parts: thought=True means internal reasoning, thought=None/False is answer
+            raw_thinking = None
             answer_text = None
             
             if response.candidates and response.candidates[0].content.parts:
                 for part in response.candidates[0].content.parts:
                     if not hasattr(part, 'text') or not part.text:
                         continue
-                    if hasattr(part, 'thought') and part.thought:
-                        thought_summary = part.text
+                    
+                    # Check if this is a thinking part (thought=True)
+                    is_thinking_part = getattr(part, 'thought', None) is True
+                    
+                    if is_thinking_part:
+                        raw_thinking = part.text
                         self._logger.info(
-                            f"Extracted thought summary: {len(thought_summary)} chars"
+                            f"Found thinking part: {len(raw_thinking)} chars"
                         )
                     else:
+                        # This is the actual answer (thought=None or False)
                         answer_text = part.text
+                        self._logger.info(
+                            f"Found answer part: {len(answer_text)} chars"
+                        )
             
-            # Fallback to response.text if no parts parsed
+            # Fallback to response.text if no answer found
             if not answer_text:
                 answer_text = response.text if hasattr(response, 'text') else ""
+            
+            # Create a BRIEF summary of thinking (first ~300 chars + ellipsis)
+            thinking_summary = None
+            if raw_thinking:
+                # Extract first few lines as a brief preview
+                lines = raw_thinking.strip().split('\n')
+                preview_lines = []
+                char_count = 0
+                for line in lines:
+                    if char_count + len(line) > 350:
+                        break
+                    preview_lines.append(line)
+                    char_count += len(line)
+                thinking_summary = '\n'.join(preview_lines)
+                if len(raw_thinking) > len(thinking_summary):
+                    thinking_summary += "\n[...truncated]"
             
             if self._key_manager:
                 self._key_manager.mark_success()
@@ -224,16 +248,16 @@ class GeminiProvider(LLMProvider):
             self._logger.info(
                 f"Native thinking completed. "
                 f"Answer: {len(answer_text or '')} chars, "
-                f"Thoughts: {len(thought_summary or '')} chars"
+                f"Thinking: {len(raw_thinking or '')} chars"
             )
             
             return AIResponseMetadata(
                 response_text=answer_text.strip() if answer_text else "",
                 thinking_requested=True,
                 thinking_applied=True,
-                thinking_summary=thought_summary,
+                thinking_summary=thinking_summary,
                 web_search_requested=use_web_search,
-                web_search_applied=False,  # Not implemented for thinking mode yet
+                web_search_applied=False,
                 model_used=model
             )
             

@@ -450,12 +450,13 @@ class GeminiProvider(LLMProvider):
         
         # Use lower temperature for translation accuracy
         # Use flash model for translation (simple task)
-        raw_response = await self.execute_prompt(
+        result = await self.execute_prompt(
             prompt,
             max_tokens=max_tokens,
             temperature=0.2,
             task_type="translate"
         )
+        raw_response = result.response_text
         
         # Extract translation and pronunciation from the response
         from ...utils.translation_utils import extract_translation_from_response
@@ -583,13 +584,14 @@ class GeminiProvider(LLMProvider):
         
         # Use lower temperature for analysis accuracy
         # Use pro model for analysis (complex task)
-        return await self.execute_prompt(
+        result = await self.execute_prompt(
             formatted_prompt, 
             max_tokens=max_tokens, 
             temperature=0.4,
             task_type="analyze",
             use_thinking=use_thinking
         )
+        return result.response_text
     
     async def answer_question_from_history(
         self,
@@ -636,7 +638,7 @@ class GeminiProvider(LLMProvider):
         max_tokens = self._calculate_max_tokens("tellme")
         
         # Use pro model for tellme (complex task)
-        return await self.execute_prompt(
+        result = await self.execute_prompt(
             formatted_prompt,
             max_tokens=max_tokens,
             temperature=0.5,
@@ -644,6 +646,7 @@ class GeminiProvider(LLMProvider):
             use_thinking=use_thinking,
             use_web_search=use_web_search
         )
+        return result.response_text
     
     async def close(self) -> None:
         """Clean up Gemini clients."""

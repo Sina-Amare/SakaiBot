@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 
+from .response_metadata import AIResponseMetadata
+
 
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
@@ -36,19 +38,23 @@ class LLMProvider(ABC):
         user_prompt: str,
         max_tokens: int = 1500,
         temperature: float = 0.7,
-        system_message: Optional[str] = None
-    ) -> str:
+        task_type: str = "default",
+        use_thinking: bool = False,
+        use_web_search: bool = False
+    ) -> AIResponseMetadata:
         """
-        Execute a prompt and return the response.
+        Execute a prompt and return the response with metadata.
         
         Args:
             user_prompt: The user's prompt
             max_tokens: Maximum tokens in response
             temperature: Temperature for generation
-            system_message: Optional system message
+            task_type: Type of task (for model selection)
+            use_thinking: Enable deep thinking/reasoning mode
+            use_web_search: Enable web search grounding
             
         Returns:
-            Generated text response
+            AIResponseMetadata with response text and execution status
             
         Raises:
             AIProcessorError: If generation fails
@@ -83,7 +89,8 @@ class LLMProvider(ABC):
         self,
         messages: List[Dict[str, Any]],
         analysis_type: str = "summary",
-        output_language: str = "english"
+        output_language: str = "english",
+        use_thinking: bool = False
     ) -> str:
         """
         Analyze a list of messages.
@@ -91,12 +98,39 @@ class LLMProvider(ABC):
         Args:
             messages: List of message dictionaries
             analysis_type: Type of analysis to perform
+            output_language: Output language for analysis
+            use_thinking: Enable deep thinking mode
             
         Returns:
             Analysis result
             
         Raises:
             AIProcessorError: If analysis fails
+        """
+        pass
+    
+    @abstractmethod
+    async def answer_question_from_history(
+        self,
+        messages: List[Dict[str, Any]],
+        question: str,
+        use_thinking: bool = False,
+        use_web_search: bool = False
+    ) -> str:
+        """
+        Answer a question based on chat history.
+        
+        Args:
+            messages: List of message dictionaries
+            question: User's question
+            use_thinking: Enable deep thinking mode
+            use_web_search: Enable web search grounding
+            
+        Returns:
+            Answer to the question
+            
+        Raises:
+            AIProcessorError: If answering fails
         """
         pass
     

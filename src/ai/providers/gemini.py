@@ -138,6 +138,109 @@ class GeminiProvider(LLMProvider):
         
         return self._clients[cache_key]
     
+    async def _execute_with_native_thinking(
+        self,
+        prompt: str,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int = 32000,
+        use_web_search: bool = False
+    ) -> AIResponseMetadata:
+        """
+        Execute prompt using native Gemini ThinkingConfig API.
+        
+        Uses the new google.genai SDK for real thinking mode with thought summaries.
+        
+        Args:
+            prompt: The user prompt
+            model: Model name to use
+            temperature: Temperature for generation
+            max_tokens: Maximum output tokens
+            use_web_search: Whether to enable web search
+            
+        Returns:
+            AIResponseMetadata with thinking_summary populated
+        """
+        from google import genai
+        from google.genai import types
+        
+        # Get API key
+        current_key = (
+            self._key_manager.get_current_key() 
+            if self._key_manager 
+            else self._api_key
+        )
+        if not current_key:
+            raise AIProcessorError("No valid Gemini API key available")
+        
+        # Create client with new SDK
+        client = genai.Client(api_key=current_key)
+        
+        self._logger.info(f"Executing with native ThinkingConfig: model={model}")
+        
+        # Build thinking config with include_thoughts=True
+        thinking_config = types.ThinkingConfig(
+            thinking_budget=4096,  # Use good budget for deep thinking
+            include_thoughts=True   # Get thought summary in response
+        )
+        
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            thinking_config=thinking_config
+        )
+        
+        try:
+            # Execute with thinking
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=config
+            )
+            
+            # Extract thought summary and answer from response parts
+            thought_summary = None
+            answer_text = None
+            
+            if response.candidates and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if not hasattr(part, 'text') or not part.text:
+                        continue
+                    if hasattr(part, 'thought') and part.thought:
+                        thought_summary = part.text
+                        self._logger.info(
+                            f"Extracted thought summary: {len(thought_summary)} chars"
+                        )
+                    else:
+                        answer_text = part.text
+            
+            # Fallback to response.text if no parts parsed
+            if not answer_text:
+                answer_text = response.text if hasattr(response, 'text') else ""
+            
+            if self._key_manager:
+                self._key_manager.mark_success()
+            
+            self._logger.info(
+                f"Native thinking completed. "
+                f"Answer: {len(answer_text or '')} chars, "
+                f"Thoughts: {len(thought_summary or '')} chars"
+            )
+            
+            return AIResponseMetadata(
+                response_text=answer_text.strip() if answer_text else "",
+                thinking_requested=True,
+                thinking_applied=True,
+                thinking_summary=thought_summary,
+                web_search_requested=use_web_search,
+                web_search_applied=False,  # Not implemented for thinking mode yet
+                model_used=model
+            )
+            
+        except Exception as e:
+            self._logger.error(f"Native thinking failed: {e}")
+            raise
+
     async def execute_prompt(
         self,
         user_prompt: str,
@@ -160,18 +263,21 @@ class GeminiProvider(LLMProvider):
         # Prompt is already self-contained (system messages merged into prompts)
         full_prompt = user_prompt
         
-        # Add thinking mode instructions if enabled
+        # If thinking mode is enabled, use the NEW google.genai SDK for native thinking
         if use_thinking:
-            thinking_instruction = (
-                "\n\n**THINKING MODE ENABLED:** "
-                "Before generating your final response, perform step-by-step reasoning internally. "
-                "Think through the problem systematically, consider multiple perspectives, "
-                "and reason through to a well-justified conclusion. "
-                "Do NOT show your intermediate reasoning steps in the output - only provide the final, "
-                "well-reasoned answer. The quality and depth of your internal reasoning should be "
-                "reflected in the thoroughness and accuracy of your final response."
-            )
-            full_prompt = full_prompt + thinking_instruction
+            try:
+                self._logger.info("Using native ThinkingConfig for deep reasoning")
+                result = await self._execute_with_native_thinking(
+                    prompt=full_prompt,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    use_web_search=use_web_search
+                )
+                return result
+            except Exception as e:
+                self._logger.warning(f"Native thinking failed: {e}. Falling back to standard mode.")
+                # Fall through to standard execution if native thinking fails
         
         # Log the exact prompt being sent for debugging
         self._logger.debug(f"Sending prompt to Gemini: '{full_prompt[:100]}...'")

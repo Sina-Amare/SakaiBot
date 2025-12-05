@@ -16,6 +16,7 @@ class AIResponseMetadata:
         response_text: The actual response content from the AI
         thinking_requested: Whether thinking mode was requested by user
         thinking_applied: Whether thinking mode was actually applied
+        thinking_summary: Summary of the AI's thought process (if available)
         web_search_requested: Whether web search was requested by user
         web_search_applied: Whether web search was actually used
         fallback_reason: Explanation if a feature fell back to normal mode
@@ -24,6 +25,7 @@ class AIResponseMetadata:
     response_text: str
     thinking_requested: bool = False
     thinking_applied: bool = False
+    thinking_summary: Optional[str] = None
     web_search_requested: bool = False
     web_search_applied: bool = False
     fallback_reason: Optional[str] = None
@@ -58,6 +60,7 @@ def build_execution_footer(metadata: AIResponseMetadata) -> str:
     
     Only shows indicators when features were requested.
     Shows success or fallback message based on what actually happened.
+    If thinking was applied and a summary is available, shows it in code block.
     
     Args:
         metadata: The response metadata with execution status
@@ -66,16 +69,20 @@ def build_execution_footer(metadata: AIResponseMetadata) -> str:
         Formatted footer string, or empty string if no indicators needed
     """
     footer_parts = []
+    thinking_block = ""
     
     # Thinking status
     if metadata.thinking_requested:
         if metadata.thinking_applied:
             footer_parts.append("🧠 **Deep Thinking Applied**")
+            # Add thinking summary in code block if available
+            if metadata.thinking_summary:
+                thinking_block = f"\n\n```\n💭 Thought Process:\n{metadata.thinking_summary}\n```"
         else:
             reason = metadata.fallback_reason or "unavailable"
             footer_parts.append(f"⚠️ Thinking mode {reason}, used standard response")
     
-    # Web search status  
+    # Web search status
     if metadata.web_search_requested:
         if metadata.web_search_applied:
             footer_parts.append("🌐 **Web Search Used**")
@@ -94,4 +101,4 @@ def build_execution_footer(metadata: AIResponseMetadata) -> str:
     PDF = '\u202C'  # Pop Directional Formatting
     
     footer_content = " | ".join(footer_parts)
-    return f"\n\n───────────────────────────\n{LRE}{footer_content}{PDF}"
+    return f"\n\n───────────────────────────\n{LRE}{footer_content}{PDF}{thinking_block}"

@@ -57,8 +57,11 @@ class STTHandler(BaseHandler):
         
         thinking_msg = await client.send_message(
             chat_id,
-            f"🎧 Processing voice message from {command_sender_info} (Step 1: Transcribing)...",
-            reply_to=reply_to_id
+            f"🎧 <b>Voice Processing</b>\n\n"
+            f"🔄 Step 1: Transcribing...\n"
+            f"<i>From {command_sender_info}</i>",
+            reply_to=reply_to_id,
+            parse_mode='html'
         )
         
         downloaded_voice_path = None
@@ -93,8 +96,8 @@ class STTHandler(BaseHandler):
             # Update message with transcription
             await client.edit_message(
                 thinking_msg,
-                f"📝 **Transcribed Text:**\n{transcribed_text}\n\n"
-                f"⏳ (Step 2: AI Summarization & Analysis)..."
+                f"📝 **Transcribed:**\n{transcribed_text}\n\n"
+                f"🔄 Step 2: AI Analysis..."
             )
             
             summary_text = None

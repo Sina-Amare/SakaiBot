@@ -171,7 +171,11 @@ class AIHandler(BaseHandler):
         
         # Professional processing message
         command_display = command_type.replace("/", "").title()
-        thinking_msg_text = f"⚙️ **Processing {command_display} Request**\n\nAnalyzing your request... Please wait."
+        thinking_msg_text = (
+            f"🔄 **{command_display}**\n\n"
+            f"Processing your request...\n"
+            f"_Please wait_"
+        )
         thinking_msg = await client.send_message(chat_id, thinking_msg_text, reply_to=reply_to_id, parse_mode='md')
         
         try:
@@ -179,7 +183,11 @@ class AIHandler(BaseHandler):
             with TimingContext('ai_command.duration', tags={'command': command_type}):
                 if not self._ai_processor.is_configured:
                     provider_name = self._ai_processor.provider_name if self._ai_processor else "AI"
-                    response = f"❌ **Configuration Error**\n\n{provider_name} API key or model name is not configured correctly. Please check your configuration settings."
+                    response = (
+                        f"⚙️ **Configuration Error**\n\n"
+                        f"{provider_name} API not configured.\n\n"
+                        f"_Check /status for details_"
+                    )
                 elif command_type == "/prompt":
                     response = await self._handle_prompt_command(**command_args)
                 elif command_type == "/translate":
@@ -189,7 +197,11 @@ class AIHandler(BaseHandler):
                 elif command_type == "/tellme":
                     response = await self._handle_tellme_command(client, chat_id, **command_args)
                 else:
-                    response = f"❌ **Invalid Command**\n\nUnknown command type: `{command_type}`. Please use a valid command."
+                    response = (
+                        f"❌ **Unknown Command**\n\n"
+                        f"`{command_type}` is not recognized.\n\n"
+                        f"_Use /help for available commands_"
+                    )
             
             # Log successful response and track metrics
             self._logger.info(f"AI command {command_type} completed. Response length: {len(response)} chars")
@@ -213,7 +225,7 @@ class AIHandler(BaseHandler):
             if sent_messages:
                 time_str = datetime.now().strftime('%H:%M')
                 command_display = command_type.replace("/", "").title()
-                completion_msg = f"✅ **{command_display} Completed**\n\nCompleted at {time_str}"
+                completion_msg = f"✅ **{command_display} Complete** • {time_str}"
                 await message_sender.send_message_safe(
                     chat_id,
                     completion_msg,

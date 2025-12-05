@@ -67,11 +67,12 @@ class ImageHandler(BaseHandler):
         if not parsed:
             await client.send_message(
                 chat_id,
-                "❌ Invalid command format.\n"
-                "Usage: `/image=flux=<prompt>` or `/image=sdxl=<prompt>`\n"
-                "Example: `/image=flux=a beautiful sunset`",
+                "❌ <b>Invalid Format</b>\n\n"
+                "<code>/image=flux=prompt</code>\n"
+                "<code>/image=sdxl=prompt</code>\n\n"
+                "<i>Example: /image=flux=sunset</i>",
                 reply_to=message.id,
-                parse_mode='md'
+                parse_mode='html'
             )
             return
         
@@ -156,9 +157,9 @@ class ImageHandler(BaseHandler):
         queue_position = image_queue.get_queue_position(request_id, model)
         
         # Send initial status message
-        status_text = f"🎨 Processing image request with {model.upper()}..."
+        status_text = f"🎨 <b>Image Generation</b>\n\n🔄 Processing with {model.upper()}..."
         if queue_position and queue_position > 1:
-            status_text += f"\n⏳ In {model.upper()} queue: position {queue_position}"
+            status_text += f"\n⏳ Queue position: {queue_position}"
         
         thinking_msg = await client.send_message(
             chat_id,

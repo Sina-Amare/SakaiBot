@@ -162,6 +162,10 @@ class SakaiBot:
             client = await self._client_manager.initialize()
             print(f"Signed in as: {(await client.get_me()).first_name}")
             
+            # Share client with CLI commands (so monitoring can reuse it)
+            from .cli.utils import set_shared_client
+            set_shared_client(client, self._client_manager)
+            
             # Start analyze queue cleanup task
             await analyze_queue.start_cleanup_task()
             self._logger.info("Analyze queue cleanup task started")
@@ -215,6 +219,9 @@ class SakaiBot:
             # Disconnect client
             if self._client_manager.is_connected():
                 print("Disconnecting Telegram client...")
+                # Clear shared client reference
+                from .cli.utils import clear_shared_client
+                clear_shared_client()
                 await self._client_manager.disconnect()
             
             # Release instance lock

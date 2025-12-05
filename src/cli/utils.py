@@ -14,6 +14,37 @@ from typing import Optional, List, Dict, Any
 
 console = Console()
 
+# Global storage for shared client (set by SakaiBot.run())
+_shared_client = None
+_shared_client_manager = None
+
+
+def set_shared_client(client, client_manager):
+    """Set the shared Telegram client for use by CLI commands.
+    
+    This should be called by SakaiBot.run() after connecting to Telegram.
+    """
+    global _shared_client, _shared_client_manager
+    _shared_client = client
+    _shared_client_manager = client_manager
+
+
+def get_shared_client():
+    """Get the shared Telegram client if available.
+    
+    Returns:
+        Tuple of (client, client_manager) or (None, None) if not set.
+    """
+    return _shared_client, _shared_client_manager
+
+
+def clear_shared_client():
+    """Clear the shared client reference (called on shutdown)."""
+    global _shared_client, _shared_client_manager
+    _shared_client = None
+    _shared_client_manager = None
+
+
 def setup_environment(debug: bool = False, config_file: Optional[str] = None):
     """Setup environment for CLI operations."""
     if debug:
@@ -65,13 +96,20 @@ def display_info(message: str):
 async def get_telegram_client():
     """Get initialized Telegram client.
     
-    Returns None if bot is already running (to prevent database lock).
+    If running inside SakaiBot (interactive menu), returns the shared client.
+    If running standalone, creates a new client connection.
+    Returns (None, None) if bot is already running to prevent database lock.
     """
+    # First, check if we have a shared client (running inside SakaiBot)
+    shared_client, shared_manager = get_shared_client()
+    if shared_client is not None:
+        return shared_client, shared_manager
+    
     from pathlib import Path
     from src.core.config import load_config
     from src.telegram.client import TelegramClientManager
     
-    # Check if bot is already running
+    # Check if bot is already running (only matters for standalone CLI)
     lock_file = Path("data/.sakaibot.lock")
     if lock_file.exists():
         try:

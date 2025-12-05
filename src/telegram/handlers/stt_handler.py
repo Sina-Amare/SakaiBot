@@ -106,12 +106,13 @@ class STTHandler(BaseHandler):
 
             if self._ai_processor.is_configured:
                 try:
-                    summary_text = await self._ai_processor.execute_custom_prompt(
+                    result = await self._ai_processor.execute_custom_prompt(
                         user_prompt=summary_prompt,
                         max_tokens=300,
                         temperature=0.5,
                         task_type="voice_summary"
                     )
+                    summary_text = result.response_text
                 except AIProcessorError as e:
                     self._logger.error(f"AI summarization failed via primary provider: {e}")
                     summary_text = await self._generate_persian_summary_with_gemini(transcribed_text)

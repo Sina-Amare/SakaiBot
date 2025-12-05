@@ -83,10 +83,11 @@ class PromptEnhancer:
                 )
                 
                 # Call AI processor to enhance the prompt
-                enhanced = await self._ai_processor.execute_custom_prompt(
+                result = await self._ai_processor.execute_custom_prompt(
                     user_prompt=enhancement_prompt,
                     task_type="prompt_enhancer"
                 )
+                enhanced = result.response_text
                 
                 if not enhanced or not enhanced.strip():
                     self._logger.warning("Empty response from OpenRouter")
@@ -135,10 +136,11 @@ class PromptEnhancer:
                 )
                 
                 # Call AI processor to enhance the prompt
-                enhanced = await self._ai_processor.execute_custom_prompt(
+                result = await self._ai_processor.execute_custom_prompt(
                     user_prompt=enhancement_prompt,
                     task_type="prompt_enhancer"
                 )
+                enhanced = result.response_text
                 
                 if not enhanced or not enhanced.strip():
                     self._logger.warning("Empty response from Gemini")

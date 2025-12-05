@@ -195,12 +195,13 @@ class AIProcessor:
     # Backward compatibility methods
     async def execute_tellme_mode(self, prompt: str) -> str:
         """Execute tellme mode (backward compatibility)."""
-        return await self.execute_custom_prompt(
+        result = await self.execute_custom_prompt(
             user_prompt=prompt,
             max_tokens=2000,
             temperature=0.7,
             task_type="tellme"
         )
+        return result.response_text
     
     async def analyze_conversation_messages(
         self, 

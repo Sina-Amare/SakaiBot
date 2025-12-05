@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 import httpx
 
 from ..llm_interface import LLMProvider
+from ..response_metadata import AIResponseMetadata
 from ...core.constants import OPENROUTER_HEADERS, COMPLEX_TASKS, SIMPLE_TASKS
 from ...core.exceptions import AIProcessorError
 from ...utils.logging import get_logger
@@ -125,7 +126,7 @@ class OpenRouterProvider(LLMProvider):
         task_type: str = "default",
         use_thinking: bool = False,
         use_web_search: bool = False
-    ) -> str:
+    ) -> AIResponseMetadata:
         """Execute a prompt using OpenRouter with task-based model selection."""
         if not user_prompt:
             raise AIProcessorError("Prompt cannot be empty")
@@ -243,7 +244,18 @@ class OpenRouterProvider(LLMProvider):
             self._logger.info(
                 f"OpenRouter model '{model}' processing complete. Response length: {len(response_text)} chars"
             )
-            return response_text
+            
+            # Return AIResponseMetadata for consistency with GeminiProvider
+            # Note: OpenRouter doesn't support web search, so it's always False
+            return AIResponseMetadata(
+                response_text=response_text,
+                thinking_requested=use_thinking,
+                thinking_applied=use_thinking,  # Prompt-based, works if we got response
+                web_search_requested=use_web_search,
+                web_search_applied=False,  # OpenRouter doesn't support web search
+                fallback_reason="OpenRouter doesn't support web search" if use_web_search else None,
+                model_used=model
+            )
         
         except Exception as e:
             self._logger.error(
@@ -290,12 +302,13 @@ class OpenRouterProvider(LLMProvider):
         # Use lower temperature for translation accuracy
         # No max_tokens limit to allow full translation
         # Use flash model for translation (simple task)
-        raw_response = await self.execute_prompt(
+        result = await self.execute_prompt(
             prompt,
             max_tokens=self._calculate_max_tokens("translate"),
             temperature=0.2,
             task_type="translate"
         )
+        raw_response = result.response_text
         
         # Extract translation and pronunciation from the response
         from ...utils.translation_utils import extract_translation_from_response
@@ -422,13 +435,14 @@ class OpenRouterProvider(LLMProvider):
         )
         
         # Use pro model for analysis (complex task)
-        return await self.execute_prompt(
+        result = await self.execute_prompt(
             formatted_prompt, 
             max_tokens=max_tokens, 
             temperature=0.4,
             task_type="analyze",
             use_thinking=use_thinking
         )
+        return result.response_text
     
     async def answer_question_from_history(
         self,
@@ -479,7 +493,7 @@ class OpenRouterProvider(LLMProvider):
             self._logger.warning("Web search requested but OpenRouter doesn't support Google Search tool")
         
         # Use pro model for tellme (complex task)
-        return await self.execute_prompt(
+        result = await self.execute_prompt(
             formatted_prompt,
             max_tokens=max_tokens,
             temperature=0.5,
@@ -487,6 +501,7 @@ class OpenRouterProvider(LLMProvider):
             use_thinking=use_thinking,
             use_web_search=use_web_search
         )
+        return result.response_text
     
     async def close(self) -> None:
         """Clean up OpenRouter client."""

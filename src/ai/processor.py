@@ -1,10 +1,11 @@
 """AI processing functionality with multiple LLM provider support."""
 
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import pytz
 
 from .llm_interface import LLMProvider
+from .response_metadata import AIResponseMetadata
 from .providers import OpenRouterProvider, GeminiProvider
 from ..core.config import Config
 from ..core.exceptions import AIProcessorError, ConfigurationError
@@ -97,8 +98,11 @@ class AIProcessor:
         task_type: str = "prompt",
         use_thinking: bool = False,
         use_web_search: bool = False
-    ) -> str:
-        """Execute a custom prompt using the configured LLM provider."""
+    ) -> AIResponseMetadata:
+        """Execute a custom prompt using the configured LLM provider.
+        
+        Returns AIResponseMetadata with response text and execution status.
+        """
         if not self.is_configured:
             raise AIProcessorError(
                 f"AI processor not configured. Provider: {self._config.llm_provider}"

@@ -4,10 +4,11 @@ import os
 import asyncio
 import time
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import pytz
 
 from ..llm_interface import LLMProvider
+from ..response_metadata import AIResponseMetadata
 from ...core.exceptions import AIProcessorError
 from ...core.constants import COMPLEX_TASKS, SIMPLE_TASKS
 from ...utils.logging import get_logger
@@ -145,7 +146,7 @@ class GeminiProvider(LLMProvider):
         task_type: str = "default",
         use_thinking: bool = False,
         use_web_search: bool = False
-    ) -> str:
+    ) -> AIResponseMetadata:
         """Execute a prompt using Google Gemini with retry logic and key rotation."""
         if not user_prompt:
             raise AIProcessorError("Prompt cannot be empty")
@@ -183,6 +184,7 @@ class GeminiProvider(LLMProvider):
         
         # Track web search usage - may be disabled if 403 error occurs
         actual_use_web_search = use_web_search
+        web_search_fallback_reason = None
         
         while keys_tried < max_key_attempts:
             # Get current API key
@@ -298,7 +300,19 @@ class GeminiProvider(LLMProvider):
                         self._logger.info(
                             f"Gemini '{model}' completed successfully. Response: {len(response_text)} chars"
                         )
-                        return response_text
+                        
+                        # Build and return metadata with execution status
+                        # Thinking is considered applied if it was requested and we got a response
+                        # (since it's prompt-based, if the API call succeeded, thinking worked)
+                        return AIResponseMetadata(
+                            response_text=response_text,
+                            thinking_requested=use_thinking,
+                            thinking_applied=use_thinking,  # Prompt-based, always works if response received
+                            web_search_requested=use_web_search,
+                            web_search_applied=use_web_search and actual_use_web_search and tools is not None,
+                            fallback_reason=web_search_fallback_reason,
+                            model_used=model
+                        )
 
                 except Exception as e:
                     error_str = str(e).lower()
@@ -319,8 +333,9 @@ class GeminiProvider(LLMProvider):
                             f"This may indicate the tool is not available for your API key or requires special permissions. "
                             f"Continuing without web search..."
                         )
-                        # Disable web search for remaining attempts
+                        # Disable web search for remaining attempts and track the fallback
                         actual_use_web_search = False
+                        web_search_fallback_reason = "API returned 403 - billing may be required"
                         # Continue to retry without web search
                         if attempt < max_retries - 1:
                             continue
@@ -374,6 +389,26 @@ class GeminiProvider(LLMProvider):
         
         # Should not reach here
         raise AIProcessorError("Unexpected error in Gemini execution")
+    
+    async def execute_prompt_simple(
+        self,
+        user_prompt: str,
+        max_tokens: int = 1500,
+        temperature: float = 0.7,
+        task_type: str = "default",
+        use_thinking: bool = False,
+        use_web_search: bool = False
+    ) -> str:
+        """Execute prompt and return just the text (for backward compatibility)."""
+        result = await self.execute_prompt(
+            user_prompt=user_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            task_type=task_type,
+            use_thinking=use_thinking,
+            use_web_search=use_web_search
+        )
+        return result.response_text
     
     async def translate_text(
         self,

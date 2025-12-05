@@ -8,6 +8,7 @@ from telethon import TelegramClient
 from telethon.tl.types import Message
 
 from ...ai.processor import AIProcessor
+from ...ai.response_metadata import build_execution_footer
 
 from ...core.constants import MAX_MESSAGE_LENGTH
 from ...core.exceptions import AIProcessorError
@@ -280,11 +281,23 @@ class AIHandler(BaseHandler):
                 use_thinking=use_thinking,
                 use_web_search=use_web_search
             )
-            if response and response.strip():
-                return response
+            
+            # Response is now AIResponseMetadata with execution status
+            if response and response.response_text.strip():
+                # Build dynamic footer based on actual execution
+                footer = build_execution_footer(response)
+                return response.response_text + footer
             else:
-                self._logger.warning(f"Empty response from AI for prompt command. Response was: {response}")
-                return "⚠️ **Empty Response**\n\nThe AI processed your request but returned an empty message. This may be due to content filtering.\n\n**Suggestion:** Try rephrasing your request or using different wording."
+                self._logger.warning(
+                    f"Empty response from AI for prompt command. "
+                    f"Response was: {response}"
+                )
+                return (
+                    "⚠️ **Empty Response**\n\n"
+                    "The AI processed your request but returned an empty message. "
+                    "This may be due to content filtering.\n\n"
+                    "**Suggestion:** Try rephrasing your request or using different wording."
+                )
         except AIProcessorError as e:
             return f"AI Error: {e}"
     

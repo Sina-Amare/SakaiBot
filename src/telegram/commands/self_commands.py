@@ -145,7 +145,7 @@ async def handle_help_command(event: events.NewMessage.Event, args: str):
 
 ⚡ <b>QUICK START</b>
 <code>/prompt=Hello!</code> → Chat with AI
-<code>/image=flux/sunset</code> → Generate image
+<code>/image=flux=sunset</code> → Generate image
 <code>/analyze=100</code> → Analyze chat
 <code>/help fa</code> → راهنمای فارسی
 
@@ -153,10 +153,10 @@ async def handle_help_command(event: events.NewMessage.Event, args: str):
 
 🎨 <b>IMAGE GENERATION</b>
 
-<code>/image=flux/your prompt</code>
+<code>/image=flux=your prompt</code>
 Fast, high-quality artistic images
 
-<code>/image=sdxl/your prompt</code>
+<code>/image=sdxl=your prompt</code>
 Stable, photorealistic images
 
 <i>💡 Prompts auto-enhanced by AI</i>

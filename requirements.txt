@@ -62,3 +62,6 @@ pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 pytest-mock>=3.10.0
 freezegun>=1.2.0
+requests>=2.32.4 # not directly required, pinned by Snyk to avoid a vulnerability
+urllib3>=2.5.0 # not directly required, pinned by Snyk to avoid a vulnerability
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability

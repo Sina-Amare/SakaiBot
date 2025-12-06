@@ -14,6 +14,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        HTTP_PROXY: http://172.17.0.1:10809
+        HTTPS_PROXY: http://172.17.0.1:10809
     image: sakaibot:latest
     container_name: sakaibot
 

@@ -139,10 +139,10 @@ class STTHandler(BaseHandler):
                     summary_text = " ".join(cleaned_lines)
                 summary_text = self._trim_summary_text(summary_text)
 
-            # Prepare final response
+            # Prepare final response (using HTML formatting)
             final_response = (
-                f"📝 **Transcribed Text:**\n{transcribed_text}\n\n"
-                f"🔍 **AI Summary & Analysis:**\n{summary_text}"
+                f"📝 <b>Transcribed Text:</b>\n{transcribed_text}\n\n"
+                f"🔍 <b>AI Summary &amp; Analysis:</b>\n{summary_text}"
             )
             
             # Use MessageSender for reliable delivery with pagination
@@ -151,7 +151,7 @@ class STTHandler(BaseHandler):
                 chat_id=chat_id,
                 text=final_response,
                 reply_to=reply_to_id,
-                parse_mode=None,  # STT responses don't use markdown
+                parse_mode='html',
                 edit_message=thinking_msg
             )
         

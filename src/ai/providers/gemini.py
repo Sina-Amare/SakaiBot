@@ -729,8 +729,11 @@ class GeminiProvider(LLMProvider):
         question: str,
         use_thinking: bool = False,
         use_web_search: bool = False
-    ) -> str:
-        """Answer a question based on chat history using Persian prompts."""
+    ) -> "AIResponseMetadata":
+        """Answer a question based on chat history using Persian prompts.
+        
+        Returns AIResponseMetadata to preserve thinking_summary for display.
+        """
         if not messages:
             raise AIProcessorError("No messages provided for question answering")
         
@@ -746,7 +749,12 @@ class GeminiProvider(LLMProvider):
                 formatted_messages.append(f"{sender}: {text}")
         
         if not formatted_messages:
-            return "هیچ پیام متنی در تاریخچه ارائه شده یافت نشد."
+            from ..response_metadata import AIResponseMetadata
+            return AIResponseMetadata(
+                response_text="هیچ پیام متنی در تاریخچه ارائه شده یافت نشد.",
+                thinking_requested=use_thinking,
+                thinking_applied=False
+            )
         
         combined_history = "\n".join(formatted_messages)
         
@@ -776,7 +784,7 @@ class GeminiProvider(LLMProvider):
             use_thinking=use_thinking,
             use_web_search=use_web_search
         )
-        return result.response_text
+        return result  # Return full AIResponseMetadata
     
     async def close(self) -> None:
         """Clean up Gemini clients."""

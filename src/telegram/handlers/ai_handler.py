@@ -510,8 +510,13 @@ class AIHandler(BaseHandler):
                 use_thinking=use_thinking,
                 use_web_search=use_web_search
             )
-            if response and response.strip():
-                return response
+            
+            # Response is now AIResponseMetadata with execution status
+            if response and response.response_text.strip():
+                # Build dynamic footer based on actual execution (like /prompt)
+                from ...ai.response_metadata import build_execution_footer
+                footer = build_execution_footer(response)
+                return response.response_text + footer
             else:
                 self._logger.warning(f"Empty response from AI for tellme command. Response was: {response}")
                 return "⚠️ **Unable to Answer**\n\nThe AI couldn't answer your question based on the available chat history.\n\n**Suggestions:**\n• Try asking a different question\n• Include more message history\n• Rephrase your question"

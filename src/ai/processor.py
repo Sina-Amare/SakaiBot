@@ -242,8 +242,11 @@ class AIProcessor:
         user_question: str,
         use_thinking: bool = False,
         use_web_search: bool = False
-    ) -> str:
-        """Answer a question based on chat history (compatibility wrapper)."""
+    ) -> "AIResponseMetadata":
+        """Answer a question based on chat history.
+        
+        Returns AIResponseMetadata to preserve thinking_summary for display.
+        """
         if not self.is_configured:
             raise AIProcessorError(
                 f"AI processor not configured. Provider: {self._config.llm_provider}"

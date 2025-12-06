@@ -125,7 +125,8 @@ def fix_rtl_display(text: str) -> str:
     # This prevents any accidental LRM insertion in pagination like (1/2)
     pagination_placeholders = []
     def protect_pagination(match):
-        placeholder = f"\x00PAGINATION_{len(pagination_placeholders)}\x00"
+        # Use Zero-Width Space (U+200B) as delimiter - safer than null char
+        placeholder = f"\u200B__PGNTN_{len(pagination_placeholders)}__\u200B"
         pagination_placeholders.append(match.group(0))
         return placeholder
     
@@ -149,7 +150,7 @@ def fix_rtl_display(text: str) -> str:
     
     # Step 5: Restore pagination patterns
     for i, original in enumerate(pagination_placeholders):
-        text = text.replace(f"\x00PAGINATION_{i}\x00", original)
+        text = text.replace(f"\u200B__PGNTN_{i}__\u200B", original)
     
     return text
 

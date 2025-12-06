@@ -1,0 +1,112 @@
+# =============================================================================
+# SakaiBot Docker Compose Configuration
+# =============================================================================
+# Usage:
+#   Build:    docker compose build
+#   Start:    docker compose up -d
+#   Logs:     docker compose logs -f
+#   Stop:     docker compose down
+#   CLI:      docker compose run --rm sakaibot cli
+# =============================================================================
+
+services:
+  sakaibot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sakaibot:latest
+    container_name: sakaibot
+
+    # Restart policy: always restart unless explicitly stopped
+    restart: unless-stopped
+
+    # Environment file containing secrets
+    # SECURITY: Ensure .env has chmod 600
+    env_file:
+      - .env
+
+    # Environment variable overrides
+    environment:
+      - SAKAIBOT_DOCKER=1
+      - SAKAIBOT_LOG_JSON=1
+      - SAKAIBOT_LOG_LEVEL=${SAKAIBOT_LOG_LEVEL:-INFO}
+      - TZ=${TZ:-UTC}
+
+    # Persistent volumes
+    volumes:
+      # Session and user data (CRITICAL - contains Telegram auth)
+      - sakaibot_data:/app/data
+      # Logs - bind mount for easy host access
+      - ./logs:/app/logs
+      # Cache - named volume (can be recreated)
+      - sakaibot_cache:/app/cache
+      # Temp files - named volume (ephemeral)
+      - sakaibot_temp:/app/temp
+
+    # Resource constraints for 1GB VPS
+    # Adjust based on your VPS specs
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "0.9"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+
+    # Docker logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+        tag: "{{.Name}}/{{.ID}}"
+
+    # Container labels
+    labels:
+      - "com.sakaibot.service=main"
+      - "com.sakaibot.description=AI-powered Telegram Userbot"
+
+    # Security options
+    security_opt:
+      # Prevent privilege escalation
+      - no-new-privileges:true
+
+    # Read-only root filesystem for security
+    # Writable dirs are mounted as volumes
+    read_only: true
+
+    # Tmpfs for /tmp (read-only root requires this)
+    tmpfs:
+      - /tmp:size=64M,mode=1777
+
+    # Health check is defined in Dockerfile, but can be overridden here
+    # healthcheck:
+    #   test: ["/healthcheck.sh"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 60s
+
+# Named volumes for data persistence
+volumes:
+  sakaibot_data:
+    driver: local
+    # Optional: specify driver options for backups
+    # driver_opts:
+    #   type: none
+    #   device: /path/to/backup/data
+    #   o: bind
+
+  sakaibot_cache:
+    driver: local
+
+  sakaibot_temp:
+    driver: local
+# =============================================================================
+# Networks (optional - useful if adding more services later)
+# =============================================================================
+# networks:
+#   sakaibot_network:
+#     driver: bridge

@@ -1,0 +1,104 @@
+# =============================================================================
+# SakaiBot Docker Build Exclusions
+# =============================================================================
+# Files and directories to exclude from Docker build context.
+# This reduces build time and image size, and prevents sensitive files
+# from accidentally being copied into the image.
+# =============================================================================
+
+# --- Git ---
+.git
+.gitignore
+.gitattributes
+
+# --- Environment & Secrets (CRITICAL - never include in image) ---
+.env
+.env.*
+!.env.example
+secrets/
+*.session
+*.pem
+*.key
+
+# --- Python cache ---
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Virtual environments ---
+venv/
+venv.linux/
+ENV/
+env/
+.venv/
+
+# --- IDE & Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# --- Testing & Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# --- Documentation ---
+docs/_build/
+*.md
+!README.md
+
+# --- Logs & Data (runtime only) ---
+logs/
+*.log
+cache/
+temp/
+data/
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Docker ---
+docker-compose*.yml
+!docker-compose.yml
+Dockerfile*
+!Dockerfile
+.dockerignore
+
+# --- Misc ---
+*.exe
+*.dll
+prompt.md
+AGENTS.md
+acli.exe
+scripts/
+htmlcov/
+sakaibot.egg-info/

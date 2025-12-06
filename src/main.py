@@ -18,6 +18,11 @@ from .ai.stt import SpeechToTextProcessor
 from .ai.tts import TextToSpeechProcessor
 from .utils.cache import CacheManager
 from .utils.logging import setup_logging, get_logger
+from .utils.structured_logging import (
+    setup_production_logging,
+    is_docker_environment,
+    get_structured_logger
+)
 from .utils.task_manager import get_task_manager
 from .utils.instance_lock import InstanceLock
 from .ai.analyze_queue import analyze_queue
@@ -234,9 +239,23 @@ class SakaiBot:
 async def main() -> None:
     """Main entry point function."""
     try:
-        # Setup logging
-        setup_logging()
-        logger = get_logger("main")
+        # Setup logging based on environment
+        if is_docker_environment():
+            # Use structured JSON logging for Docker
+            log_level = os.environ.get('SAKAIBOT_LOG_LEVEL', 'INFO')
+            use_json = os.environ.get('SAKAIBOT_LOG_JSON', '1') == '1'
+            setup_production_logging(
+                log_dir="logs",
+                log_level=log_level,
+                json_format=use_json,
+                docker_mode=True
+            )
+            logger = get_structured_logger("main")
+            logger.info("Running in Docker environment")
+        else:
+            # Use standard logging for local development
+            setup_logging()
+            logger = get_logger("main")
         
         # Load configuration
         config = load_config()

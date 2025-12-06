@@ -313,3 +313,34 @@ fix_*.py
 
 scripts/
 prompts.md
+
+# =============================================================================
+# Docker
+# =============================================================================
+# Local Docker data (not container volumes)
+docker-data/
+
+# Docker override files (for local development)
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Container logs
+container-logs/
+
+# =============================================================================
+# Secrets (CRITICAL - never commit!)
+# =============================================================================
+secrets/*
+!secrets/.gitkeep
+!secrets/README.md
+
+# Encrypted archives
+*.gpg
+*.enc
+*.encrypted
+
+# Private keys
+*.pem
+*.key
+*.p12
+*.pfx

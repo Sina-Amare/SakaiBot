@@ -289,6 +289,7 @@ class AIHandler(BaseHandler):
             
             response = await self._ai_processor.execute_custom_prompt(
                 user_prompt=full_prompt,
+                max_tokens=32000,  # Use full token budget for complete responses
                 task_type="prompt",
                 use_thinking=use_thinking,
                 use_web_search=use_web_search

@@ -662,3 +662,241 @@ async def handle_status_command(event: events.NewMessage.Event):
     except Exception as e:
         logger.error(f"Error in /status command: {e}", exc_info=True)
         await event.edit(f"❌ Error: {str(e)}", parse_mode='html')
+
+
+async def handle_group_command(event: events.NewMessage.Event, args: str):
+    """Handle /group command for categorization configuration.
+    
+    Usage:
+        /group list - List all groups
+        /group select - Interactive group selection
+        /group select <id> - Select specific group by ID
+        /group topics - List topics in selected group
+        /group map - Show current mappings
+        /group map <category>=<topic_id> - Add mapping
+        /group clear - Clear all mappings
+    """
+    try:
+        parts = args.split(maxsplit=1) if args else []
+        subcommand = parts[0] if parts else 'help'
+        
+        settings_manager = SettingsManager()
+        settings = settings_manager.load_user_settings()
+        
+        if subcommand == 'help' or subcommand == '':
+            msg = """📂 <b>Group Categorization</b>
+
+<b>Commands:</b>
+<code>/group list</code> - View your groups
+<code>/group select [id]</code> - Select target group
+<code>/group topics</code> - View topics in group
+<code>/group map</code> - Show current mappings
+<code>/group map cat=topic_id</code> - Add mapping
+<code>/group clear</code> - Clear all mappings
+
+<i>💡 Use /help group for detailed guide</i>"""
+            await event.edit(msg, parse_mode='html')
+        
+        elif subcommand == 'list':
+            await event.edit("🔄 Fetching your groups...", parse_mode='html')
+            
+            groups = []
+            async for dialog in event.client.iter_dialogs():
+                if dialog.is_group or dialog.is_channel:
+                    # Check if it's a forum
+                    entity = dialog.entity
+                    is_forum = getattr(entity, 'forum', False)
+                    groups.append({
+                        'id': dialog.id,
+                        'title': dialog.title,
+                        'is_forum': is_forum
+                    })
+                    if len(groups) >= 50:  # Limit
+                        break
+            
+            if not groups:
+                await event.edit("❌ No groups found.", parse_mode='html')
+                return
+            
+            msg = "📂 <b>Your Groups</b>\n\n"
+            for g in groups[:20]:  # Show top 20
+                forum_badge = "📚" if g['is_forum'] else "💬"
+                msg += f"{forum_badge} {g['title']}\n"
+                msg += f"   <code>{g['id']}</code>\n\n"
+            
+            if len(groups) > 20:
+                msg += f"<i>...and {len(groups) - 20} more</i>\n\n"
+            
+            msg += "<b>To select:</b> <code>/group select GROUP_ID</code>"
+            await event.edit(msg, parse_mode='html')
+        
+        elif subcommand == 'select':
+            group_id = parts[1] if len(parts) > 1 else None
+            
+            if not group_id:
+                await event.edit(
+                    "❌ <b>Usage:</b> <code>/group select GROUP_ID</code>\n\n"
+                    "Use <code>/group list</code> to see available groups.",
+                    parse_mode='html'
+                )
+                return
+            
+            try:
+                group_id = int(group_id)
+            except ValueError:
+                await event.edit("❌ Invalid group ID. Must be a number.", parse_mode='html')
+                return
+            
+            # Verify group exists
+            try:
+                entity = await event.client.get_entity(group_id)
+                title = getattr(entity, 'title', 'Unknown')
+                is_forum = getattr(entity, 'forum', False)
+                
+                if not is_forum:
+                    await event.edit(
+                        f"⚠️ <b>{title}</b> is not a forum group.\n\n"
+                        "Categorization requires a group with topics enabled.",
+                        parse_mode='html'
+                    )
+                    return
+                
+                # Save selection
+                settings['selected_target_group'] = {
+                    'id': group_id,
+                    'title': title
+                }
+                settings_manager.save_user_settings(settings)
+                
+                await event.edit(
+                    f"✅ <b>Target Group Set</b>\n\n"
+                    f"📚 {title}\n"
+                    f"🆔 <code>{group_id}</code>\n\n"
+                    f"Use <code>/group topics</code> to view available topics.",
+                    parse_mode='html'
+                )
+            except Exception as e:
+                await event.edit(f"❌ Could not find group: {e}", parse_mode='html')
+        
+        elif subcommand == 'topics':
+            target = settings.get('selected_target_group')
+            if not target:
+                await event.edit(
+                    "❌ No target group selected.\n\n"
+                    "Use <code>/group select GROUP_ID</code> first.",
+                    parse_mode='html'
+                )
+                return
+            
+            await event.edit("🔄 Fetching topics...", parse_mode='html')
+            
+            try:
+                from telethon.tl.functions.channels import GetForumTopicsRequest
+                
+                result = await event.client(GetForumTopicsRequest(
+                    channel=target['id'],
+                    offset_date=None,
+                    offset_id=0,
+                    offset_topic=0,
+                    limit=100
+                ))
+                
+                if not result.topics:
+                    await event.edit(
+                        f"📚 <b>{target['title']}</b>\n\n"
+                        "No topics found.",
+                        parse_mode='html'
+                    )
+                    return
+                
+                msg = f"📚 <b>Topics in {target['title']}</b>\n\n"
+                for topic in result.topics:
+                    topic_id = topic.id
+                    title = topic.title
+                    msg += f"• {title}\n"
+                    msg += f"  ID: <code>{topic_id}</code>\n\n"
+                
+                msg += "\n<b>To map:</b> <code>/group map category=topic_id</code>"
+                await event.edit(msg, parse_mode='html')
+                
+            except Exception as e:
+                await event.edit(f"❌ Error fetching topics: {e}", parse_mode='html')
+        
+        elif subcommand == 'map':
+            mapping_arg = parts[1] if len(parts) > 1 else None
+            current_mappings = settings.get('active_command_to_topic_map', {})
+            
+            if not mapping_arg:
+                # Show current mappings
+                if not current_mappings:
+                    await event.edit(
+                        "📂 <b>Category Mappings</b>\n\n"
+                        "No mappings configured.\n\n"
+                        "<b>To add:</b> <code>/group map category=topic_id</code>",
+                        parse_mode='html'
+                    )
+                    return
+                
+                target = settings.get('selected_target_group', {})
+                msg = f"📂 <b>Category Mappings</b>\n"
+                if target:
+                    msg += f"<i>Target: {target.get('title', 'Unknown')}</i>\n\n"
+                else:
+                    msg += "\n"
+                
+                for category, topic_info in current_mappings.items():
+                    topic_id = topic_info.get('topic_id', topic_info) if isinstance(topic_info, dict) else topic_info
+                    msg += f"• <code>{category}</code> → Topic {topic_id}\n"
+                
+                msg += "\n<b>To add:</b> <code>/group map cat=id</code>\n"
+                msg += "<b>To clear:</b> <code>/group clear</code>"
+                await event.edit(msg, parse_mode='html')
+                return
+            
+            # Parse mapping: category=topic_id
+            if '=' not in mapping_arg:
+                await event.edit(
+                    "❌ <b>Invalid format</b>\n\n"
+                    "Use: <code>/group map category=topic_id</code>\n"
+                    "Example: <code>/group map meme=123456</code>",
+                    parse_mode='html'
+                )
+                return
+            
+            category, topic_id_str = mapping_arg.split('=', 1)
+            category = category.strip().lower()
+            
+            try:
+                topic_id = int(topic_id_str.strip())
+            except ValueError:
+                await event.edit("❌ Topic ID must be a number.", parse_mode='html')
+                return
+            
+            # Add mapping
+            current_mappings[category] = {'topic_id': topic_id}
+            settings['active_command_to_topic_map'] = current_mappings
+            settings_manager.save_user_settings(settings)
+            
+            await event.edit(
+                f"✅ <b>Mapping Added</b>\n\n"
+                f"Category: <code>{category}</code>\n"
+                f"Topic ID: <code>{topic_id}</code>\n\n"
+                f"<i>Total mappings: {len(current_mappings)}</i>",
+                parse_mode='html'
+            )
+        
+        elif subcommand == 'clear':
+            settings['active_command_to_topic_map'] = {}
+            settings_manager.save_user_settings(settings)
+            await event.edit("🗑️ All category mappings cleared.", parse_mode='html')
+        
+        else:
+            await event.edit(
+                f"❌ Unknown subcommand: <code>{subcommand}</code>\n\n"
+                "Use <code>/group</code> to see available commands.",
+                parse_mode='html'
+            )
+    
+    except Exception as e:
+        logger.error(f"Error in /group command: {e}", exc_info=True)
+        await event.edit(f"❌ Error: {str(e)}", parse_mode='html')

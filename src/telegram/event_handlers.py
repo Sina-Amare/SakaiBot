@@ -29,7 +29,10 @@ from .handlers.tts_handler import TTSHandler
 from .handlers.ai_handler import AIHandler
 from .handlers.image_handler import ImageHandler
 from .handlers.categorization_handler import CategorizationHandler
-from .commands import handle_auth_command, handle_help_command, handle_status_command
+from .commands import (
+    handle_auth_command, handle_help_command,
+    handle_status_command, handle_group_command
+)
 
 
 class EventHandlers:
@@ -55,6 +58,7 @@ class EventHandlers:
             'auth': handle_auth_command,
             'help': handle_help_command,
             'status': handle_status_command,
+            'group': handle_group_command,
         }
         self._logger.debug("Self-command handlers registered")
         

@@ -32,11 +32,11 @@ COPY requirements.txt .
 RUN pip install --user --no-warn-script-location -r requirements.txt
 
 # Copy source code
-COPY pyproject.toml setup.py ./
+COPY pyproject.toml setup.py README.md ./
 COPY src/ ./src/
 
-# Install package
-RUN pip install --user --no-warn-script-location -e .
+# Install package (non-editable for production)
+RUN pip install --user --no-warn-script-location .
 
 
 # -----------------------------------------------------------------------------

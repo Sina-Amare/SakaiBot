@@ -34,6 +34,8 @@ services:
 
     # Persistent volumes
     volumes:
+      # Configuration file - mount as read-only
+      - ./.env:/app/.env:ro
       # Session and user data - bind mount (contains Telegram auth)
       # SECURITY: Host directory must have chmod 700 or 750
       - ./data:/app/data

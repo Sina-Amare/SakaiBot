@@ -44,10 +44,14 @@ class TTSHandler(BaseHandler):
         volume: str = "+0%"
     ) -> None:
         """Process TTS command and send voice message."""
+        import os
+        import tempfile
         chat_id = event_message.chat_id
         reply_to_id = event_message.id
         
-        temp_output_filename = f"temp_tts_output_{event_message.id}_{event_message.date.timestamp()}.wav"
+        # Use /tmp for Docker (read-only root filesystem) or system temp
+        temp_dir = "/tmp" if os.path.exists("/tmp") and os.access("/tmp", os.W_OK) else tempfile.gettempdir()
+        temp_output_filename = os.path.join(temp_dir, f"temp_tts_output_{event_message.id}_{event_message.date.timestamp()}.wav")
         
         thinking_msg = await client.send_message(
             chat_id,

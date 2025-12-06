@@ -65,7 +65,10 @@ class STTHandler(BaseHandler):
         )
         
         downloaded_voice_path = None
-        converted_wav_path = f"temp_voice_stt_{original_message.id}_{replied_voice_message.id}.wav"
+        # Use /tmp for Docker (read-only root filesystem) or system temp
+        import tempfile
+        temp_dir = "/tmp" if os.path.exists("/tmp") and os.access("/tmp", os.W_OK) else tempfile.gettempdir()
+        converted_wav_path = os.path.join(temp_dir, f"temp_voice_stt_{original_message.id}_{replied_voice_message.id}.wav")
         path_modified = False
         original_path = ""
         
@@ -73,8 +76,8 @@ class STTHandler(BaseHandler):
             # Setup FFmpeg path
             path_modified, original_path = await self._setup_ffmpeg_path()
             
-            # Download voice message
-            base_download_name = f"temp_voice_download_stt_{original_message.id}_{replied_voice_message.id}"
+            # Download voice message to temp directory
+            base_download_name = os.path.join(temp_dir, f"temp_voice_download_stt_{original_message.id}_{replied_voice_message.id}")
             downloaded_voice_path = await client.download_media(
                 replied_voice_message.media,
                 file=base_download_name

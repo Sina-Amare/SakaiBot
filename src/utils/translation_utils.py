@@ -152,8 +152,15 @@ def format_translation_response(translation: str, pronunciation: str, target_lan
     # Get the full language name
     language_name = get_language_name(target_language)
     
-    # Format with the exact required structure
-    formatted_response = f"Translation ({language_name}):\n{translation}\nPronunciation:\n{pronunciation}\n-----------------------------"
+    # Skip pronunciation for Persian translations (Persian speakers don't need
+    # Persian phonetics for Persian text - only for non-Persian translations)
+    target_lower = target_language.lower()
+    if target_lower in ('fa', 'farsi', 'persian'):
+        formatted_response = f"Translation ({language_name}):\n{translation}\n-----------------------------"
+    else:
+        # Include pronunciation for non-Persian translations
+        formatted_response = f"Translation ({language_name}):\n{translation}\nPronunciation:\n{pronunciation}\n-----------------------------"
+    
     return formatted_response
 
 

@@ -145,17 +145,18 @@ async def handle_help_command(event: events.NewMessage.Event, args: str):
 
 ⚡ <b>QUICK START</b>
 <code>/prompt=Hello!</code> → Chat with AI
-<code>/image=flux=sunset</code> → Generate image
+<code>/image=flux/sunset</code> → Generate image
+<code>/analyze=100</code> → Analyze chat
 <code>/help fa</code> → راهنمای فارسی
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
 🎨 <b>IMAGE GENERATION</b>
 
-<code>/image=flux=your prompt</code>
+<code>/image=flux/your prompt</code>
 Fast, high-quality artistic images
 
-<code>/image=sdxl=your prompt</code>
+<code>/image=sdxl/your prompt</code>
 Stable, photorealistic images
 
 <i>💡 Prompts auto-enhanced by AI</i>
@@ -172,10 +173,10 @@ Ask anything, get AI response
 <code>/translate=en=متن</code>
 Translate to any language
 
-<code>/analyze=100</code>
-Analyze chat messages
+<code>/analyze=100</code> → Persian (default)
+<code>/analyze=100 en</code> → English output
   ├ <code>=general</code> → Formal analysis
-  ├ <code>=fun</code> → Casual comedy
+  ├ <code>=fun</code> → Comedy roast
   ├ <code>=romance</code> → Relationship
   └ <code>=think</code> → Deep analysis
 
@@ -202,6 +203,7 @@ Transcribe + AI summary
 <code>/auth list</code> → View users
 <code>/auth add @user</code> → Authorize
 <code>/auth remove @user</code> → Revoke
+<code>/group</code> → Manage categorization
 <code>/status</code> → Bot stats
 
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -209,7 +211,7 @@ Transcribe + AI summary
 📚 <b>DETAILED GUIDES</b>
 <code>/help images</code> • <code>/help ai</code>
 <code>/help voice</code> • <code>/help auth</code>
-<code>/help fa</code> → نسخه فارسی
+<code>/help group</code> • <code>/help fa</code>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -396,10 +398,24 @@ Transcribe + AI summary
 📊 <b>3. ANALYZE</b>
 <i>Chat analysis & insights</i>
 
+<b>Basic (Persian output):</b>
 <code>/analyze=100</code> → Last 100 messages
-<code>/analyze=fun=50</code> → Fun style
+<code>/analyze=fun=500</code> → Fun/comedy style
 <code>/analyze=romance=200</code> → Relationship
-<code>/analyze=fun=3000=think</code> → +Deep analysis
+
+<b>English output:</b>
+<code>/analyze=100 en</code>
+<code>/analyze=fun=500 en</code>
+<code>/analyze=romance=200 en</code>
+
+<b>With thinking mode:</b>
+<code>/analyze=fun=3000=think</code>
+<code>/analyze=500=think en</code>
+
+<b>Modes:</b>
+• <code>general</code> → Professional analysis
+• <code>fun</code> → Comedy roast
+• <code>romance</code> → Relationship signals
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -512,6 +528,58 @@ Shows:
 <i>⚠️ Only add users you trust!</i>"""
             await event.edit(msg, parse_mode='html')
         
+        elif args == 'group':
+            msg = """📂 <b>Group Categorization Guide</b>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 <b>WHAT IS CATEGORIZATION?</b>
+
+Forward messages to specific topics in a group
+based on categories you define.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📋 <b>COMMANDS</b>
+
+<code>/group list</code>
+View all configured groups
+
+<code>/group select</code>
+Select target group for forwarding
+
+<code>/group topics</code>
+List topics in selected group
+
+<code>/group map</code>
+Configure category → topic mapping
+
+<code>/group clear</code>
+Clear all mappings
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 <b>SETUP WORKFLOW</b>
+
+1. <code>/group list</code> - See your groups
+2. <code>/group select</code> - Pick target group
+3. <code>/group topics</code> - View available topics
+4. <code>/group map</code> - Create category mappings
+5. Done! Reply to messages with category name
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+💡 <b>USAGE EXAMPLE</b>
+
+1. Set up mapping: "meme" → "Memes" topic
+2. Reply to a message: <code>meme</code>
+3. Bot forwards to Memes topic
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+<i>📡 Requires a group with forum topics enabled</i>"""
+            await event.edit(msg, parse_mode='html')
+        
         else:
             # Unknown help topic
             msg = f"""
@@ -523,6 +591,7 @@ Shows:
 <code>/help ai</code> - AI commands
 <code>/help voice</code> - Voice features
 <code>/help auth</code> - Authorization
+<code>/help group</code> - Categorization
 
 <i>Type /help to see the complete guide</i>
 """

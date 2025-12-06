@@ -58,31 +58,44 @@ def build_execution_footer(metadata: AIResponseMetadata) -> str:
     """
     Build footer showing actual execution status.
     
-    Only shows indicators when features were requested.
-    Shows success or fallback message based on what actually happened.
-    If thinking was applied and a summary is available, shows it in code block.
-    
-    Args:
-        metadata: The response metadata with execution status
-        
-    Returns:
-        Formatted footer string, or empty string if no indicators needed
+    DEPRECATED: Use build_response_parts() for new code.
+    This wrapper maintains backward compatibility.
     """
-    footer_parts = []
-    thinking_block = ""
+    header, footer = build_response_parts(metadata)
+    # For backward compat, combine them (header at start, footer at end)
+    # But callers should update to use build_response_parts directly
+    return footer  # Old behavior - just return footer
+
+
+def build_response_parts(metadata: AIResponseMetadata) -> tuple:
+    """
+    Build header and footer parts for AI response display.
     
-    # Thinking status
+    Returns:
+        Tuple of (header: str, footer: str)
+        - header: Thinking block to prepend (or empty string)
+        - footer: Metadata line to append (or empty string)
+    """
+    header_parts = []
+    footer_parts = []
+    
+    # Unicode directional controls for LTR display
+    LRE = '\u202A'  # Left-to-Right Embedding
+    PDF = '\u202C'  # Pop Directional Formatting
+    
+    # Thinking status - goes in HEADER
     if metadata.thinking_requested:
         if metadata.thinking_applied:
-            footer_parts.append("🧠 **Deep Thinking Applied**")
-            # Add thinking summary in code block if available
             if metadata.thinking_summary:
-                thinking_block = f"\n\n```\n💭 Thought Process:\n{metadata.thinking_summary}\n```"
+                header_parts.append(
+                    f"```\n💭 Thought Process:\n{metadata.thinking_summary}\n```"
+                )
+            footer_parts.append("🧠 **Deep Thinking Applied**")
         else:
             reason = metadata.fallback_reason or "unavailable"
             footer_parts.append(f"⚠️ Thinking mode {reason}, used standard response")
     
-    # Web search status
+    # Web search status - goes in footer
     if metadata.web_search_requested:
         if metadata.web_search_applied:
             footer_parts.append("🌐 **Web Search Used**")
@@ -93,12 +106,15 @@ def build_execution_footer(metadata: AIResponseMetadata) -> str:
     if footer_parts and metadata.model_used:
         footer_parts.append(f"**Model:** {metadata.model_used}")
     
-    if not footer_parts:
-        return ""
+    # Build header string (thinking block at top)
+    header = ""
+    if header_parts:
+        header = "\n".join(header_parts) + "\n\n"
     
-    # Unicode directional controls for LTR display
-    LRE = '\u202A'  # Left-to-Right Embedding
-    PDF = '\u202C'  # Pop Directional Formatting
+    # Build footer string (metadata at bottom)
+    footer = ""
+    if footer_parts:
+        footer_content = " | ".join(footer_parts)
+        footer = f"\n\n───────────────────────────\n{LRE}{footer_content}{PDF}"
     
-    footer_content = " | ".join(footer_parts)
-    return f"\n\n───────────────────────────\n{LRE}{footer_content}{PDF}{thinking_block}"
+    return (header, footer)

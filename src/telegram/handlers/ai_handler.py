@@ -8,7 +8,7 @@ from telethon import TelegramClient
 from telethon.tl.types import Message
 
 from ...ai.processor import AIProcessor
-from ...ai.response_metadata import build_execution_footer
+from ...ai.response_metadata import build_response_parts
 
 from ...core.constants import MAX_MESSAGE_LENGTH
 from ...core.exceptions import AIProcessorError
@@ -297,9 +297,9 @@ class AIHandler(BaseHandler):
             
             # Response is now AIResponseMetadata with execution status
             if response and response.response_text.strip():
-                # Build dynamic footer based on actual execution
-                footer = build_execution_footer(response)
-                return response.response_text + footer
+                # Build header (thinking) and footer (metadata) separately
+                header, footer = build_response_parts(response)
+                return header + response.response_text + footer
             else:
                 self._logger.warning(
                     f"Empty response from AI for prompt command. "
@@ -513,10 +513,10 @@ class AIHandler(BaseHandler):
             
             # Response is now AIResponseMetadata with execution status
             if response and response.response_text.strip():
-                # Build dynamic footer based on actual execution (like /prompt)
-                from ...ai.response_metadata import build_execution_footer
-                footer = build_execution_footer(response)
-                return response.response_text + footer
+                # Build header (thinking) and footer (metadata) separately
+                from ...ai.response_metadata import build_response_parts
+                header, footer = build_response_parts(response)
+                return header + response.response_text + footer
             else:
                 self._logger.warning(f"Empty response from AI for tellme command. Response was: {response}")
                 return "⚠️ **Unable to Answer**\n\nThe AI couldn't answer your question based on the available chat history.\n\n**Suggestions:**\n• Try asking a different question\n• Include more message history\n• Rephrase your question"

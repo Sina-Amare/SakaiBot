@@ -258,11 +258,14 @@ Transcribe + AI summary
 
 <code>/analyze=100</code>
 تحلیل پیام‌های چت
+  ├ <code>=general</code> ← تحلیل جامع
   ├ <code>=fun</code> ← سبک طنز
   └ <code>=romance</code> ← تحلیل رابطه
 
 <code>/tellme=50=سوال</code>
 سوال درباره تاریخچه چت
+  ├ <code>=think</code> ← تفکر عمیق
+  └ <code>=web</code> ← جستجوی وب
 
 ━━━━━━━━━━━━━━━━━━━━━━
 

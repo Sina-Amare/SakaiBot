@@ -34,8 +34,9 @@ services:
 
     # Persistent volumes
     volumes:
-      # Session and user data (CRITICAL - contains Telegram auth)
-      - sakaibot_data:/app/data
+      # Session and user data - bind mount (contains Telegram auth)
+      # SECURITY: Host directory must have chmod 700 or 750
+      - ./data:/app/data
       # Logs - bind mount for easy host access
       - ./logs:/app/logs
       # Cache - named volume (can be recreated)
@@ -91,14 +92,6 @@ services:
 
 # Named volumes for data persistence
 volumes:
-  sakaibot_data:
-    driver: local
-    # Optional: specify driver options for backups
-    # driver_opts:
-    #   type: none
-    #   device: /path/to/backup/data
-    #   o: bind
-
   sakaibot_cache:
     driver: local
 

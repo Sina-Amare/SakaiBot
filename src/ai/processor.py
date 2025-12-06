@@ -197,7 +197,7 @@ class AIProcessor:
         """Execute tellme mode (backward compatibility)."""
         result = await self.execute_custom_prompt(
             user_prompt=prompt,
-            max_tokens=2000,
+            max_tokens=32000,  # Full token budget for complete answers
             temperature=0.7,
             task_type="tellme"
         )

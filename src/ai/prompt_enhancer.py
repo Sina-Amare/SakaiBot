@@ -85,6 +85,7 @@ class PromptEnhancer:
                 # Call AI processor to enhance the prompt
                 result = await self._ai_processor.execute_custom_prompt(
                     user_prompt=enhancement_prompt,
+                    max_tokens=2000,  # Short enhanced prompt
                     task_type="prompt_enhancer"
                 )
                 enhanced = result.response_text
@@ -138,6 +139,7 @@ class PromptEnhancer:
                 # Call AI processor to enhance the prompt
                 result = await self._ai_processor.execute_custom_prompt(
                     user_prompt=enhancement_prompt,
+                    max_tokens=2000,  # Short enhanced prompt
                     task_type="prompt_enhancer"
                 )
                 enhanced = result.response_text

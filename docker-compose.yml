@@ -19,6 +19,7 @@ services:
         HTTPS_PROXY: http://172.17.0.1:10809
     image: sakaibot:latest
     container_name: sakaibot
+    network_mode: host
 
     # Restart policy: always restart unless explicitly stopped
     restart: unless-stopped

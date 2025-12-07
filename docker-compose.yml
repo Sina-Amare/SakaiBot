@@ -14,9 +14,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        HTTP_PROXY: http://172.17.0.1:10809
-        HTTPS_PROXY: http://172.17.0.1:10809
+      # NOTE: Do NOT add HTTP_PROXY/HTTPS_PROXY here.
+      # Build requires direct internet access (no proxy).
+      # Proxy is configured at runtime via iptables transparent proxy.
     image: sakaibot:latest
     container_name: sakaibot
     network_mode: host

@@ -347,6 +347,12 @@ class GeminiProvider(LLMProvider):
                             retry_delay = 1.0
                             break  # Try next key
                         else:
+                            # All keys exhausted - try Flash if we were using Pro
+                            if model == self._model_pro:
+                                self._mark_pro_model_exhausted()
+                                raise AIProcessorError(
+                                    "RETRY_WITH_FLASH: All Pro keys exhausted"
+                                )
                             raise AIProcessorError(
                                 "All Gemini API keys are exhausted for today. "
                                 "Please try again later."
@@ -463,21 +469,17 @@ class GeminiProvider(LLMProvider):
         # If thinking mode is enabled, use the NEW google.genai SDK for native thinking
         if use_thinking:
             self._logger.info(f"[TRACE] Thinking mode enabled, calling _execute_with_native_thinking")
-            try:
-                self._logger.info("Using native ThinkingConfig for deep reasoning")
-                result = await self._execute_with_native_thinking(
-                    prompt=full_prompt,
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    use_web_search=use_web_search
-                )
-                self._logger.info(f"[TRACE] Native thinking succeeded")
-                return result
-            except Exception as e:
-                self._logger.error(f"[TRACE] Native thinking FAILED with: {type(e).__name__}: {e}")
-                self._logger.warning(f"Native thinking failed: {e}. Falling back to standard mode.")
-                # Fall through to standard execution if native thinking fails
+            self._logger.info("Using native ThinkingConfig for deep reasoning")
+            # Always use native thinking when requested - don't fall through to standard
+            result = await self._execute_with_native_thinking(
+                prompt=full_prompt,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                use_web_search=use_web_search
+            )
+            self._logger.info(f"[TRACE] Native thinking succeeded")
+            return result
         else:
             self._logger.info(f"[TRACE] Thinking mode disabled, using standard execution")
         

@@ -264,6 +264,28 @@ class APIKeyManager:
         
         return result
     
+    def reset_for_model_switch(self) -> None:
+        """
+        Reset key exhaustion status when switching models.
+        
+        This is needed because Gemini Pro and Flash have SEPARATE quotas.
+        When Pro is exhausted, the same API keys can still work for Flash.
+        """
+        for key_state in self._keys:
+            # Clear the exhausted_until flag so keys can be tried again
+            key_state.exhausted_until = None
+            # Reset error count
+            key_state.error_count = 0
+            # Reset status to healthy
+            key_state.status = KeyStatus.HEALTHY
+        
+        # Reset to first key
+        self._current_index = 0
+        
+        self._logger.info(
+            f"{self._provider_name}: Reset all {len(self._keys)} keys for model switch"
+        )
+    
     def get_status(self) -> Dict[str, any]:
         """Get status of all keys for debugging."""
         return {

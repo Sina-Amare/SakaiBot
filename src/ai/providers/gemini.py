@@ -440,6 +440,9 @@ class GeminiProvider(LLMProvider):
                 self._logger.info(
                     "Pro model exhausted, auto-retrying with Flash model"
                 )
+                # Reset keys for Flash - Pro and Flash have SEPARATE quotas
+                if self._key_manager:
+                    self._key_manager.reset_for_model_switch()
                 return await self.execute_prompt(
                     user_prompt=user_prompt,
                     max_tokens=max_tokens,

@@ -386,6 +386,11 @@ class GeminiProvider(LLMProvider):
         _is_model_fallback_retry: bool = False
     ) -> AIResponseMetadata:
         """Execute a prompt using Google Gemini with retry logic and key rotation."""
+        self._logger.info(
+            f"[TRACE] execute_prompt called: use_thinking={use_thinking}, "
+            f"task_type={task_type}, _is_model_fallback_retry={_is_model_fallback_retry}"
+        )
+        
         if not user_prompt:
             raise AIProcessorError("Prompt cannot be empty")
         
@@ -445,9 +450,13 @@ class GeminiProvider(LLMProvider):
         use_web_search: bool
     ) -> AIResponseMetadata:
         """Internal method that actually executes the prompt."""
+        self._logger.info(
+            f"[TRACE] _execute_prompt_internal: use_thinking={use_thinking}, model={model}"
+        )
         
         # If thinking mode is enabled, use the NEW google.genai SDK for native thinking
         if use_thinking:
+            self._logger.info(f"[TRACE] Thinking mode enabled, calling _execute_with_native_thinking")
             try:
                 self._logger.info("Using native ThinkingConfig for deep reasoning")
                 result = await self._execute_with_native_thinking(
@@ -457,10 +466,14 @@ class GeminiProvider(LLMProvider):
                     max_tokens=max_tokens,
                     use_web_search=use_web_search
                 )
+                self._logger.info(f"[TRACE] Native thinking succeeded")
                 return result
             except Exception as e:
+                self._logger.error(f"[TRACE] Native thinking FAILED with: {type(e).__name__}: {e}")
                 self._logger.warning(f"Native thinking failed: {e}. Falling back to standard mode.")
                 # Fall through to standard execution if native thinking fails
+        else:
+            self._logger.info(f"[TRACE] Thinking mode disabled, using standard execution")
         
         # Log the exact prompt being sent for debugging
         self._logger.debug(f"Sending prompt to Gemini: '{full_prompt[:100]}...'")

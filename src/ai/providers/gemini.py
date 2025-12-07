@@ -3,6 +3,7 @@
 import os
 import asyncio
 import time
+import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Union
 import pytz
@@ -26,6 +27,10 @@ from ..prompts import (
     get_telegram_formatting_guidelines,
     get_response_scaling_instructions
 )
+
+# Constants
+THINKING_BUDGET_DEFAULT: int = 4096
+THINKING_SUMMARY_MAX_CHARS: int = 600
 
 
 class GeminiProvider(LLMProvider):
@@ -220,7 +225,7 @@ class GeminiProvider(LLMProvider):
         
         self._logger.info(
             f"[THINKING] Starting native thinking for model={model}, "
-            f"budget=4096, max_keys={max_key_attempts}"
+            f"budget={THINKING_BUDGET_DEFAULT}, max_keys={max_key_attempts}"
         )
         
         while keys_tried < max_key_attempts:
@@ -250,7 +255,7 @@ class GeminiProvider(LLMProvider):
                     
                     # Build thinking config with include_thoughts=True
                     thinking_config = types.ThinkingConfig(
-                        thinking_budget=4096,
+                        thinking_budget=THINKING_BUDGET_DEFAULT,
                         include_thoughts=True
                     )
                     
@@ -261,12 +266,26 @@ class GeminiProvider(LLMProvider):
                     )
                     
                     # Execute with thinking using ASYNC client
-                    self._logger.info("[THINKING] Calling async generate_content...")
+                    self._logger.debug(
+                        f"[THINKING] Calling async generate_content with model={model}, "
+                        f"budget={thinking_config.thinking_budget}"
+                    )
                     response = await client.aio.models.generate_content(
                         model=model,
                         contents=prompt,
                         config=config
                     )
+                    
+                    # Debug logging for troubleshooting (only in debug mode)
+                    if self._logger.isEnabledFor(logging.DEBUG):
+                        self._logger.debug(
+                            f"[THINKING-DEBUG] Response type: {type(response)}, "
+                            f"has_candidates: {bool(response.candidates)}"
+                        )
+                        if response.candidates and response.candidates[0].content.parts:
+                            self._logger.debug(
+                                f"[THINKING-DEBUG] Found {len(response.candidates[0].content.parts)} parts"
+                            )
                     
                     # Extract parts: thought=True is reasoning, thought=None/False is answer
                     raw_thinking = None
@@ -301,13 +320,25 @@ class GeminiProvider(LLMProvider):
                         preview_lines = []
                         char_count = 0
                         for line in lines:
-                            if char_count + len(line) > 350:
+                            if char_count + len(line) > THINKING_SUMMARY_MAX_CHARS:
                                 break
                             preview_lines.append(line)
                             char_count += len(line)
                         thinking_summary = '\n'.join(preview_lines)
                         if len(raw_thinking) > len(thinking_summary):
                             thinking_summary += "\n[...truncated]"
+                    
+                    # Log thinking result (debug level only)
+                    if raw_thinking:
+                        self._logger.debug(
+                            f"[THINKING] Received thinking parts: "
+                            f"{len(raw_thinking)} chars, summary: {len(thinking_summary or '')} chars"
+                        )
+                    else:
+                        self._logger.warning(
+                            f"[THINKING] No thinking parts in response for model={model}. "
+                            f"Model may not support thinking mode or API issue occurred."
+                        )
                     
                     # Mark key as successful
                     if self._key_manager:
@@ -602,8 +633,12 @@ class GeminiProvider(LLMProvider):
                             retry_delay *= 2  # Exponential backoff
                             continue
                         else:
-                            # Last attempt failed
-                            response_text = "من درخواست شما رو دریافت کردم ولی نتونستم جواب مناسبی بدم. ممکنه مشکل از API باشه یا محتوا فیلتر شده. دوباره امتحان کن."
+                            # Last attempt failed - return user-friendly error message
+                            response_text = (
+                                "⚠️ <b>Processing Error</b>\n\n"
+                                "I received your request but couldn't generate a proper response.\n\n"
+                                "<i>💡 This may be due to API issues or content filtering. Please try again.</i>"
+                            )
                     
                     if response_text:
                         # Mark key as successful

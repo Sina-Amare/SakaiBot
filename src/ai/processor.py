@@ -14,33 +14,59 @@ from ..utils.security import mask_api_key
 
 
 class AIProcessor:
-    """Handles AI processing operations using configured LLM provider."""
+    """Handles AI processing operations with Gemini primary and OpenRouter fallback."""
     
     def __init__(self, config: Config) -> None:
-        """Initialize AI processor with configured provider."""
+        """Initialize AI processor with primary and fallback providers."""
         self._config = config
         self._logger = get_logger(self.__class__.__name__)
         self._provider: Optional[LLMProvider] = None
+        self._primary_provider: Optional[LLMProvider] = None
+        self._fallback_provider: Optional[LLMProvider] = None
+        self._using_fallback: bool = False
         
-        # Initialize the appropriate provider
+        # Initialize providers with fallback support
         self._initialize_provider()
     
     def _initialize_provider(self) -> None:
-        """Initialize the LLM provider based on configuration."""
+        """Initialize primary (Gemini) and fallback (OpenRouter) providers."""
         provider_type = self._config.llm_provider.lower()
         
         try:
             if provider_type == "openrouter":
+                # OpenRouter as primary, no fallback
                 self._provider = OpenRouterProvider(self._config)
-                self._logger.info("Initialized OpenRouter provider")
+                self._primary_provider = self._provider
+                self._logger.info("Initialized OpenRouter as primary provider")
             elif provider_type == "gemini":
-                self._provider = GeminiProvider(self._config)
-                self._logger.info("Initialized Google Gemini provider")
+                # Gemini as primary, OpenRouter as fallback
+                self._primary_provider = GeminiProvider(self._config)
+                self._provider = self._primary_provider
+                self._logger.info("Initialized Google Gemini as primary provider")
+                
+                # Initialize fallback provider (OpenRouter)
+                try:
+                    self._fallback_provider = OpenRouterProvider(self._config)
+                    if self._fallback_provider.is_configured:
+                        self._logger.info(
+                            "Initialized OpenRouter as fallback provider"
+                        )
+                    else:
+                        self._fallback_provider = None
+                        self._logger.info(
+                            "OpenRouter fallback not configured, will use Gemini only"
+                        )
+                except Exception as e:
+                    self._logger.warning(f"Failed to init fallback provider: {e}")
+                    self._fallback_provider = None
             else:
                 raise AIProcessorError(f"Unknown LLM provider: {provider_type}")
             
             if not self._provider.is_configured:
-                api_key_field = "openrouter_api_key" if provider_type == "openrouter" else "gemini_api_key"
+                api_key_field = (
+                    "openrouter_api_key" if provider_type == "openrouter" 
+                    else "gemini_api_key"
+                )
                 api_key = getattr(self._config, api_key_field, None)
                 masked_key = mask_api_key(api_key) if api_key else "None"
                 self._logger.warning(
@@ -49,7 +75,83 @@ class AIProcessor:
                 )
         except Exception as e:
             self._logger.error(f"Failed to initialize LLM provider: {e}")
-            raise AIProcessorError(f"Could not initialize {provider_type} provider: {e}")
+            raise AIProcessorError(
+                f"Could not initialize {provider_type} provider: {e}"
+            )
+    
+    def _is_keys_exhausted_error(self, error: Exception) -> bool:
+        """Check if error indicates all API keys are exhausted."""
+        error_msg = str(error).lower()
+        exhausted_indicators = [
+            "all api keys exhausted",
+            "all keys exhausted",
+            "no available api keys",
+            "rate limit",
+            "quota exceeded",
+            "429",
+        ]
+        return any(indicator in error_msg for indicator in exhausted_indicators)
+    
+    async def _execute_with_fallback(
+        self,
+        operation_name: str,
+        primary_func,
+        fallback_func,
+        use_thinking: bool = False,
+        **kwargs
+    ) -> AIResponseMetadata:
+        """
+        Execute an operation with fallback support.
+        
+        Tries primary provider first, falls back to secondary on key exhaustion.
+        """
+        try:
+            # Try primary provider
+            result = await primary_func(**kwargs, use_thinking=use_thinking)
+            self._using_fallback = False
+            return result
+        except (AIProcessorError, Exception) as e:
+            if not self._is_keys_exhausted_error(e):
+                # Not a key exhaustion error, re-raise
+                raise
+            
+            if self._fallback_provider is None:
+                self._logger.error(
+                    f"{operation_name}: All Gemini keys exhausted, no fallback"
+                )
+                raise AIProcessorError(
+                    "All Gemini API keys exhausted and no fallback configured"
+                )
+            
+            # Switch to fallback provider
+            self._logger.warning(
+                f"{operation_name}: Gemini keys exhausted, falling back to OpenRouter"
+            )
+            self._using_fallback = True
+            
+            # Execute with fallback provider (thinking disabled)
+            try:
+                # OpenRouter doesn't support native thinking, so disable it
+                result = await fallback_func(**kwargs, use_thinking=False)
+                
+                # Update metadata to reflect fallback
+                result.provider_fallback_applied = True
+                result.provider_fallback_reason = "All Gemini keys exhausted"
+                
+                # If thinking was requested but not available
+                if use_thinking:
+                    result.thinking_requested = True
+                    result.thinking_applied = False
+                    result.fallback_reason = "OpenRouter fallback (no native thinking)"
+                
+                return result
+            except Exception as fallback_error:
+                self._logger.error(
+                    f"{operation_name}: Fallback also failed: {fallback_error}"
+                )
+                raise AIProcessorError(
+                    f"Both Gemini and OpenRouter failed: {fallback_error}"
+                )
     
     @property
     def is_configured(self) -> bool:
@@ -99,7 +201,7 @@ class AIProcessor:
         use_thinking: bool = False,
         use_web_search: bool = False
     ) -> AIResponseMetadata:
-        """Execute a custom prompt using the configured LLM provider.
+        """Execute a custom prompt with automatic Gemini→OpenRouter fallback.
         
         Returns AIResponseMetadata with response text and execution status.
         """
@@ -113,12 +215,27 @@ class AIProcessor:
             f"(thinking={use_thinking}, web_search={use_web_search})"
         )
         
-        return await self._provider.execute_prompt(
+        # If no fallback provider, use primary directly
+        if self._fallback_provider is None:
+            return await self._provider.execute_prompt(
+                user_prompt=user_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                task_type=task_type,
+                use_thinking=use_thinking,
+                use_web_search=use_web_search
+            )
+        
+        # Use fallback mechanism
+        return await self._execute_with_fallback(
+            operation_name="execute_custom_prompt",
+            primary_func=self._primary_provider.execute_prompt,
+            fallback_func=self._fallback_provider.execute_prompt,
+            use_thinking=use_thinking,
             user_prompt=user_prompt,
             max_tokens=max_tokens,
             temperature=temperature,
             task_type=task_type,
-            use_thinking=use_thinking,
             use_web_search=use_web_search
         )
     
@@ -243,7 +360,7 @@ class AIProcessor:
         use_thinking: bool = False,
         use_web_search: bool = False
     ) -> "AIResponseMetadata":
-        """Answer a question based on chat history.
+        """Answer a question based on chat history with fallback support.
         
         Returns AIResponseMetadata to preserve thinking_summary for display.
         """
@@ -252,7 +369,6 @@ class AIProcessor:
                 f"AI processor not configured. Provider: {self._config.llm_provider}"
             )
         
-        # Use provider's answer_question_from_history method which handles formatting
         # Convert messages_data format to expected format
         formatted_messages = []
         for msg in messages_data:
@@ -262,9 +378,22 @@ class AIProcessor:
                 'timestamp': msg.get('timestamp')
             })
         
-        return await self._provider.answer_question_from_history(
+        # If no fallback provider, use primary directly
+        if self._fallback_provider is None:
+            return await self._provider.answer_question_from_history(
+                messages=formatted_messages,
+                question=user_question,
+                use_thinking=use_thinking,
+                use_web_search=use_web_search
+            )
+        
+        # Use fallback mechanism
+        return await self._execute_with_fallback(
+            operation_name="answer_question",
+            primary_func=self._primary_provider.answer_question_from_history,
+            fallback_func=self._fallback_provider.answer_question_from_history,
+            use_thinking=use_thinking,
             messages=formatted_messages,
             question=user_question,
-            use_thinking=use_thinking,
             use_web_search=use_web_search
         )

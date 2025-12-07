@@ -30,6 +30,12 @@ class AIResponseMetadata:
     web_search_applied: bool = False
     fallback_reason: Optional[str] = None
     model_used: str = ""
+    # Model fallback tracking (when Pro falls back to Flash)
+    model_fallback_applied: bool = False
+    model_fallback_reason: Optional[str] = None
+    # Provider fallback tracking (when Gemini falls back to OpenRouter)
+    provider_fallback_applied: bool = False
+    provider_fallback_reason: Optional[str] = None
     
     def __str__(self) -> str:
         """Return response text for backward compatibility."""
@@ -52,6 +58,11 @@ class AIResponseMetadata:
     def has_web_search_fallback(self) -> bool:
         """Check if web search was requested but not applied."""
         return self.web_search_requested and not self.web_search_applied
+    
+    @property
+    def has_provider_fallback(self) -> bool:
+        """Check if provider fallback was applied (Gemini -> OpenRouter)."""
+        return self.provider_fallback_applied
 
 
 def build_execution_footer(metadata: AIResponseMetadata) -> str:
@@ -101,6 +112,20 @@ def build_response_parts(metadata: AIResponseMetadata) -> tuple:
             footer_parts.append("🌐 **Web Search Used**")
         else:
             footer_parts.append("⚠️ Web search unavailable (billing required)")
+    
+    # Model fallback notification (Pro -> Flash)
+    if metadata.model_fallback_applied:
+        reason = metadata.model_fallback_reason or "Pro model quota exceeded"
+        footer_parts.append(f"⚡ Using Flash model ({reason})")
+    
+    # Provider fallback notification (Gemini -> OpenRouter)
+    if metadata.provider_fallback_applied:
+        reason = metadata.provider_fallback_reason or "Primary provider unavailable"
+        footer_parts.append(f"🔄 Using OpenRouter ({reason})")
+        # If thinking was requested but we fell back to OpenRouter, add note
+        if metadata.thinking_requested and not metadata.thinking_applied:
+            # Don't duplicate - the thinking fallback is already shown above
+            pass
     
     # Model info - only show if we have other indicators
     if footer_parts and metadata.model_used:

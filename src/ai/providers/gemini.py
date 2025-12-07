@@ -3,7 +3,7 @@
 import os
 import asyncio
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Union
 import pytz
 
@@ -53,6 +53,9 @@ class GeminiProvider(LLMProvider):
         self._model_pro = getattr(config, 'gemini_model_pro', 'gemini-2.5-pro')
         self._model_flash = getattr(config, 'gemini_model_flash', 'gemini-2.5-flash')
         self._model = config.gemini_model  # Legacy default
+        
+        # Pro model fallback state - when Pro is exhausted, fallback to Flash
+        self._pro_model_exhausted_until: Optional[datetime] = None
     
     @property
     def is_configured(self) -> bool:
@@ -77,12 +80,56 @@ class GeminiProvider(LLMProvider):
         return self._model
     
     def get_model_for_task(self, task_type: str) -> str:
-        """Get appropriate model based on task complexity."""
+        """Get appropriate model based on task complexity.
+        
+        If Pro model is exhausted (429), automatically falls back to Flash.
+        """
         if task_type in COMPLEX_TASKS:
+            # Check if Pro model is exhausted
+            if self._is_pro_model_exhausted():
+                self._logger.info(
+                    f"Pro model exhausted, using Flash for {task_type}"
+                )
+                return self._model_flash
             return self._model_pro
         elif task_type in SIMPLE_TASKS:
             return self._model_flash
         return self._model  # Legacy default
+    
+    def _is_pro_model_exhausted(self) -> bool:
+        """Check if Pro model is exhausted for the current quota period."""
+        if self._pro_model_exhausted_until is None:
+            return False
+        
+        import pytz
+        now_utc = datetime.utcnow().replace(tzinfo=pytz.utc)
+        if now_utc < self._pro_model_exhausted_until:
+            return True
+        
+        # Reset - quota period has passed
+        self._pro_model_exhausted_until = None
+        self._logger.info("Pro model quota reset - Pro model available again")
+        return False
+    
+    def _mark_pro_model_exhausted(self):
+        """Mark Pro model as exhausted until next Pacific midnight."""
+        import pytz
+        pacific_tz = pytz.timezone("America/Los_Angeles")
+        now_utc = datetime.utcnow().replace(tzinfo=pytz.utc)
+        now_pacific = now_utc.astimezone(pacific_tz)
+        
+        # Calculate next Pacific midnight
+        today_midnight = now_pacific.replace(hour=0, minute=0, second=0, microsecond=0)
+        if now_pacific >= today_midnight:
+            next_midnight = today_midnight + timedelta(days=1)
+        else:
+            next_midnight = today_midnight
+        
+        self._pro_model_exhausted_until = next_midnight.astimezone(pytz.utc)
+        self._logger.warning(
+            f"Pro model (gemini-2.5-pro) exhausted until "
+            f"{self._pro_model_exhausted_until.isoformat()} UTC. Using Flash as fallback."
+        )
     
     def _calculate_max_tokens(self, task_type: str, num_messages: Optional[int] = None) -> int:
         """
@@ -168,7 +215,7 @@ class GeminiProvider(LLMProvider):
         max_retries = 3
         retry_delay = 1.0
         keys_tried = 0
-        max_key_attempts = 3 if self._key_manager else 1
+        max_key_attempts = self._key_manager.num_keys if self._key_manager else 1
         last_error = None
         
         while keys_tried < max_key_attempts:
@@ -335,7 +382,8 @@ class GeminiProvider(LLMProvider):
         temperature: float = 0.7,
         task_type: str = "default",
         use_thinking: bool = False,
-        use_web_search: bool = False
+        use_web_search: bool = False,
+        _is_model_fallback_retry: bool = False
     ) -> AIResponseMetadata:
         """Execute a prompt using Google Gemini with retry logic and key rotation."""
         if not user_prompt:
@@ -349,6 +397,54 @@ class GeminiProvider(LLMProvider):
         
         # Prompt is already self-contained (system messages merged into prompts)
         full_prompt = user_prompt
+        
+        # Track if we're using model fallback
+        model_fallback_applied = _is_model_fallback_retry
+        model_fallback_reason = "Pro model quota exceeded" if _is_model_fallback_retry else None
+        
+        try:
+            result = await self._execute_prompt_internal(
+                full_prompt=full_prompt,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                task_type=task_type,
+                use_thinking=use_thinking,
+                use_web_search=use_web_search
+            )
+            # Set fallback info if this was a retry
+            if model_fallback_applied:
+                result.model_fallback_applied = True
+                result.model_fallback_reason = model_fallback_reason
+            return result
+        except AIProcessorError as e:
+            # Check if we should retry with Flash model
+            if "RETRY_WITH_FLASH" in str(e) and not _is_model_fallback_retry:
+                self._logger.info(
+                    "Pro model exhausted, auto-retrying with Flash model"
+                )
+                return await self.execute_prompt(
+                    user_prompt=user_prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    task_type=task_type,
+                    use_thinking=use_thinking,
+                    use_web_search=use_web_search,
+                    _is_model_fallback_retry=True
+                )
+            raise
+
+    async def _execute_prompt_internal(
+        self,
+        full_prompt: str,
+        model: str,
+        max_tokens: int,
+        temperature: float,
+        task_type: str,
+        use_thinking: bool,
+        use_web_search: bool
+    ) -> AIResponseMetadata:
+        """Internal method that actually executes the prompt."""
         
         # If thinking mode is enabled, use the NEW google.genai SDK for native thinking
         if use_thinking:
@@ -373,7 +469,7 @@ class GeminiProvider(LLMProvider):
         max_retries = 3
         retry_delay = 1.0
         keys_tried = 0
-        max_key_attempts = 3 if self._key_manager else 1
+        max_key_attempts = self._key_manager.num_keys if self._key_manager else 1
         
         # Track web search usage - may be disabled if 403 error occurs
         actual_use_web_search = use_web_search
@@ -535,27 +631,39 @@ class GeminiProvider(LLMProvider):
 
                     is_429 = (status_code == 429) or ("429" in error_str)
 
-                    if is_429 and self._key_manager:
-                        # For free tier usage, treat any 429 as daily quota exhaustion.
-                        # Gemini RPD limits reset at midnight Pacific time:
-                        # https://ai.google.dev/gemini-api/docs/rate-limits#free-tier
-                        self._logger.warning(
-                            "Gemini returned 429 (rate limit / quota). "
-                            "Marking current key exhausted until next Pacific midnight "
-                            "and rotating to another key if available."
-                        )
-                        has_more_keys = self._key_manager.mark_key_exhausted_for_day()
-                        if has_more_keys:
-                            # Break inner loop to try next key
-                            keys_tried += 1
-                            retry_delay = 1.0  # Reset delay for new key
-                            break
-                        else:
-                            raise AIProcessorError(
-                                "All Gemini API keys are exhausted for today. "
-                                "Requests per day (RPD) reset at midnight Pacific time. "
-                                "See https://ai.google.dev/gemini-api/docs/rate-limits#free-tier"
+                    if is_429:
+                        # Check if this is a Pro model request - if so, don't
+                        # exhaust keys, just mark Pro model as exhausted
+                        if model == self._model_pro and model != self._model_flash:
+                            self._logger.warning(
+                                "Gemini Pro model returned 429. "
+                                "Marking Pro model exhausted and falling back to Flash."
                             )
+                            self._mark_pro_model_exhausted()
+                            raise AIProcessorError(
+                                "RETRY_WITH_FLASH: Pro model quota exhausted. "
+                                "Falling back to Flash model."
+                            )
+                        
+                        # For Flash model 429s, exhaust keys as before
+                        if self._key_manager:
+                            self._logger.warning(
+                                "Gemini returned 429 (rate limit / quota). "
+                                "Marking current key exhausted until next Pacific midnight "
+                                "and rotating to another key if available."
+                            )
+                            has_more_keys = self._key_manager.mark_key_exhausted_for_day()
+                            if has_more_keys:
+                                # Break inner loop to try next key
+                                keys_tried += 1
+                                retry_delay = 1.0  # Reset delay for new key
+                                break
+                            else:
+                                raise AIProcessorError(
+                                    "All Gemini API keys are exhausted for today. "
+                                    "Requests per day (RPD) reset at midnight Pacific Time. "
+                                    "See ai.google.dev/gemini-api/docs/rate-limits"
+                                )
 
                     self._logger.error(
                         f"Attempt {attempt + 1} failed for Gemini '{model}': {e}",

@@ -43,8 +43,12 @@ class Config(BaseSettings):
     # LLM Provider Configuration
     llm_provider: str = Field(default="openrouter", description="LLM Provider (openrouter or gemini)")
     
-    # OpenRouter Configuration
-    openrouter_api_key: Optional[str] = Field(default=None, description="OpenRouter API Key (fallback)")
+    # OpenRouter Configuration - Multiple API Keys with rotation
+    openrouter_api_key: Optional[str] = Field(default=None, description="Legacy OpenRouter API Key")
+    openrouter_api_key_1: Optional[str] = Field(default=None, description="OpenRouter API Key 1 (Primary)")
+    openrouter_api_key_2: Optional[str] = Field(default=None, description="OpenRouter API Key 2 (Fallback 1)")
+    openrouter_api_key_3: Optional[str] = Field(default=None, description="OpenRouter API Key 3 (Fallback 2)")
+    openrouter_api_key_4: Optional[str] = Field(default=None, description="OpenRouter API Key 4 (Fallback 3)")
     openrouter_model: str = Field(default=DEFAULT_OPENROUTER_MODEL, description="OpenRouter Model Name (legacy)")
     openrouter_model_pro: str = Field(default=DEFAULT_OPENROUTER_MODEL_PRO, description="OpenRouter Pro Model (complex tasks)")
     openrouter_model_flash: str = Field(default=DEFAULT_OPENROUTER_MODEL_FLASH, description="OpenRouter Flash Model (simple tasks)")
@@ -54,6 +58,7 @@ class Config(BaseSettings):
     gemini_api_key_1: Optional[str] = Field(default=None, description="Gemini API Key 1 (Primary)")
     gemini_api_key_2: Optional[str] = Field(default=None, description="Gemini API Key 2 (Fallback 1)")
     gemini_api_key_3: Optional[str] = Field(default=None, description="Gemini API Key 3 (Fallback 2)")
+    gemini_api_key_4: Optional[str] = Field(default=None, description="Gemini API Key 4 (Fallback 3)")
     gemini_model: str = Field(default=DEFAULT_GEMINI_MODEL, description="Gemini Model Name (legacy)")
     gemini_model_pro: str = Field(default=DEFAULT_GEMINI_MODEL_PRO, description="Gemini Pro Model (complex tasks: analyze, tellme, prompt)")
     gemini_model_flash: str = Field(default=DEFAULT_GEMINI_MODEL_FLASH, description="Gemini Flash Model (simple tasks: translate, image)")
@@ -112,7 +117,10 @@ class Config(BaseSettings):
             raise ValueError("LLM provider must be 'openrouter' or 'gemini'")
         return v
     
-    @field_validator("openrouter_api_key")
+    @field_validator(
+        "openrouter_api_key", "openrouter_api_key_1", "openrouter_api_key_2",
+        "openrouter_api_key_3", "openrouter_api_key_4"
+    )
     @classmethod
     def validate_openrouter_key(cls, v: Optional[str]) -> Optional[str]:
         """Validate OpenRouter API key format."""
@@ -124,12 +132,12 @@ class Config(BaseSettings):
         # Minimum length check
         if len(v) < 10:
             return None
-        # Basic format validation (OpenRouter keys are typically alphanumeric with dashes/underscores)
+        # Basic format validation (OpenRouter keys start with sk-or-)
         if not all(c.isalnum() or c in ['-', '_'] for c in v):
             return None
         return v
     
-    @field_validator("gemini_api_key", "gemini_api_key_1", "gemini_api_key_2", "gemini_api_key_3")
+    @field_validator("gemini_api_key", "gemini_api_key_1", "gemini_api_key_2", "gemini_api_key_3", "gemini_api_key_4")
     @classmethod
     def validate_gemini_key(cls, v: Optional[str]) -> Optional[str]:
         """Validate Gemini API key format."""
@@ -148,15 +156,36 @@ class Config(BaseSettings):
         return v
     
     @property
-    def gemini_api_keys(self) -> List[str]:
-        """Get all available Gemini API keys for rotation."""
+    def openrouter_api_keys(self) -> List[str]:
+        """Get all available OpenRouter API keys for rotation (sequential)."""
         keys = []
-        # Collect all valid keys, prioritizing numbered keys
-        for key in [self.gemini_api_key_1, self.gemini_api_key_2, self.gemini_api_key_3]:
+        # Collect all valid keys in order 1->2->3->4
+        for key in [
+            self.openrouter_api_key_1, self.openrouter_api_key_2,
+            self.openrouter_api_key_3, self.openrouter_api_key_4
+        ]:
             if key and len(key) > 10:
                 keys.append(key)
         
-        # If no numbered keys, fall back to legacy gemini_api_key
+        # Fall back to legacy openrouter_api_key if no numbered keys
+        if not keys and self.openrouter_api_key and len(self.openrouter_api_key) > 10:
+            keys.append(self.openrouter_api_key)
+        
+        return keys
+
+    @property
+    def gemini_api_keys(self) -> List[str]:
+        """Get all available Gemini API keys for rotation (sequential)."""
+        keys = []
+        # Collect all valid keys in order 1->2->3->4
+        for key in [
+            self.gemini_api_key_1, self.gemini_api_key_2,
+            self.gemini_api_key_3, self.gemini_api_key_4
+        ]:
+            if key and len(key) > 10:
+                keys.append(key)
+        
+        # Fall back to legacy gemini_api_key if no numbered keys
         if not keys and self.gemini_api_key and len(self.gemini_api_key) > 10:
             keys.append(self.gemini_api_key)
         

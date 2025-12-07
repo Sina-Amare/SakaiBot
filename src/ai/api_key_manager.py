@@ -1,17 +1,15 @@
 """
-API Key Manager for Gemini with auto-rotation on rate limits.
+API Key Manager with auto-rotation on rate limits.
 
-Manages multiple Gemini API keys with automatic rotation when a key
-hits rate limits or errors. Provides seamless failover without requiring
-bot restart.
+Manages multiple API keys (for Gemini, OpenRouter, etc.) with automatic
+rotation when a key hits rate limits or errors. Provides seamless failover
+without requiring bot restart.
 
 Key Features:
-- Multiple API key support (up to 3 keys)
-- Automatic rotation on 429 (rate limit) errors
-- Daily exhaustion awareness based on Gemini RPD limits
-- Cooldown period for failed keys (60 seconds default)
+- Sequential key rotation (1→2→3→4)
+- Automatic rotation on 429 errors
+- Daily quota tracking with Pacific midnight reset
 - Thread-safe operations
-- Logging of key rotation events
 """
 
 import asyncio
@@ -96,16 +94,16 @@ class KeyState:
         self.status = KeyStatus.RATE_LIMITED if is_rate_limit else KeyStatus.ERROR
 
 
-class GeminiKeyManager:
+class APIKeyManager:
     """
-    Manages multiple Gemini API keys with auto-rotation.
+    Manages multiple API keys with auto-rotation.
     
     Provides automatic failover when a key hits rate limits (429 errors)
     or other errors. Keys are rotated seamlessly without requiring
     application restart.
     
     Usage:
-        manager = GeminiKeyManager(["key1", "key2", "key3"])
+        manager = APIKeyManager(["key1", "key2", "key3"], provider_name="Gemini")
         
         # Get current key
         key = manager.get_current_key()
@@ -124,14 +122,16 @@ class GeminiKeyManager:
     def __init__(
         self,
         api_keys: List[str],
-        cooldown_seconds: int = DEFAULT_COOLDOWN
+        cooldown_seconds: int = DEFAULT_COOLDOWN,
+        provider_name: str = "API"
     ):
         """
         Initialize key manager.
         
         Args:
-            api_keys: List of Gemini API keys
+            api_keys: List of API keys
             cooldown_seconds: Seconds to wait before retrying a failed key
+            provider_name: Name of provider for logging (e.g., 'Gemini', 'OpenRouter')
         """
         if not api_keys:
             raise ValueError("At least one API key must be provided")
@@ -145,11 +145,12 @@ class GeminiKeyManager:
         
         self._current_index = 0
         self._cooldown_seconds = cooldown_seconds
+        self._provider_name = provider_name
         self._lock = asyncio.Lock()
         self._logger = logger
         
         self._logger.info(
-            f"Initialized GeminiKeyManager with {len(self._keys)} keys, "
+            f"Initialized {provider_name} KeyManager with {len(self._keys)} keys, "
             f"cooldown: {cooldown_seconds}s"
         )
     
@@ -357,31 +358,53 @@ class GeminiKeyManager:
 
 
 # Global manager instance (lazy initialization)
-_gemini_key_manager: Optional[GeminiKeyManager] = None
+_api_key_manager: Optional[APIKeyManager] = None
 
 
-def get_gemini_key_manager() -> Optional[GeminiKeyManager]:
-    """Get the global Gemini key manager instance."""
-    return _gemini_key_manager
+def get_api_key_manager() -> Optional[APIKeyManager]:
+    """Get the global API key manager instance."""
+    return _api_key_manager
 
 
-def initialize_gemini_key_manager(api_keys: List[str], cooldown_seconds: int = 60) -> GeminiKeyManager:
+def initialize_api_key_manager(
+    api_keys: List[str],
+    cooldown_seconds: int = 60,
+    provider_name: str = "API"
+) -> Optional[APIKeyManager]:
     """
-    Initialize the global Gemini key manager.
-    
+    Initialize the global API key manager.
+
     Args:
-        api_keys: List of Gemini API keys
+        api_keys: List of API keys
         cooldown_seconds: Cooldown period for failed keys
-        
+        provider_name: Provider name for logging
+
     Returns:
-        Initialized GeminiKeyManager instance
+        Initialized APIKeyManager instance
     """
-    global _gemini_key_manager
-    
+    global _api_key_manager
+
     if not api_keys:
-        logger.warning("No Gemini API keys provided for key manager")
+        logger.warning(f"No {provider_name} API keys provided for key manager")
         return None
-    
-    _gemini_key_manager = GeminiKeyManager(api_keys, cooldown_seconds)
-    return _gemini_key_manager
+
+    _api_key_manager = APIKeyManager(api_keys, cooldown_seconds, provider_name)
+    return _api_key_manager
+
+
+# Backward compatibility aliases
+GeminiKeyManager = APIKeyManager
+
+
+def get_gemini_key_manager() -> Optional[APIKeyManager]:
+    """Backward compat: Get the global key manager."""
+    return _api_key_manager
+
+
+def initialize_gemini_key_manager(
+    api_keys: List[str],
+    cooldown_seconds: int = 60
+) -> Optional[APIKeyManager]:
+    """Backward compat: Initialize key manager for Gemini."""
+    return initialize_api_key_manager(api_keys, cooldown_seconds, "Gemini")
 

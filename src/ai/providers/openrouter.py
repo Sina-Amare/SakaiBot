@@ -9,6 +9,7 @@ import httpx
 
 from ..llm_interface import LLMProvider
 from ..response_metadata import AIResponseMetadata
+from ..api_key_manager import APIKeyManager
 from ...core.constants import OPENROUTER_HEADERS, COMPLEX_TASKS, SIMPLE_TASKS
 from ...core.exceptions import AIProcessorError
 from ...utils.logging import get_logger
@@ -29,27 +30,51 @@ from ..prompts import (
 
 class OpenRouterProvider(LLMProvider):
     """OpenRouter provider for LLM operations (used as Gemini fallback)."""
-    
+
     def __init__(self, config: Any) -> None:
-        """Initialize OpenRouter provider with model selection support."""
+        """Initialize OpenRouter provider with multi-key support."""
         self._config = config
         self._logger = get_logger(self.__class__.__name__)
         self._client: Optional[AsyncOpenAI] = None
-        self._api_key = config.openrouter_api_key
-        self._model = config.openrouter_model
-        
+        self._current_api_key: Optional[str] = None
+        self._last_used_key: Optional[str] = None  # Track for client recreation
+
         # Model configuration - pro for complex tasks, flash for simple
-        self._model_pro = getattr(config, 'openrouter_model_pro', 'google/gemini-2.5-pro')
-        self._model_flash = getattr(config, 'openrouter_model_flash', 'google/gemini-2.5-flash')
-    
+        self._model = config.openrouter_model
+        self._model_pro = getattr(
+            config, 'openrouter_model_pro', 'google/gemini-2.5-pro'
+        )
+        self._model_flash = getattr(
+            config, 'openrouter_model_flash', 'google/gemini-2.5-flash'
+        )
+
+        # Initialize key manager with all OpenRouter keys (sequential rotation)
+        api_keys = getattr(config, 'openrouter_api_keys', [])
+        if api_keys:
+            self._key_manager = APIKeyManager(
+                api_keys, cooldown_seconds=60, provider_name="OpenRouter"
+            )
+            self._logger.info(
+                f"OpenRouter initialized with {len(api_keys)} API keys"
+            )
+        else:
+            self._key_manager = None
+            # Fallback to legacy single key
+            legacy_key = getattr(config, 'openrouter_api_key', None)
+            if legacy_key and len(legacy_key) > 10:
+                self._current_api_key = legacy_key
+                self._logger.info("OpenRouter using legacy single API key")
+
     @property
     def is_configured(self) -> bool:
         """Check if OpenRouter is properly configured."""
+        if self._key_manager:
+            return self._key_manager.num_keys > 0
         return bool(
-            self._api_key
-            and "YOUR_OPENROUTER_API_KEY_HERE" not in (self._api_key or "")
-            and len(self._api_key or "") > 10
+            self._current_api_key
+            and len(self._current_api_key) > 10
         )
+
     
     @property
     def provider_name(self) -> str:
@@ -90,33 +115,52 @@ class OpenRouterProvider(LLMProvider):
             # Default fallback
             return 16000
     
-    def _get_client(self) -> AsyncOpenAI:
-        """Get or create OpenAI client for OpenRouter."""
+    def _get_current_api_key(self) -> Optional[str]:
+        """Get current API key from manager or legacy field."""
+        if self._key_manager:
+            return self._key_manager.get_current_key()
+        return self._current_api_key
+
+    def _get_client(self, api_key: Optional[str] = None) -> AsyncOpenAI:
+        """Get or create OpenAI client for OpenRouter.
+
+        Args:
+            api_key: Specific API key to use. If None, uses current key.
+        """
         if not self.is_configured:
-            raise AIProcessorError("OpenRouter API key not configured or invalid")
-        
-        if self._client is None:
-            # Create client without any proxy configuration
-            # This avoids the httpx AsyncClient proxy error
-            import httpx
-            
-            # Create httpx client without proxy support
-            http_client = httpx.AsyncClient(
-                timeout=httpx.Timeout(600.0, connect=30.0),
-                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+            raise AIProcessorError(
+                "OpenRouter API key not configured or invalid"
+            )
+
+        key = api_key or self._get_current_api_key()
+        if not key:
+            raise AIProcessorError("No available OpenRouter API key")
+
+        # Recreate client if key changed
+        if self._client is None or self._last_used_key != key:
+            import httpx as _httpx
+
+            http_client = _httpx.AsyncClient(
+                timeout=_httpx.Timeout(600.0, connect=30.0),
+                limits=_httpx.Limits(
+                    max_keepalive_connections=5, max_connections=10
+                ),
                 follow_redirects=True
             )
-            
+
             self._client = AsyncOpenAI(
                 base_url="https://openrouter.ai/api/v1",
-                api_key=self._api_key,
+                api_key=key,
                 http_client=http_client,
                 max_retries=3
             )
-            
-            self._logger.info(f"Initialized OpenRouter client with custom httpx configuration")
-        
+            self._last_used_key = key
+            self._logger.info(
+                f"OpenRouter client created with key {key[:12]}..."
+            )
+
         return self._client
+
     
     async def execute_prompt(
         self,
@@ -154,115 +198,173 @@ class OpenRouterProvider(LLMProvider):
         if use_web_search:
             self._logger.warning("Web search requested but OpenRouter doesn't support Google Search tool")
         
-        try:
-            client = self._get_client()
-            
-            # Prompt is already self-contained (system messages merged into prompts)
-            messages = [{"role": "user", "content": user_prompt}]
-            
-            self._logger.info(
-                f"Sending prompt to OpenRouter model '{model}'. "
-                f"Prompt preview: '{user_prompt[:100]}...'"
-            )
-            
-            # Add timeout for large requests
+        # Track key attempts for rotation on 429
+        max_key_attempts = self._key_manager.num_keys if self._key_manager else 1
+        keys_tried = 0
+        last_error = None
+        
+        while keys_tried < max_key_attempts:
             try:
-                completion = await client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    extra_headers=OPENROUTER_HEADERS,
-                    timeout=600.0  # 10 minute timeout for large requests
+                client = self._get_client()
+                
+                # Prompt is already self-contained (system messages merged)
+                messages = [{"role": "user", "content": user_prompt}]
+                
+                self._logger.info(
+                    f"Sending prompt to OpenRouter model '{model}'. "
+                    f"Prompt preview: '{user_prompt[:100]}...'"
                 )
-            except httpx.TimeoutException:
-                self._logger.error(f"Request timed out after 10 minutes for model '{model}'")
-                raise AIProcessorError("Request timed out. Try with fewer messages or a different model.")
-            except httpx.HTTPStatusError as e:
-                self._logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
-                raise AIProcessorError(f"API returned error {e.response.status_code}: {e.response.text[:200]}")
-            
-            # Debug log the response
-            self._logger.debug(f"Raw completion object: {completion}")
-            
-            # Handle response extraction safely
-            response_text = None
-            
-            # Check if we have choices and extract content
-            if completion and hasattr(completion, "choices") and completion.choices:
-                choice = completion.choices[0]
-                message = getattr(choice, "message", None)
-                content = getattr(message, "content", None)
+                
+                # Add timeout for large requests
+                try:
+                    completion = await client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        extra_headers=OPENROUTER_HEADERS,
+                        timeout=600.0  # 10 minute timeout for large requests
+                    )
+                    
+                    # Success - break out of retry loop
+                    break
+                    
+                except httpx.TimeoutException:
+                    self._logger.error(
+                        f"Request timed out after 10 minutes for model '{model}'"
+                    )
+                    raise AIProcessorError(
+                        "Request timed out. Try with fewer messages."
+                    )
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 429:
+                        # Rate limit - mark key as exhausted and rotate
+                        keys_tried += 1
+                        self._logger.warning(
+                            f"OpenRouter rate limit (429) on key attempt {keys_tried}"
+                        )
+                        
+                        if self._key_manager:
+                            self._key_manager.mark_key_rate_limited()
+                            if keys_tried < max_key_attempts:
+                                # Force client recreation with new key
+                                self._client = None
+                                self._last_used_key = None
+                                self._logger.info(
+                                    f"Rotating to next OpenRouter key "
+                                    f"({keys_tried}/{max_key_attempts})"
+                                )
+                                last_error = AIProcessorError(
+                                    "OpenRouter rate limit exceeded"
+                                )
+                                continue
+                        
+                        # All keys exhausted or no key manager
+                        raise AIProcessorError(
+                            f"All OpenRouter keys exhausted (429 rate limit)"
+                        )
+                    else:
+                        self._logger.error(
+                            f"HTTP error {e.response.status_code}: "
+                            f"{e.response.text}"
+                        )
+                        raise AIProcessorError(
+                            f"API returned error {e.response.status_code}: "
+                            f"{e.response.text[:200]}"
+                        )
+            except AIProcessorError:
+                raise
+            except Exception as e:
+                self._logger.error(f"OpenRouter request failed: {e}")
+                raise AIProcessorError(f"OpenRouter API error: {e}")
+        else:
+            # Exited loop without success (exhausted all attempts without break)
+            if last_error:
+                raise last_error
+            raise AIProcessorError("All OpenRouter API keys exhausted")
+        
+        # ---- Response handling (reached via break on successful API call) ----
+        # Debug log the response
+        self._logger.debug(f"Raw completion object: {completion}")
+        
+        # Handle response extraction safely
+        response_text = None
+        
+        # Check if we have choices and extract content
+        if completion and hasattr(completion, "choices") and completion.choices:
+            choice = completion.choices[0]
+            message = getattr(choice, "message", None)
+            content = getattr(message, "content", None)
 
-                if isinstance(content, str):
-                    response_text = content.strip()
-                elif isinstance(content, list):
-                    extracted_parts = []
-                    for part in content:
-                        text_part = ""
-                        if hasattr(part, "text"):
-                            text_part = part.text
-                        elif isinstance(part, dict):
-                            text_part = part.get("text", "")
-                        if text_part:
-                            extracted_parts.append(text_part)
-                    if extracted_parts:
-                        response_text = "\n".join(extracted_parts).strip()
-                elif content is None and hasattr(choice, "delta"):
-                    delta = getattr(choice, "delta", None)
-                    if delta is not None:
-                        delta_content = getattr(delta, "content", None)
-                        if isinstance(delta_content, str):
-                            response_text = delta_content.strip()
-                # Additional check for safety filter responses
-                elif hasattr(choice, 'finish_reason') and choice.finish_reason:
-                    finish_reason = str(choice.finish_reason).lower()
-                    if 'content_filter' in finish_reason or 'safety' in finish_reason:
-                        self._logger.warning(f"Response blocked by content filter: {choice.finish_reason}")
-                        raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
+            if isinstance(content, str):
+                response_text = content.strip()
+            elif isinstance(content, list):
+                extracted_parts = []
+                for part in content:
+                    text_part = ""
+                    if hasattr(part, "text"):
+                        text_part = part.text
+                    elif isinstance(part, dict):
+                        text_part = part.get("text", "")
+                    if text_part:
+                        extracted_parts.append(text_part)
+                if extracted_parts:
+                    response_text = "\n".join(extracted_parts).strip()
+            elif content is None and hasattr(choice, "delta"):
+                delta = getattr(choice, "delta", None)
+                if delta is not None:
+                    delta_content = getattr(delta, "content", None)
+                    if isinstance(delta_content, str):
+                        response_text = delta_content.strip()
+            # Additional check for safety filter responses
+            elif hasattr(choice, 'finish_reason') and choice.finish_reason:
+                finish_reason = str(choice.finish_reason).lower()
+                if 'content_filter' in finish_reason or 'safety' in finish_reason:
+                    self._logger.warning(
+                        f"Response blocked by content filter: {choice.finish_reason}"
+                    )
+                    raise AIProcessorError(
+                        "Content was filtered by AI provider. Try with different text."
+                    )
 
-                if response_text:
-                    self._logger.info(f"Got response text: {len(response_text)} chars")
-                else:
-                    self._logger.warning("Message content is None or empty")
+            if response_text:
+                self._logger.info(f"Got response text: {len(response_text)} chars")
             else:
-                self._logger.warning("No choices in completion response")
-                # Check if the completion has other attributes that might indicate filtering
-                if hasattr(completion, 'usage') and completion.usage is None:
-                    # This might indicate a safety block
-                    self._logger.warning("Completion usage is None, possibly due to safety filtering")
-                    raise AIProcessorError("Content was filtered by AI provider due to safety policies. Try with different text.")
-            
-            if not response_text:
-                self._logger.error(f"Could not extract text from completion. Type: {type(completion)}")
-                if completion and hasattr(completion, 'model'):
-                    self._logger.error(f"Model used: {completion.model}")
+                self._logger.warning("Message content is None or empty")
+        else:
+            self._logger.warning("No choices in completion response")
+            # Check if indicates filtering
+            if hasattr(completion, 'usage') and completion.usage is None:
+                self._logger.warning("Completion usage is None, possibly safety filter")
                 raise AIProcessorError(
-                    "OpenRouter did not return any content for the request. The response may have been filtered or the model is unavailable."
+                    "Content was filtered by AI provider. Try with different text."
                 )
-            
-            self._logger.info(
-                f"OpenRouter model '{model}' processing complete. Response length: {len(response_text)} chars"
+        
+        if not response_text:
+            self._logger.error(
+                f"Could not extract text from completion. Type: {type(completion)}"
             )
-            
-            # Return AIResponseMetadata for consistency with GeminiProvider
-            # Note: OpenRouter doesn't support web search, so it's always False
-            return AIResponseMetadata(
-                response_text=response_text,
-                thinking_requested=use_thinking,
-                thinking_applied=use_thinking,  # Prompt-based, works if we got response
-                web_search_requested=use_web_search,
-                web_search_applied=False,  # OpenRouter doesn't support web search
-                fallback_reason="OpenRouter doesn't support web search" if use_web_search else None,
-                model_used=model
+            if completion and hasattr(completion, 'model'):
+                self._logger.error(f"Model used: {completion.model}")
+            raise AIProcessorError(
+                "OpenRouter did not return content. Response may have been filtered."
             )
         
-        except Exception as e:
-            self._logger.error(
-                f"Error calling OpenRouter API with model '{model}': {e}",
-                exc_info=True
-            )
-            raise AIProcessorError(f"Could not get response from OpenRouter: {e}")
+        self._logger.info(
+            f"OpenRouter model '{model}' processing complete. "
+            f"Response length: {len(response_text)} chars"
+        )
+        
+        # Return AIResponseMetadata for consistency with GeminiProvider
+        return AIResponseMetadata(
+            response_text=response_text,
+            thinking_requested=use_thinking,
+            thinking_applied=use_thinking,  # Prompt-based thinking
+            web_search_requested=use_web_search,
+            web_search_applied=False,  # OpenRouter doesn't support web search
+            fallback_reason="OpenRouter doesn't support web search" if use_web_search else None,
+            model_used=model
+        )
     
     async def translate_text(
         self,

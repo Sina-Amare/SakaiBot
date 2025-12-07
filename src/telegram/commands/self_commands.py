@@ -698,12 +698,19 @@ async def handle_group_command(event: events.NewMessage.Event, args: str):
             await event.edit(msg, parse_mode='html')
         
         elif subcommand == 'list':
+            # Parse page number from args
+            page = 1
+            if len(parts) > 1:
+                try:
+                    page = int(parts[1])
+                except ValueError:
+                    page = 1
+            
             await event.edit("🔄 Fetching your groups...", parse_mode='html')
             
             groups = []
             async for dialog in event.client.iter_dialogs():
                 if dialog.is_group or dialog.is_channel:
-                    # Check if it's a forum
                     entity = dialog.entity
                     is_forum = getattr(entity, 'forum', False)
                     groups.append({
@@ -711,21 +718,29 @@ async def handle_group_command(event: events.NewMessage.Event, args: str):
                         'title': dialog.title,
                         'is_forum': is_forum
                     })
-                    if len(groups) >= 50:  # Limit
+                    if len(groups) >= 100:
                         break
             
             if not groups:
                 await event.edit("❌ No groups found.", parse_mode='html')
                 return
             
-            msg = "📂 <b>Your Groups</b>\n\n"
-            for g in groups[:20]:  # Show top 20
+            # Pagination: 10 per page
+            per_page = 10
+            total_pages = (len(groups) + per_page - 1) // per_page
+            page = max(1, min(page, total_pages))
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            page_groups = groups[start_idx:end_idx]
+            
+            msg = f"📂 <b>Your Groups</b> (Page {page}/{total_pages})\n\n"
+            for g in page_groups:
                 forum_badge = "📚" if g['is_forum'] else "💬"
                 msg += f"{forum_badge} {g['title']}\n"
                 msg += f"   <code>{g['id']}</code>\n\n"
             
-            if len(groups) > 20:
-                msg += f"<i>...and {len(groups) - 20} more</i>\n\n"
+            if total_pages > 1:
+                msg += f"<i>Use /group list 2 for page 2, etc.</i>\n\n"
             
             msg += "<b>To select:</b> <code>/group select GROUP_ID</code>"
             await event.edit(msg, parse_mode='html')
@@ -819,6 +834,14 @@ async def handle_group_command(event: events.NewMessage.Event, args: str):
                 msg += "\n<b>To map:</b> <code>/group map category=topic_id</code>"
                 await event.edit(msg, parse_mode='html')
                 
+            except (ImportError, AttributeError) as e:
+                await event.edit(
+                    "⚠️ <b>Topics API Not Available</b>\n\n"
+                    "Your Telethon version may not support forum topics.\n"
+                    "You can manually get topic IDs from Telegram.\n\n"
+                    "<i>Tip: Right-click a topic → Copy Link → ID is at the end</i>",
+                    parse_mode='html'
+                )
             except Exception as e:
                 await event.edit(f"❌ Error fetching topics: {e}", parse_mode='html')
         
@@ -838,8 +861,11 @@ async def handle_group_command(event: events.NewMessage.Event, args: str):
                     return
                 
                 target = settings.get('selected_target_group', {})
-                msg = f"📂 <b>Category Mappings</b>\n"
-                if target:
+                # Handle case where target is stored as int (old format)
+                if isinstance(target, int):
+                    target = {'id': target, 'title': 'Unknown'}
+                msg = "📂 <b>Category Mappings</b>\n"
+                if target and isinstance(target, dict):
                     msg += f"<i>Target: {target.get('title', 'Unknown')}</i>\n\n"
                 else:
                     msg += "\n"

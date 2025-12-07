@@ -218,6 +218,11 @@ class GeminiProvider(LLMProvider):
         max_key_attempts = self._key_manager.num_keys if self._key_manager else 1
         last_error = None
         
+        self._logger.info(
+            f"[THINKING] Starting native thinking for model={model}, "
+            f"budget=4096, max_keys={max_key_attempts}"
+        )
+        
         while keys_tried < max_key_attempts:
             # Get current API key
             current_key = (
@@ -239,7 +244,7 @@ class GeminiProvider(LLMProvider):
             for attempt in range(max_retries):
                 try:
                     self._logger.info(
-                        f"Thinking mode attempt {attempt + 1}: model={model}, "
+                        f"[THINKING] Attempt {attempt + 1}: model={model}, "
                         f"key={current_key[:8]}..."
                     )
                     
@@ -255,8 +260,9 @@ class GeminiProvider(LLMProvider):
                         thinking_config=thinking_config
                     )
                     
-                    # Execute with thinking
-                    response = client.models.generate_content(
+                    # Execute with thinking using ASYNC client
+                    self._logger.info("[THINKING] Calling async generate_content...")
+                    response = await client.aio.models.generate_content(
                         model=model,
                         contents=prompt,
                         config=config

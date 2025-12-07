@@ -122,6 +122,21 @@ class TTSHandler(BaseHandler):
         sender_info: str
     ) -> None:
         """Handle TTS command processing with queue support for reply messages."""
+        # Check rate limit first
+        from ...utils.rate_limiter import get_ai_rate_limiter
+        rate_limiter = get_ai_rate_limiter()
+        user_id = message.sender_id
+        if not await rate_limiter.check_rate_limit(user_id):
+            remaining = await rate_limiter.get_remaining_requests(user_id)
+            error_msg = (
+                f"⚠️ Rate limit exceeded\n\n"
+                f"You have reached the request limit.\n"
+                f"Please wait {rate_limiter._window_seconds} seconds.\n"
+                f"Remaining requests: {remaining}"
+            )
+            await client.send_message(chat_id, error_msg, reply_to=message.id)
+            return
+        
         self._logger.debug(f"TTS HANDLER RECEIVED MESSAGE: {message}")
         command_text = message.text.strip() if message.text else ""
         text_to_speak = None

@@ -147,9 +147,10 @@ class GeminiProvider(LLMProvider):
         use_web_search: bool = False
     ) -> AIResponseMetadata:
         """
-        Execute prompt using native Gemini ThinkingConfig API.
+        Execute prompt using native Gemini ThinkingConfig API with key rotation.
         
         Uses the new google.genai SDK for real thinking mode with thought summaries.
+        Includes retry logic and key rotation for resilience.
         
         Args:
             prompt: The user prompt
@@ -164,106 +165,168 @@ class GeminiProvider(LLMProvider):
         from google import genai
         from google.genai import types
         
-        # Get API key
-        current_key = (
-            self._key_manager.get_current_key() 
-            if self._key_manager 
-            else self._api_key
-        )
-        if not current_key:
-            raise AIProcessorError("No valid Gemini API key available")
+        max_retries = 3
+        retry_delay = 1.0
+        keys_tried = 0
+        max_key_attempts = 3 if self._key_manager else 1
+        last_error = None
         
-        # Create client with new SDK
-        client = genai.Client(api_key=current_key)
-        
-        self._logger.info(f"Executing with native ThinkingConfig: model={model}")
-        
-        # Build thinking config with include_thoughts=True
-        thinking_config = types.ThinkingConfig(
-            thinking_budget=4096,  # Use good budget for deep thinking
-            include_thoughts=True   # Get thought summary in response
-        )
-        
-        config = types.GenerateContentConfig(
-            temperature=temperature,
-            max_output_tokens=max_tokens,
-            thinking_config=thinking_config
-        )
-        
-        try:
-            # Execute with thinking
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config
+        while keys_tried < max_key_attempts:
+            # Get current API key
+            current_key = (
+                self._key_manager.get_current_key() 
+                if self._key_manager 
+                else self._api_key
             )
             
-            # Extract parts: thought=True means internal reasoning, thought=None/False is answer
-            raw_thinking = None
-            answer_text = None
+            if not current_key:
+                if self._key_manager and self._key_manager.all_keys_exhausted():
+                    raise AIProcessorError(
+                        "All Gemini API keys are rate-limited. Please try again later."
+                    )
+                raise AIProcessorError("No valid Gemini API key available")
             
-            if response.candidates and response.candidates[0].content.parts:
-                for part in response.candidates[0].content.parts:
-                    if not hasattr(part, 'text') or not part.text:
-                        continue
+            # Create client with new SDK
+            client = genai.Client(api_key=current_key)
+            
+            for attempt in range(max_retries):
+                try:
+                    self._logger.info(
+                        f"Thinking mode attempt {attempt + 1}: model={model}, "
+                        f"key={current_key[:8]}..."
+                    )
                     
-                    # Check if this is a thinking part (thought=True)
-                    is_thinking_part = getattr(part, 'thought', None) is True
+                    # Build thinking config with include_thoughts=True
+                    thinking_config = types.ThinkingConfig(
+                        thinking_budget=4096,
+                        include_thoughts=True
+                    )
                     
-                    if is_thinking_part:
-                        raw_thinking = part.text
-                        self._logger.info(
-                            f"Found thinking part: {len(raw_thinking)} chars"
+                    config = types.GenerateContentConfig(
+                        temperature=temperature,
+                        max_output_tokens=max_tokens,
+                        thinking_config=thinking_config
+                    )
+                    
+                    # Execute with thinking
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                        config=config
+                    )
+                    
+                    # Extract parts: thought=True is reasoning, thought=None/False is answer
+                    raw_thinking = None
+                    answer_text = None
+                    
+                    if response.candidates and response.candidates[0].content.parts:
+                        for part in response.candidates[0].content.parts:
+                            if not hasattr(part, 'text') or not part.text:
+                                continue
+                            
+                            is_thinking_part = getattr(part, 'thought', None) is True
+                            
+                            if is_thinking_part:
+                                raw_thinking = part.text
+                                self._logger.info(
+                                    f"Found thinking part: {len(raw_thinking)} chars"
+                                )
+                            else:
+                                answer_text = part.text
+                                self._logger.info(
+                                    f"Found answer part: {len(answer_text)} chars"
+                                )
+                    
+                    # Fallback to response.text if no answer found
+                    if not answer_text:
+                        answer_text = response.text if hasattr(response, 'text') else ""
+                    
+                    # Create brief summary of thinking
+                    thinking_summary = None
+                    if raw_thinking:
+                        lines = raw_thinking.strip().split('\n')
+                        preview_lines = []
+                        char_count = 0
+                        for line in lines:
+                            if char_count + len(line) > 350:
+                                break
+                            preview_lines.append(line)
+                            char_count += len(line)
+                        thinking_summary = '\n'.join(preview_lines)
+                        if len(raw_thinking) > len(thinking_summary):
+                            thinking_summary += "\n[...truncated]"
+                    
+                    # Mark key as successful
+                    if self._key_manager:
+                        self._key_manager.mark_success()
+                    
+                    self._logger.info(
+                        f"Native thinking completed. "
+                        f"Answer: {len(answer_text or '')} chars, "
+                        f"Thinking: {len(raw_thinking or '')} chars"
+                    )
+                    
+                    return AIResponseMetadata(
+                        response_text=answer_text.strip() if answer_text else "",
+                        thinking_requested=True,
+                        thinking_applied=True,
+                        thinking_summary=thinking_summary,
+                        web_search_requested=use_web_search,
+                        web_search_applied=False,
+                        model_used=model
+                    )
+                    
+                except Exception as e:
+                    last_error = e
+                    error_str = str(e).lower()
+                    
+                    # Check for rate limit (429)
+                    is_429 = "429" in error_str or "rate" in error_str
+                    
+                    if is_429 and self._key_manager:
+                        self._logger.warning(
+                            f"Thinking mode: 429 rate limit hit. "
+                            f"Rotating key and retrying..."
                         )
+                        has_more_keys = self._key_manager.mark_key_exhausted_for_day()
+                        if has_more_keys:
+                            keys_tried += 1
+                            retry_delay = 1.0
+                            break  # Try next key
+                        else:
+                            raise AIProcessorError(
+                                "All Gemini API keys are exhausted for today. "
+                                "Please try again later."
+                            )
+                    
+                    self._logger.error(
+                        f"Thinking mode attempt {attempt + 1} failed: {e}"
+                    )
+                    
+                    if attempt < max_retries - 1:
+                        self._logger.info(f"Retrying in {retry_delay}s...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
                     else:
-                        # This is the actual answer (thought=None or False)
-                        answer_text = part.text
-                        self._logger.info(
-                            f"Found answer part: {len(answer_text)} chars"
+                        # All attempts failed for this key
+                        if self._key_manager:
+                            self._key_manager.mark_key_error()
+                            if not self._key_manager.all_keys_exhausted():
+                                keys_tried += 1
+                                retry_delay = 1.0
+                                break  # Try next key
+                        # No more keys or no key manager
+                        raise AIProcessorError(
+                            f"Thinking mode failed after {max_retries} attempts: {e}"
                         )
-            
-            # Fallback to response.text if no answer found
-            if not answer_text:
-                answer_text = response.text if hasattr(response, 'text') else ""
-            
-            # Create a BRIEF summary of thinking (first ~300 chars + ellipsis)
-            thinking_summary = None
-            if raw_thinking:
-                # Extract first few lines as a brief preview
-                lines = raw_thinking.strip().split('\n')
-                preview_lines = []
-                char_count = 0
-                for line in lines:
-                    if char_count + len(line) > 350:
-                        break
-                    preview_lines.append(line)
-                    char_count += len(line)
-                thinking_summary = '\n'.join(preview_lines)
-                if len(raw_thinking) > len(thinking_summary):
-                    thinking_summary += "\n[...truncated]"
-            
-            if self._key_manager:
-                self._key_manager.mark_success()
-            
-            self._logger.info(
-                f"Native thinking completed. "
-                f"Answer: {len(answer_text or '')} chars, "
-                f"Thinking: {len(raw_thinking or '')} chars"
-            )
-            
-            return AIResponseMetadata(
-                response_text=answer_text.strip() if answer_text else "",
-                thinking_requested=True,
-                thinking_applied=True,
-                thinking_summary=thinking_summary,
-                web_search_requested=use_web_search,
-                web_search_applied=False,
-                model_used=model
-            )
-            
-        except Exception as e:
-            self._logger.error(f"Native thinking failed: {e}")
-            raise
+            else:
+                # Inner loop completed without break - all attempts exhausted
+                break
+        
+        # All keys exhausted
+        raise AIProcessorError(
+            f"Thinking mode failed with all available keys. Last error: {last_error}"
+        )
 
     async def execute_prompt(
         self,

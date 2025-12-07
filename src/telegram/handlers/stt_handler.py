@@ -55,6 +55,21 @@ class STTHandler(BaseHandler):
         chat_id = original_message.chat_id
         reply_to_id = original_message.id
         
+        # Check rate limit first
+        from ...utils.rate_limiter import get_ai_rate_limiter
+        rate_limiter = get_ai_rate_limiter()
+        user_id = original_message.sender_id
+        if not await rate_limiter.check_rate_limit(user_id):
+            remaining = await rate_limiter.get_remaining_requests(user_id)
+            error_msg = (
+                f"⚠️ Rate limit exceeded\n\n"
+                f"You have reached the request limit.\n"
+                f"Please wait {rate_limiter._window_seconds} seconds.\n"
+                f"Remaining requests: {remaining}"
+            )
+            await client.send_message(chat_id, error_msg, reply_to=reply_to_id)
+            return
+        
         thinking_msg = await client.send_message(
             chat_id,
             f"🎧 <b>Voice Processing</b>\n\n"

@@ -15,8 +15,7 @@ cryptg>=0.4.0        # Faster cryptography for Telethon
 # AI and LLM Providers
 # -----------------------------------------------------------------------------
 openai>=1.0.0                # OpenRouter API (OpenAI-compatible)
-google-generativeai>=0.1.0   # Gemini API (legacy)
-google-genai>=0.8.0          # Gemini API (new, includes TTS)
+google-genai>=0.8.0          # Gemini API (unified SDK for all features)
 
 # -----------------------------------------------------------------------------
 # Speech Processing (STT/TTS)

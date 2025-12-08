@@ -66,8 +66,8 @@ class PromptEnhancer:
             # Check if OpenRouter is configured (only check API key, not LLM_PROVIDER)
             config = get_settings()
             
-            if not config.openrouter_api_key:
-                self._logger.info("OpenRouter API key not configured, skipping")
+            if not config.openrouter_api_keys:
+                self._logger.info("OpenRouter API keys not configured, skipping")
                 return (None, "")
             
             self._logger.info(f"Enhancing prompt with OpenRouter: '{user_prompt[:50]}...'")
@@ -120,7 +120,7 @@ class PromptEnhancer:
             # Check if Gemini is configured
             config = get_settings()
             
-            if not config.gemini_api_key:
+            if not config.gemini_api_keys:
                 self._logger.warning("Gemini not configured, cannot use fallback")
                 return (None, "")
             

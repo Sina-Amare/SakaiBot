@@ -220,10 +220,10 @@ class ImageHandler(BaseHandler):
             ErrorHandler.log_error(e, context=f"Image generation {model}")
             user_message = ErrorHandler.get_user_message(e)
             try:
-                await client.edit_message(thinking_msg, user_message)
+                await client.edit_message(thinking_msg, user_message, parse_mode='html')
             except Exception:
                 try:
-                    await client.send_message(chat_id, user_message, reply_to=reply_to_id)
+                    await client.send_message(chat_id, user_message, reply_to=reply_to_id, parse_mode='html')
                 except Exception:
                     pass
     
@@ -357,10 +357,10 @@ class ImageHandler(BaseHandler):
                     AIProcessorError(error_message or "Image generation failed")
                 )
                 try:
-                    await client.edit_message(thinking_msg, error_msg)
+                    await client.edit_message(thinking_msg, error_msg, parse_mode='html')
                 except (MessageIdInvalidError, MessageNotModifiedError):
                     # Fallback: send as a new message
-                    await client.send_message(chat_id, error_msg, reply_to=reply_to_id)
+                    await client.send_message(chat_id, error_msg, reply_to=reply_to_id, parse_mode='html')
                 metrics.increment('image_command.errors', tags={'model': model, 'error': 'generation_failed'})
         except Exception as e:
             image_queue.mark_failed(request_id, str(e))

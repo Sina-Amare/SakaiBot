@@ -27,6 +27,7 @@ from .utils.task_manager import get_task_manager
 from .utils.instance_lock import InstanceLock
 from .ai.analyze_queue import analyze_queue
 from .cli.handler import CLIHandler
+from .telegram.connection_health import ConnectionHealthMonitor
 
 
 class SakaiBot:
@@ -69,6 +70,9 @@ class SakaiBot:
         # Instance lock for single-instance enforcement
         self._instance_lock = InstanceLock()
         
+        # Connection health monitor (initialized after client setup)
+        self._health_monitor: Optional[ConnectionHealthMonitor] = None
+        
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
     
@@ -106,6 +110,14 @@ class SakaiBot:
             self._logger.info(f"Graceful shutdown ({source}): Analyze queue cleanup task stopped")
         except Exception as e:
             self._logger.error(f"Graceful shutdown ({source}): Error stopping analyze queue: {e}")
+        
+        # Stop connection health monitor
+        if self._health_monitor:
+            try:
+                await self._health_monitor.stop_monitoring()
+                self._logger.info(f"Graceful shutdown ({source}): Health monitor stopped")
+            except Exception as e:
+                self._logger.error(f"Graceful shutdown ({source}): Error stopping health monitor: {e}")
         
         try:
             # Save settings if not already saved
@@ -174,6 +186,10 @@ class SakaiBot:
             # Start analyze queue cleanup task
             await analyze_queue.start_cleanup_task()
             self._logger.info("Analyze queue cleanup task started")
+            
+            # Start connection health monitor
+            self._health_monitor = ConnectionHealthMonitor(self._client_manager)
+            await self._health_monitor.start_monitoring()
             
             # Hand control to CLI
             self._logger.info("Handing control to CLI Handler...")
@@ -253,9 +269,15 @@ async def main() -> None:
             logger = get_structured_logger("main")
             logger.info("Running in Docker environment")
         else:
-            # Use standard logging for local development
-            setup_logging()
-            logger = get_logger("main")
+            # Use production logging for local development (with console + file)
+            setup_production_logging(
+                log_dir="logs",
+                log_level="INFO",
+                json_format=False,  # Human-readable for local dev
+                docker_mode=False   # Enable console output
+            )
+            logger = get_structured_logger("main")
+            logger.info("Running in local development mode")
         
         # Load configuration
         config = load_config()

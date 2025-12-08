@@ -53,7 +53,7 @@ httpx[socks]>=0.25.0  # HTTP client with async and SOCKS proxy support
 # Utilities
 # -----------------------------------------------------------------------------
 pytz>=2023.3          # Timezone handling
-
+psutil>=5.9.0         # System resource monitoring (CPU, memory)
 # -----------------------------------------------------------------------------
 # Testing (optional - for development)
 # -----------------------------------------------------------------------------

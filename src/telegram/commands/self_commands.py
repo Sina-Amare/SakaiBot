@@ -602,7 +602,7 @@ Clear all mappings
         await event.edit(f"❌ Error: {str(e)}", parse_mode='html')
 
 
-async def handle_status_command(event: events.NewMessage.Event):
+async def handle_status_command(event: events.NewMessage.Event, args: str = ""):
     """Handle /status command."""
     try:
         import platform
@@ -623,13 +623,25 @@ async def handle_status_command(event: events.NewMessage.Event):
         # Get authorized users count
         auth_count = len(settings.get('directly_authorized_pvs', []))
         
-        # Get monitoring status
-        monitoring = settings.get('is_monitoring_active', False)
-        monitoring_status = "🟢 Active" if monitoring else "🔴 Inactive"
+        # Get monitoring status - check live state from registered handlers
+        # If client has event handlers registered, monitoring is active
+        client = event.client
+        has_handlers = len(client.list_event_handlers()) > 0
+        monitoring_status = "🟢 Active" if has_handlers else "🔴 Inactive"
         
-        # Get target group
+        # Get target group - fetch name from Telegram if possible
         target_group = settings.get('selected_target_group')
-        group_info = target_group.get('title', 'None') if target_group else 'None'
+        if target_group is None:
+            group_info = 'None'
+        elif isinstance(target_group, dict):
+            group_info = target_group.get('title', 'None')
+        else:
+            # Fetch group name from Telegram API
+            try:
+                entity = await client.get_entity(int(target_group))
+                group_info = getattr(entity, 'title', str(target_group))
+            except Exception:
+                group_info = str(target_group)
         
         msg = f"""🤖 <b>SakaiBot Status</b>
 

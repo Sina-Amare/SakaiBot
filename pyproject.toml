@@ -55,10 +55,10 @@ dev = [
 optional = []
 
 [project.urls]
-Homepage = "https://github.com/yourusername/SakaiBot"
-Documentation = "https://github.com/yourusername/SakaiBot/docs"
-Repository = "https://github.com/yourusername/SakaiBot.git"
-"Bug Tracker" = "https://github.com/yourusername/SakaiBot/issues"
+Homepage = "https://github.com/Sina-Amare/SakaiBot"
+Documentation = "https://github.com/Sina-Amare/SakaiBot/tree/main/docs"
+Repository = "https://github.com/Sina-Amare/SakaiBot.git"
+"Bug Tracker" = "https://github.com/Sina-Amare/SakaiBot/issues"
 
 [project.scripts]
 sakaibot = "src.cli.main:cli"

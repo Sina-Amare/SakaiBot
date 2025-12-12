@@ -1,4 +1,6 @@
+# =============================================================================
 # Python
+# =============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,7 +22,9 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environment
+# =============================================================================
+# Virtual Environment
+# =============================================================================
 venv/
 env/
 .venv/
@@ -28,26 +32,36 @@ env/
 ENV/
 env.bak/
 venv.bak/
+venv.linux/
 
-# Environment variables
+# =============================================================================
+# Environment Variables & Secrets
+# =============================================================================
 .env
 .env.*
-*.env
+!.env.example
+!.env.sample
 
-# Telegram Session files
+# =============================================================================
+# Telegram Session Files (CRITICAL - never commit!)
+# =============================================================================
 *.session
 *.session-journal
 *.session-wal
 *.session-shm
 
-# Configuration files with sensitive data
+# =============================================================================
+# Configuration Files with Sensitive Data
+# =============================================================================
 config.ini
 config.yaml
 config.json
 settings.ini
 settings.json
 
-# User data and cache
+# =============================================================================
+# User Data and Cache
+# =============================================================================
 cache/
 !cache/.gitkeep
 data/
@@ -58,247 +72,20 @@ sakaibot_user_settings.json
 pv_cache.json
 group_cache.json
 
-# Log files
+# =============================================================================
+# Log Files
+# =============================================================================
 logs/
 !logs/.gitkeep
 *.log
 *.log.*
 
-# Claude Code specific
+# =============================================================================
+# AI Agent Specific
+# =============================================================================
 .claude/
 claude.md
 CLAUDE.md
-
-# IDE and editor specific files
-.vscode/
-.idea/
-.cursor/
-.agents/
-*.swp
-*.swo
-*~
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-project
-*.sublime-workspace
-.kate-swp
-
-# OS specific files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-desktop.ini
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-*.sqlite-journal
-*.sqlite-wal
-*.sqlite-shm
-
-# Backup files
-*.bak
-*.backup
-*~
-*.old
-*.orig
-
-# Test coverage
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-.pytest_cache/
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# Documentation builds
-docs/_build/
-site/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Local development
-local/
-tmp/
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.pyc
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environment
-venv/
-env/
-.venv/
-.env/
-ENV/
-env.bak/
-venv.bak/
-
-# Environment variables
-.env
-.env.*
-*.env
-
-# Telegram Session files
-*.session
-*.session-journal
-*.session-wal
-*.session-shm
-
-# Configuration files with sensitive data
-config.ini
-config.yaml
-config.json
-settings.ini
-settings.json
-
-# User data and cache
-cache/
-!cache/.gitkeep
-data/
-!data/.gitkeep
-user_settings.json
-sakaibot_user_settings.json
-*_cache.json
-pv_cache.json
-group_cache.json
-
-# Log files
-logs/
-!logs/.gitkeep
-*.log
-*.log.*
-
-# Claude Code specific
-.claude/
-claude.md
-CLAUDE.md
-
-# IDE and editor specific files
-.vscode/
-.idea/
-.cursor/
-.agents/
-*.swp
-*.swo
-*~
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-project
-*.sublime-workspace
-.kate-swp
-
-# OS specific files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-desktop.ini
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-*.sqlite-journal
-*.sqlite-wal
-*.sqlite-shm
-
-# Backup files
-*.bak
-*.backup
-*~
-*.old
-*.orig
-
-# Test coverage
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-.pytest_cache/
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# Documentation builds
-docs/_build/
-site/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Local development
-local/
-tmp/
-temp/
-*.tmp
-venv.linux
-acli
-acli.exe
-
-# Others
-prompt.md
-*.md.backup
 AGENTS.md
 Agents.md
 agents.md
@@ -306,25 +93,116 @@ AGENTS.local.md
 Agents.local.md
 agents.local.md
 
-# Development and temporary files
+# =============================================================================
+# IDE and Editor Specific Files
+# =============================================================================
+.vscode/
+.idea/
+.cursor/
+.agents/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-project
+*.sublime-workspace
+.kate-swp
+
+# =============================================================================
+# OS Specific Files
+# =============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# =============================================================================
+# Database Files
+# =============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# =============================================================================
+# Backup Files
+# =============================================================================
+*.bak
+*.backup
+*.old
+*.orig
+
+# =============================================================================
+# Test Coverage
+# =============================================================================
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# =============================================================================
+# Documentation Builds
+# =============================================================================
+docs/_build/
+site/
+
+# =============================================================================
+# Jupyter Notebook
+# =============================================================================
+.ipynb_checkpoints
+
+# =============================================================================
+# Python Tools
+# =============================================================================
+.python-version
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# =============================================================================
+# Local Development
+# =============================================================================
+local/
+tmp/
+temp/
+*.tmp
+
+# =============================================================================
+# Project Specific
+# =============================================================================
+acli
+acli.exe
+prompt.md
+*.md.backup
 TODO.md
 NOTES.md
 fix_*.py
-
 scripts/
 prompts.md
 
 # =============================================================================
 # Docker
 # =============================================================================
-# Local Docker data (not container volumes)
 docker-data/
-
-# Docker override files (for local development)
 docker-compose.override.yml
 docker-compose.local.yml
-
-# Container logs
 container-logs/
 
 # =============================================================================

@@ -122,7 +122,15 @@ class AIHandler(BaseHandler):
         **command_args
     ) -> None:
         """Process AI commands (prompt, translate, analyze, tellme)."""
-        chat_id = event_message.chat_id
+        # Use input_chat from the message to get proper entity with access_hash
+        # This fixes "Could not find the input entity" errors in private chats
+        try:
+            chat_entity = await event_message.get_input_chat()
+        except Exception:
+            # Fallback to chat_id if get_input_chat fails
+            chat_entity = event_message.chat_id
+        
+        chat_id = event_message.chat_id  # Keep for queue/logging purposes
         reply_to_id = event_message.id
         user_id = event_message.sender_id
         
@@ -141,7 +149,7 @@ class AIHandler(BaseHandler):
                 f"**Please wait:** {rate_limiter._window_seconds} seconds\n"
                 f"**Remaining requests:** {remaining}"
             )
-            await client.send_message(chat_id, error_msg, reply_to=reply_to_id)
+            await client.send_message(chat_entity, error_msg, reply_to=reply_to_id)
             return
         
         # For expensive AI commands, check the queue to prevent concurrent operations per chat
@@ -162,7 +170,7 @@ class AIHandler(BaseHandler):
             if not can_start:
                 self._logger.info(f"{cmd_name} request rejected for chat {chat_id} - queue locked")
                 await client.send_message(
-                    chat_id,
+                    chat_entity,
                     queue_error_msg,
                     reply_to=reply_to_id,
                     parse_mode='html'
@@ -176,7 +184,7 @@ class AIHandler(BaseHandler):
             f"Processing your request...\n"
             f"_Please wait_"
         )
-        thinking_msg = await client.send_message(chat_id, thinking_msg_text, reply_to=reply_to_id, parse_mode='md')
+        thinking_msg = await client.send_message(chat_entity, thinking_msg_text, reply_to=reply_to_id, parse_mode='md')
         
         try:
             # Track timing
@@ -213,7 +221,7 @@ class AIHandler(BaseHandler):
             message_sender = MessageSender(client)
             skip_rtl = command_type == "/analyze"  # Pre-applied RTL fix for analyze
             sent_messages = await message_sender.send_long_message(
-                chat_id=chat_id,
+                chat_id=chat_entity,
                 text=response,
                 reply_to=reply_to_id,
                 parse_mode='md',
@@ -227,7 +235,7 @@ class AIHandler(BaseHandler):
                 command_display = command_type.replace("/", "").title()
                 completion_msg = f"✅ **{command_display} Complete** • {time_str}"
                 await message_sender.send_message_safe(
-                    chat_id,
+                    chat_entity,
                     completion_msg,
                     reply_to=reply_to_id,
                     parse_mode='md'
@@ -254,7 +262,7 @@ class AIHandler(BaseHandler):
                 # If we can't edit, try sending a new message
                 try:
                     await client.send_message(
-                        chat_id,
+                        chat_entity,
                         user_message,
                         reply_to=reply_to_id
                     )

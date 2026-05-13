@@ -6,11 +6,23 @@ import asyncio
 import os
 import sys
 
+import pytest
+
 # Add src to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dotenv import load_dotenv
 load_dotenv()
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.live,
+    pytest.mark.asyncio,
+    pytest.mark.skipif(
+        os.getenv("SAKAIBOT_RUN_LIVE_TESTS") != "1",
+        reason="Live Gemini integration tests require SAKAIBOT_RUN_LIVE_TESTS=1 and API credentials",
+    ),
+]
 
 
 async def test_full_code_path():

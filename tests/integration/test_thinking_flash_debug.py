@@ -13,12 +13,24 @@ import os
 import sys
 import logging
 
+import pytest
+
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 
 from dotenv import load_dotenv
 load_dotenv()
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.live,
+    pytest.mark.asyncio,
+    pytest.mark.skipif(
+        os.getenv("SAKAIBOT_RUN_LIVE_TESTS") != "1",
+        reason="Live Gemini debug tests require SAKAIBOT_RUN_LIVE_TESTS=1 and API credentials",
+    ),
+]
 
 # Configure detailed logging
 logging.basicConfig(

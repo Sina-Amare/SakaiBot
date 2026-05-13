@@ -5,6 +5,7 @@ import asyncio
 from rich import print as rprint
 from rich.table import Table
 from typing import Optional, Dict, Any, List
+from ...core.settings import SettingsManager
 from ..utils import (
     get_telegram_client, get_cache_manager, get_settings_manager,
     format_group_table, display_error, display_success, display_info,

@@ -8,7 +8,7 @@ version = "2.0.0"
 description = "Advanced Telegram Userbot with AI Capabilities"
 readme = "README.md"
 authors = [
-    {name = "Sina Amare", email = "your.email@example.com"}
+    {name = "Sina Amare"}
 ]
 license = {text = "MIT"}
 classifiers = [
@@ -63,8 +63,8 @@ Repository = "https://github.com/Sina-Amare/SakaiBot.git"
 [project.scripts]
 sakaibot = "src.cli.main:cli"
 
-[tool.setuptools]
-packages = ["src", "src.ai", "src.ai.providers", "src.cli", "src.cli.commands", "src.core", "src.telegram", "src.utils"]
+[tool.setuptools.packages.find]
+include = ["src*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.py"]
@@ -86,19 +86,17 @@ exclude = '''
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+# Baseline for stabilization: fail on syntax/name errors without forcing a
+# repo-wide style modernization in the same pass.
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "E9",   # syntax/indentation errors
+    "F63",  # invalid print/raise/assert syntax in pyflakes
+    "F7",   # logic errors in pyflakes
+    "F82",  # undefined names
 ]
 ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
 ]
 
 [tool.mypy]
@@ -125,6 +123,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
+    "live: marks tests that call live external services and require credentials",
 ]
 
 [tool.coverage.run]

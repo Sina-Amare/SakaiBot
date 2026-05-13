@@ -11,14 +11,13 @@ setup(
     name="sakaibot",
     version="2.0.0",
     author="Sina Amare",
-    author_email="your.email@example.com",
     description="Advanced Telegram Userbot with AI Capabilities",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/SakaiBot",
+    url="https://github.com/Sina-Amare/SakaiBot",
     project_urls={
-        "Bug Tracker": "https://github.com/yourusername/SakaiBot/issues",
-        "Documentation": "https://github.com/yourusername/SakaiBot/docs",
+        "Bug Tracker": "https://github.com/Sina-Amare/SakaiBot/issues",
+        "Documentation": "https://github.com/Sina-Amare/SakaiBot/tree/main/docs",
     },
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -32,7 +31,7 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Operating System :: OS Independent",
     ],
-    packages=find_packages(),
+    packages=find_packages(include=["src", "src.*"]),
     python_requires=">=3.10",
     install_requires=[
         "telethon>=1.34.0",
@@ -40,7 +39,7 @@ setup(
         "pydantic>=2.0.0",
         "pydantic-settings>=2.0.0",
         "openai>=1.0.0",
-        "google-genai>=0.1.0",
+        "google-genai>=0.8.0",
         "click>=8.1.0",
         "rich>=13.0.0",
         "tabulate>=0.9.0",
@@ -49,6 +48,7 @@ setup(
         "SpeechRecognition>=3.10.0",
         "pydub>=0.25.1",
         "azure-cognitiveservices-speech>=1.31.0",
+        "gTTS>=2.5.1",
     ],
     extras_require={
         "dev": [
@@ -59,6 +59,7 @@ setup(
             "flake8>=6.1.0",
             "mypy>=1.5.0",
             "pre-commit>=3.3.0",
+            "ruff>=0.1.0",
         ],
         "optional": [],
     },

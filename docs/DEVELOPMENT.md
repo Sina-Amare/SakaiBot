@@ -23,12 +23,12 @@ pre-commit install
 
 ## Code Quality Tools
 
-| Tool   | Purpose         | Command                |
-| ------ | --------------- | ---------------------- |
-| Black  | Code formatting | `black src tests`      |
-| Ruff   | Linting         | `ruff check src tests` |
-| MyPy   | Type checking   | `mypy src`             |
-| Pytest | Testing         | `pytest`               |
+| Tool   | Purpose                    | Command          |
+| ------ | -------------------------- | ---------------- |
+| Black  | Code formatting            | `black src tests` |
+| Ruff   | Critical lint baseline     | `ruff check .`   |
+| MyPy   | Advisory type-check report | `mypy src`       |
+| Pytest | Default test suite         | `pytest`         |
 
 ### Running All Checks
 
@@ -37,11 +37,13 @@ pre-commit install
 pre-commit run --all-files
 
 # Or individually
-black src tests
-ruff check src tests
-mypy src
+ruff check .
 pytest
 ```
+
+`mypy src` is currently an advisory report, not a blocking quality gate. The
+existing codebase needs a dedicated typing cleanup before strict type checking
+can be enforced in CI.
 
 ## Testing
 

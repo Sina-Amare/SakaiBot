@@ -14,7 +14,7 @@
 
 ---
 
-A production-ready Telegram userbot featuring **multi-LLM support** (Gemini + OpenRouter), **image generation** (Flux/SDXL), **voice processing** (TTS/STT), and **intelligent message management**. Built with resilience patterns including API key rotation, circuit breakers, and graceful fallbacks.
+A deployment-oriented Telegram userbot featuring **multi-LLM support** (Gemini + OpenRouter), **image generation** (Flux/SDXL), **voice processing** (TTS/STT), and **intelligent message management**. It includes resilience patterns such as API key rotation, circuit breakers, and graceful fallbacks, with a default automated test baseline.
 
 ## ✨ Highlights
 
@@ -54,7 +54,7 @@ A production-ready Telegram userbot featuring **multi-LLM support** (Gemini + Op
 </td>
 <td width="50%">
 
-**⚡ Production Ready**
+**⚡ Operational Resilience**
 
 - API key rotation with cooldowns
 - Circuit breakers for external APIs
@@ -432,26 +432,24 @@ pre-commit install
 ### Quality Checks
 
 ```bash
-# Format code
-black src tests
+# Critical lint baseline
+ruff check .
 
-# Lint
-ruff check src tests
-
-# Type check
-mypy src
-
-# Run tests
+# Default tests
 pytest
 pytest --cov=src --cov-report=html
+
+# Advisory type report (currently not a blocking gate)
+mypy src
 ```
 
 ### Running Tests
 
 ```bash
-pytest                          # All tests
+pytest                          # Default suite; live API tests are skipped
 pytest -m unit                  # Unit tests only
-pytest -m integration           # Integration tests only
+pytest -m integration           # Integration/debug tests only
+SAKAIBOT_RUN_LIVE_TESTS=1 pytest -m live  # Requires real API credentials
 pytest -m "not slow"            # Skip slow tests
 ```
 

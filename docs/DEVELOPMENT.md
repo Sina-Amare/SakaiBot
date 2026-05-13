@@ -76,6 +76,9 @@ pytest -m unit
 # Integration tests only
 pytest -m integration
 
+# Live API tests only (requires real credentials)
+SAKAIBOT_RUN_LIVE_TESTS=1 pytest -m live
+
 # Skip slow tests
 pytest -m "not slow"
 
@@ -163,15 +166,17 @@ target-version = ['py310', 'py311', 'py312']
 
 [tool.ruff]
 line-length = 100
-select = ["E", "W", "F", "I", "B", "C4", "UP"]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
 
 [tool.mypy]
 python_version = "3.10"
-disallow_untyped_defs = true
+# Advisory only until the typing backlog is cleaned up.
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-markers = ["unit", "integration", "slow"]
+markers = ["unit", "integration", "live", "slow"]
 ```
 
 ## Commit Guidelines

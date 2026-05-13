@@ -136,7 +136,16 @@ class EventHandlers:
         if path_modified:
             os.environ["PATH"] = original_path
             self._logger.info("Restored original PATH")
-    
+
+    @staticmethod
+    def _is_audio_message(message: Message) -> bool:
+        """Detect voice notes, audio files, and audio documents (e.g. .ogg)."""
+        if getattr(message, "voice", None) or getattr(message, "audio", None):
+            return True
+        document = getattr(message, "document", None)
+        mime_type = getattr(document, "mime_type", "") if document else ""
+        return bool(mime_type) and mime_type.lower().startswith("audio/")
+
     # STT, TTS, and AI command processing methods moved to specialized handlers
     # See: handlers/stt_handler.py, handlers/tts_handler.py, handlers/ai_handler.py
     
@@ -197,10 +206,13 @@ class EventHandlers:
         else:
             command_sender_info = "You (direct)"
         
-        # Handle STT command
-        if command_text_lower.startswith("/stt"):
+        # Handle STT command. Match exactly "/stt" or "/stt <args>" so similar-
+        # looking commands (e.g. a future /sttX) don't accidentally route here.
+        if command_text_lower == "/stt" or command_text_lower.startswith("/stt "):
+            stt_args = command_text[4:].strip()  # everything after "/stt"
             await self._handle_stt_command(
-                message_to_process, client, current_chat_id_for_response, command_sender_info
+                message_to_process, stt_args, client,
+                current_chat_id_for_response, command_sender_info,
             )
             if is_confirm_flow and your_confirm_message:
                 await your_confirm_message.delete()
@@ -242,34 +254,87 @@ class EventHandlers:
     async def _handle_stt_command(
         self,
         message: Message,
+        args: str,
         client: TelegramClient,
         chat_id: int,
         sender_info: str
     ) -> None:
-        """Handle STT command processing."""
+        """Handle STT command processing.
+
+        Supported forms (must be a reply to either a voice/audio message or a
+        previous /stt skip-summary):
+            /stt                full transcribe (voice reply) or auto-retry
+                                skipped parts (summary reply)
+            /stt 12             only chunk 12
+            /stt 12,15          chunks 12 and 15
+            /stt 12-15          chunks 12 through 15
+        """
         if not message.is_reply:
             await client.send_message(
                 chat_id,
-                "❌ Please use `/stt` in reply to a voice message.",
+                "❌ Please use `/stt` in reply to a voice/audio message "
+                "(or to a `/stt` summary to retry).",
                 reply_to=message.id,
                 parse_mode='md'
             )
             return
-        
+
         replied_message = await message.get_reply_message()
-        if not (replied_message and replied_message.voice):
+        if not replied_message:
             await client.send_message(
                 chat_id,
-                "❌ The replied message is not a voice note.",
-                reply_to=message.id,
-                parse_mode='md'
+                "❌ Could not load the replied message.",
+                reply_to=message.id, parse_mode='md',
             )
             return
-        
-        self._logger.info(f"Creating task for /stt command from '{sender_info}'")
+
+        # Parse optional chunk spec once. Empty args -> None (full or auto-retry).
+        chunk_filter = None
+        if args:
+            chunk_filter = self._stt_handler.parse_chunk_spec(args)
+            if chunk_filter is None:
+                await client.send_message(
+                    chat_id,
+                    "❌ Invalid chunk spec. Examples: `/stt 12`, "
+                    "`/stt 12,15`, `/stt 12-15`",
+                    reply_to=message.id, parse_mode='md',
+                )
+                return
+
         task_manager = get_task_manager()
+
+        # Case A: replying to one of our own skip-summary messages → retry mode.
+        if self._stt_handler.looks_like_summary(replied_message):
+            self._logger.info(
+                f"Creating task for /stt retry from '{sender_info}' "
+                f"(override={chunk_filter})"
+            )
+            task_manager.create_task(
+                self._stt_handler.process_retry_command(
+                    message, replied_message, client, sender_info,
+                    chunk_filter_override=chunk_filter,
+                )
+            )
+            return
+
+        # Case B: replying to a voice/audio message → normal or partial transcribe.
+        if not self._is_audio_message(replied_message):
+            await client.send_message(
+                chat_id,
+                "❌ The replied message is not a voice, audio, or `/stt` summary.",
+                reply_to=message.id, parse_mode='md',
+            )
+            return
+
+        self._logger.info(
+            f"Creating task for /stt from '{sender_info}' "
+            f"(chunk_filter={chunk_filter})"
+        )
         task_manager.create_task(
-            self._stt_handler.process_stt_command(message, replied_message, client, sender_info)
+            self._stt_handler.process_stt_command(
+                message, replied_message, client, sender_info,
+                chunk_filter=chunk_filter,
+            )
         )
     
     async def _handle_tts_command(

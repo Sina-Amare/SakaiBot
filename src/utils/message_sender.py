@@ -5,13 +5,17 @@ from typing import List, Optional, Tuple
 from datetime import datetime
 
 from telethon import TelegramClient
+from telethon.errors import FloodWaitError
 from telethon.tl.types import Message
 
 from ..core.constants import MAX_MESSAGE_LENGTH
 from ..utils.logging import get_logger
 from ..utils.helpers import split_message
-from ..utils.retry import retry_with_backoff
 from ..utils.rtl_fixer import ensure_rtl_safe
+
+# Hard ceiling on cumulative FloodWait sleeps per call so a punitive wait
+# doesn't block the handler indefinitely.
+_MAX_FLOOD_WAIT_OCCURRENCES = 2
 
 
 class MessageSender:
@@ -43,36 +47,71 @@ class MessageSender:
     ) -> Optional[Message]:
         """
         Send a message with retry logic and automatic RTL fixing.
-        
+
+        ``FloodWaitError`` is handled specially: we sleep for the duration
+        Telegram requests (plus a 1 s buffer) and do NOT count it against the
+        retry budget — flood waits are an explicit "slow down" signal, not a
+        transient error. Other exceptions follow exponential backoff.
+
         Args:
             chat_id: Target chat ID
             text: Message text
             reply_to: Reply to message ID
             parse_mode: Parse mode ('md' or 'html')
-            max_retries: Maximum retry attempts
+            max_retries: Maximum retry attempts for non-flood errors
             skip_rtl_fix: Skip RTL fix (use when RTL already applied to content)
-            
+
         Returns:
             Sent message or None if failed
         """
         # Apply RTL fix for Persian text (auto-detects Persian) unless skipped
         if not skip_rtl_fix:
             text = ensure_rtl_safe(text)
-        
-        @retry_with_backoff(max_retries=max_retries, base_delay=1.0)
-        async def _send():
-            return await self._client.send_message(
-                chat_id,
-                text,
-                reply_to=reply_to,
-                parse_mode=parse_mode
+
+        backoff = 1.0
+        attempt = 0
+        flood_waits = 0
+        last_exc: Optional[Exception] = None
+
+        while attempt < max_retries:
+            try:
+                return await self._client.send_message(
+                    chat_id, text, reply_to=reply_to, parse_mode=parse_mode
+                )
+            except FloodWaitError as e:
+                wait = (getattr(e, "seconds", 0) or 0) + 1
+                flood_waits += 1
+                if flood_waits > _MAX_FLOOD_WAIT_OCCURRENCES:
+                    self._logger.error(
+                        f"FloodWait persisted after {flood_waits} occurrences; "
+                        f"giving up on send"
+                    )
+                    return None
+                self._logger.warning(
+                    f"FloodWait: Telegram asked to wait {wait}s before next "
+                    f"send (occurrence {flood_waits}/{_MAX_FLOOD_WAIT_OCCURRENCES})"
+                )
+                await asyncio.sleep(wait)
+            except Exception as e:
+                last_exc = e
+                attempt += 1
+                if attempt < max_retries:
+                    self._logger.warning(
+                        f"send failed (attempt {attempt}/{max_retries}): {e}. "
+                        f"Retrying in {backoff:.1f}s"
+                    )
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 60)
+                else:
+                    self._logger.error(
+                        f"send failed after {max_retries} attempts: {e}"
+                    )
+
+        if last_exc is not None:
+            self._logger.error(
+                f"Failed to send message after {max_retries} retries: {last_exc}"
             )
-        
-        try:
-            return await _send()
-        except Exception as e:
-            self._logger.error(f"Failed to send message after {max_retries} retries: {e}")
-            return None
+        return None
     
     async def edit_message_safe(
         self,
@@ -83,30 +122,62 @@ class MessageSender:
     ) -> bool:
         """
         Edit a message with retry logic and duplicate content handling.
-        
+
+        ``FloodWaitError`` is honored explicitly (slept for the requested
+        duration) and not counted against the retry budget. "Content not
+        modified" errors are treated as a no-op (returns False).
+
         Args:
             message: Message to edit
             new_text: New message text
             parse_mode: Parse mode ('md' or 'html')
-            max_retries: Maximum retry attempts
-            
+            max_retries: Maximum retry attempts for non-flood errors
+
         Returns:
             True if successful, False otherwise
         """
-        @retry_with_backoff(max_retries=max_retries, base_delay=0.5)
-        async def _edit():
-            await self._client.edit_message(message, new_text, parse_mode=parse_mode)
-            return True
-        
-        try:
-            return await _edit()
-        except Exception as e:
-            error_str = str(e).lower()
-            # Ignore "content not modified" errors - these are expected
-            if "content of the message was not modified" in error_str or "message not modified" in error_str:
-                return False
-            self._logger.debug(f"Could not edit message: {e}")
-            return False
+        backoff = 0.5
+        attempt = 0
+        flood_waits = 0
+
+        while attempt < max_retries:
+            try:
+                await self._client.edit_message(
+                    message, new_text, parse_mode=parse_mode
+                )
+                return True
+            except FloodWaitError as e:
+                wait = (getattr(e, "seconds", 0) or 0) + 1
+                flood_waits += 1
+                if flood_waits > _MAX_FLOOD_WAIT_OCCURRENCES:
+                    self._logger.warning(
+                        f"FloodWait persisted on edit after {flood_waits} "
+                        f"occurrences; giving up"
+                    )
+                    return False
+                self._logger.warning(
+                    f"FloodWait on edit: sleeping {wait}s "
+                    f"({flood_waits}/{_MAX_FLOOD_WAIT_OCCURRENCES})"
+                )
+                await asyncio.sleep(wait)
+            except Exception as e:
+                error_str = str(e).lower()
+                # Ignore "content not modified" errors - these are expected
+                if ("content of the message was not modified" in error_str
+                        or "message not modified" in error_str):
+                    return False
+                attempt += 1
+                if attempt < max_retries:
+                    self._logger.debug(
+                        f"edit failed (attempt {attempt}/{max_retries}): {e}. "
+                        f"Retrying in {backoff:.1f}s"
+                    )
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 30)
+                else:
+                    self._logger.debug(f"Could not edit message: {e}")
+
+        return False
     
     def _split_with_pagination(
         self,

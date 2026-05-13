@@ -248,11 +248,7 @@ class Config(BaseSettings):
     def is_ai_enabled(self) -> bool:
         """Check if AI features are properly configured."""
         if self.llm_provider == "openrouter":
-            return bool(
-                self.openrouter_api_key
-                and "YOUR_OPENROUTER_API_KEY_HERE" not in (self.openrouter_api_key or "")
-                and len(self.openrouter_api_key or "") > 10
-            )
+            return len(self.openrouter_api_keys) > 0
         elif self.llm_provider == "gemini":
             # Check if any Gemini API key is available
             return len(self.gemini_api_keys) > 0

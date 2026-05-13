@@ -63,11 +63,8 @@ class AIProcessor:
                 raise AIProcessorError(f"Unknown LLM provider: {provider_type}")
             
             if not self._provider.is_configured:
-                api_key_field = (
-                    "openrouter_api_key" if provider_type == "openrouter" 
-                    else "gemini_api_key"
-                )
-                api_key = getattr(self._config, api_key_field, None)
+                api_keys = getattr(self._config, f"{provider_type}_api_keys", [])
+                api_key = api_keys[0] if api_keys else None
                 masked_key = mask_api_key(api_key) if api_key else "None"
                 self._logger.warning(
                     f"{self._provider.provider_name} is not properly configured "

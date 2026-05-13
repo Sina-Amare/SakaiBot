@@ -41,14 +41,14 @@ def show(show_all):
         
         if config.llm_provider == "gemini":
             table.add_row("", "Gemini Model", config.gemini_model)
-            if config.gemini_api_key:
-                key_display = config.gemini_api_key[:10] + "..." if show_all else "***"
-                table.add_row("", "Gemini API Key", key_display)
+            if config.gemini_api_keys:
+                key_display = config.gemini_api_keys[0][:10] + "..." if show_all else "***"
+                table.add_row("", "Gemini API Keys", f"{len(config.gemini_api_keys)} configured ({key_display})")
         elif config.llm_provider == "openrouter":
             table.add_row("", "OpenRouter Model", config.openrouter_model)
-            if config.openrouter_api_key:
-                key_display = config.openrouter_api_key[:10] + "..." if show_all else "***"
-                table.add_row("", "OpenRouter API Key", key_display)
+            if config.openrouter_api_keys:
+                key_display = config.openrouter_api_keys[0][:10] + "..." if show_all else "***"
+                table.add_row("", "OpenRouter API Keys", f"{len(config.openrouter_api_keys)} configured ({key_display})")
         
         # UserBot settings
         table.add_row("UserBot", "Max Analyze Messages", str(config.userbot_max_analyze_messages))

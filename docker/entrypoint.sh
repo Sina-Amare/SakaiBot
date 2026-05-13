@@ -87,13 +87,13 @@ log_info "Telegram configuration: OK"
 
 # Check for AI provider (at least one required for AI features)
 AI_CONFIGURED=false
-if [ -n "$GEMINI_API_KEY" ] || [ -n "$GEMINI_API_KEY_1" ]; then
-    log_info "Gemini API: Configured ($(mask_value "${GEMINI_API_KEY_1:-$GEMINI_API_KEY}"))"
+if [ -n "$GEMINI_API_KEY" ] || [ -n "$GEMINI_API_KEY_1" ] || [ -n "$GEMINI_API_KEY_2" ] || [ -n "$GEMINI_API_KEY_3" ] || [ -n "$GEMINI_API_KEY_4" ]; then
+    log_info "Gemini API: Configured ($(mask_value "${GEMINI_API_KEY_1:-${GEMINI_API_KEY_2:-${GEMINI_API_KEY_3:-${GEMINI_API_KEY_4:-$GEMINI_API_KEY}}}}"))"
     AI_CONFIGURED=true
 fi
 
-if [ -n "$OPENROUTER_API_KEY" ]; then
-    log_info "OpenRouter API: Configured ($(mask_value "$OPENROUTER_API_KEY"))"
+if [ -n "$OPENROUTER_API_KEY" ] || [ -n "$OPENROUTER_API_KEY_1" ] || [ -n "$OPENROUTER_API_KEY_2" ] || [ -n "$OPENROUTER_API_KEY_3" ] || [ -n "$OPENROUTER_API_KEY_4" ]; then
+    log_info "OpenRouter API: Configured ($(mask_value "${OPENROUTER_API_KEY_1:-${OPENROUTER_API_KEY_2:-${OPENROUTER_API_KEY_3:-${OPENROUTER_API_KEY_4:-$OPENROUTER_API_KEY}}}}"))"
     AI_CONFIGURED=true
 fi
 

@@ -122,59 +122,89 @@ class AIProcessor:
         primary_func,
         fallback_func,
         use_thinking: bool = False,
+        supports_thinking: bool = True,
         **kwargs
-    ) -> AIResponseMetadata:
+    ):
         """
-        Execute an operation with fallback support.
-        
-        Tries primary provider first, falls back to secondary on key exhaustion.
+        Execute an operation with primary -> fallback provider support.
+
+        Tries the primary provider first; on a fallback-worthy failure
+        (see _should_try_fallback) it retries with the fallback provider.
+
+        Args:
+            operation_name: Label for logs.
+            primary_func / fallback_func: The provider coroutines to call.
+            use_thinking: Whether native thinking was requested.
+            supports_thinking: Whether the operation accepts a ``use_thinking``
+                kwarg at all. ``translate_text`` does not; prompt/analyze/
+                answer do. When False, ``use_thinking`` is never injected.
+            **kwargs: Forwarded verbatim to both provider coroutines.
+
+        Returns:
+            Whatever the provider returns — an ``AIResponseMetadata`` for most
+            operations, or a plain ``str`` for translate/analyze. Fallback
+            metadata is only annotated when the result carries it.
         """
+        primary_kwargs = dict(kwargs)
+        fallback_kwargs = dict(kwargs)
+        if supports_thinking:
+            primary_kwargs["use_thinking"] = use_thinking
+            # OpenRouter has no native thinking — always disable for fallback.
+            fallback_kwargs["use_thinking"] = False
+
         try:
             # Try primary provider
-            result = await primary_func(**kwargs, use_thinking=use_thinking)
+            result = await primary_func(**primary_kwargs)
             self._using_fallback = False
             return result
         except (AIProcessorError, Exception) as e:
             if not self._should_try_fallback(e):
                 # Not a fallback-worthy error, re-raise
                 raise
-            
+
             if self._fallback_provider is None:
                 self._logger.error(
-                    f"{operation_name}: All Gemini keys exhausted, no fallback"
+                    f"{operation_name}: primary provider failed, no fallback "
+                    f"configured"
                 )
                 raise AIProcessorError(
-                    "All Gemini API keys exhausted and no fallback configured"
+                    f"{operation_name}: primary provider failed and no "
+                    f"fallback is configured ({e})"
                 )
-            
+
             # Switch to fallback provider
             self._logger.warning(
-                f"{operation_name}: Gemini keys exhausted, falling back to OpenRouter"
+                f"{operation_name}: primary provider failed ({e}); "
+                f"falling back to OpenRouter"
             )
             self._using_fallback = True
-            
+
             # Execute with fallback provider (thinking disabled)
             try:
-                # OpenRouter doesn't support native thinking, so disable it
-                result = await fallback_func(**kwargs, use_thinking=False)
-                
-                # Update metadata to reflect fallback
-                result.provider_fallback_applied = True
-                result.provider_fallback_reason = "All Gemini keys exhausted"
-                
-                # If thinking was requested but not available
-                if use_thinking:
-                    result.thinking_requested = True
-                    result.thinking_applied = False
-                    result.fallback_reason = "OpenRouter fallback (no native thinking)"
-                
+                result = await fallback_func(**fallback_kwargs)
+
+                # Annotate fallback metadata only when the result carries it
+                # (translate/analyze return a plain str).
+                if isinstance(result, AIResponseMetadata):
+                    result.provider_fallback_applied = True
+                    result.provider_fallback_reason = (
+                        f"Primary provider failed: {e}"
+                    )
+                    if supports_thinking and use_thinking:
+                        result.thinking_requested = True
+                        result.thinking_applied = False
+                        result.fallback_reason = (
+                            "OpenRouter fallback (no native thinking)"
+                        )
+
                 return result
             except Exception as fallback_error:
                 self._logger.error(
                     f"{operation_name}: Fallback also failed: {fallback_error}"
                 )
                 raise AIProcessorError(
-                    f"Both Gemini and OpenRouter failed: {fallback_error}"
+                    f"Both primary and fallback providers failed: "
+                    f"{fallback_error}"
                 )
     
     @property
@@ -278,8 +308,21 @@ class AIProcessor:
         self._logger.info(
             f"Translating text with {self.provider_name} to {target_language}"
         )
-        
-        return await self._provider.translate_text(
+
+        # No fallback provider: call primary directly.
+        if self._fallback_provider is None:
+            return await self._provider.translate_text(
+                text=text_to_translate,
+                target_language=target_language,
+                source_language=source_language
+            )
+
+        # Route through Gemini -> OpenRouter fallback (translate has no thinking).
+        return await self._execute_with_fallback(
+            operation_name="translate_text",
+            primary_func=self._primary_provider.translate_text,
+            fallback_func=self._fallback_provider.translate_text,
+            supports_thinking=False,
             text=text_to_translate,
             target_language=target_language,
             source_language=source_language
@@ -320,11 +363,24 @@ class AIProcessor:
             }
             processed_messages.append(processed_msg)
         
-        return await self._provider.analyze_messages(
+        # No fallback provider: call primary directly.
+        if self._fallback_provider is None:
+            return await self._provider.analyze_messages(
+                messages=processed_messages,
+                analysis_type=analysis_mode,
+                output_language=output_language,
+                use_thinking=use_thinking
+            )
+
+        # Route through Gemini -> OpenRouter fallback.
+        return await self._execute_with_fallback(
+            operation_name="analyze_messages",
+            primary_func=self._primary_provider.analyze_messages,
+            fallback_func=self._fallback_provider.analyze_messages,
+            use_thinking=use_thinking,
             messages=processed_messages,
             analysis_type=analysis_mode,
-            output_language=output_language,
-            use_thinking=use_thinking
+            output_language=output_language
         )
     
     async def close(self) -> None:

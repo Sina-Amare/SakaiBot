@@ -76,18 +76,45 @@ class AIProcessor:
                 f"Could not initialize {provider_type} provider: {e}"
             )
     
-    def _is_keys_exhausted_error(self, error: Exception) -> bool:
-        """Check if error indicates all API keys are exhausted."""
+    def _should_try_fallback(self, error: Exception) -> bool:
+        """Decide whether a primary-provider failure should fall back.
+
+        Covers not just key exhaustion / quota (429) but also auth and
+        network-level failures. In a geo-blocked region Gemini returns
+        403 / "Forbidden" (or transport errors), and the key manager surfaces
+        "all keys are currently in cooldown". In every such case the right
+        move is to hand off to the fallback provider (OpenRouter) rather than
+        fail the command outright. Falling back too eagerly only costs one
+        extra request; not falling back when we should breaks the feature.
+        """
         error_msg = str(error).lower()
-        exhausted_indicators = [
+        fallback_indicators = [
+            # Key exhaustion / rate limiting / quota
             "all api keys exhausted",
             "all keys exhausted",
             "no available api keys",
+            "currently in cooldown",
+            "cooldown",
             "rate limit",
             "quota exceeded",
+            "quota",
             "429",
+            # Auth / access failures (revoked key or network/geo block)
+            "403",
+            "401",
+            "forbidden",
+            "permission denied",
+            "permissiondenied",
+            "unauthorized",
+            # Transient server / network failures
+            "503",
+            "unavailable",
+            "connection error",
+            "connection refused",
+            "timeout",
+            "timed out",
         ]
-        return any(indicator in error_msg for indicator in exhausted_indicators)
+        return any(indicator in error_msg for indicator in fallback_indicators)
     
     async def _execute_with_fallback(
         self,
@@ -108,8 +135,8 @@ class AIProcessor:
             self._using_fallback = False
             return result
         except (AIProcessorError, Exception) as e:
-            if not self._is_keys_exhausted_error(e):
-                # Not a key exhaustion error, re-raise
+            if not self._should_try_fallback(e):
+                # Not a fallback-worthy error, re-raise
                 raise
             
             if self._fallback_provider is None:

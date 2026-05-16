@@ -76,46 +76,6 @@ class AIProcessor:
                 f"Could not initialize {provider_type} provider: {e}"
             )
     
-    def _should_try_fallback(self, error: Exception) -> bool:
-        """Decide whether a primary-provider failure should fall back.
-
-        Covers not just key exhaustion / quota (429) but also auth and
-        network-level failures. In a geo-blocked region Gemini returns
-        403 / "Forbidden" (or transport errors), and the key manager surfaces
-        "all keys are currently in cooldown". In every such case the right
-        move is to hand off to the fallback provider (OpenRouter) rather than
-        fail the command outright. Falling back too eagerly only costs one
-        extra request; not falling back when we should breaks the feature.
-        """
-        error_msg = str(error).lower()
-        fallback_indicators = [
-            # Key exhaustion / rate limiting / quota
-            "all api keys exhausted",
-            "all keys exhausted",
-            "no available api keys",
-            "currently in cooldown",
-            "cooldown",
-            "rate limit",
-            "quota exceeded",
-            "quota",
-            "429",
-            # Auth / access failures (revoked key or network/geo block)
-            "403",
-            "401",
-            "forbidden",
-            "permission denied",
-            "permissiondenied",
-            "unauthorized",
-            # Transient server / network failures
-            "503",
-            "unavailable",
-            "connection error",
-            "connection refused",
-            "timeout",
-            "timed out",
-        ]
-        return any(indicator in error_msg for indicator in fallback_indicators)
-    
     async def _execute_with_fallback(
         self,
         operation_name: str,
@@ -128,8 +88,13 @@ class AIProcessor:
         """
         Execute an operation with primary -> fallback provider support.
 
-        Tries the primary provider first; on a fallback-worthy failure
-        (see _should_try_fallback) it retries with the fallback provider.
+        Tries the primary provider first; on ANY failure it retries with the
+        fallback provider. Earlier this used keyword matching to decide
+        whether an error was "fallback-worthy", but that heuristic kept
+        missing real cases (403 geo-block, "keys not configured" guards once
+        all keys were in cooldown, etc.). Falling back on any failure only
+        costs one extra request; the real risk is failing a command the
+        fallback could have served.
 
         Args:
             operation_name: Label for logs.
@@ -158,10 +123,7 @@ class AIProcessor:
             self._using_fallback = False
             return result
         except (AIProcessorError, Exception) as e:
-            if not self._should_try_fallback(e):
-                # Not a fallback-worthy error, re-raise
-                raise
-
+            # Any failure from the primary provider triggers the fallback.
             if self._fallback_provider is None:
                 self._logger.error(
                     f"{operation_name}: primary provider failed, no fallback "

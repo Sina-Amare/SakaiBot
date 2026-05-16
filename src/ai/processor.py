@@ -209,8 +209,20 @@ class AIProcessor:
     
     @property
     def is_configured(self) -> bool:
-        """Check if AI processor is properly configured."""
-        return self._provider is not None and self._provider.is_configured
+        """Check if the AI processor can serve requests.
+
+        True when the primary provider is usable OR when a configured
+        fallback provider exists. This matters because GeminiProvider
+        reports is_configured=False while all its keys are in cooldown —
+        but if the OpenRouter fallback is available the processor can still
+        serve requests, so callers must not abort on the primary alone.
+        """
+        if self._provider is not None and self._provider.is_configured:
+            return True
+        if (self._fallback_provider is not None
+                and self._fallback_provider.is_configured):
+            return True
+        return False
     
     @property
     def provider_name(self) -> str:

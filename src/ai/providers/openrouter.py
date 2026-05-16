@@ -1,5 +1,6 @@
 """OpenRouter LLM provider implementation (fallback provider)."""
 
+import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import pytz
@@ -161,7 +162,66 @@ class OpenRouterProvider(LLMProvider):
 
         return self._client
 
-    
+    @staticmethod
+    def _extract_response_text(completion: Any) -> tuple:
+        """Extract usable text and finish_reason from an OpenRouter completion.
+
+        Handles plain string content, multimodal list content, streaming-style
+        delta content, and DeepSeek-style ``reasoning`` / ``reasoning_content``
+        fields — some DeepSeek models leave ``content`` empty and put the
+        answer in a reasoning field, which the previous code discarded.
+
+        Returns:
+            ``(response_text, finish_reason)`` — ``response_text`` is the
+            stripped text, or ``None`` if nothing usable was found;
+            ``finish_reason`` is lowercased, or ``None``.
+        """
+        if not completion or not getattr(completion, "choices", None):
+            return None, None
+
+        choice = completion.choices[0]
+        raw_finish = getattr(choice, "finish_reason", None)
+        finish_reason = str(raw_finish).lower() if raw_finish else None
+
+        message = getattr(choice, "message", None)
+
+        # 1. Standard content field (string or multimodal list).
+        content = getattr(message, "content", None) if message else None
+        if isinstance(content, str) and content.strip():
+            return content.strip(), finish_reason
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                text_part = ""
+                if hasattr(part, "text"):
+                    text_part = part.text or ""
+                elif isinstance(part, dict):
+                    text_part = part.get("text", "")
+                if text_part:
+                    parts.append(text_part)
+            if parts:
+                return "\n".join(parts).strip(), finish_reason
+
+        # 2. DeepSeek-style reasoning fields (content empty, answer in
+        #    reasoning). May be a typed attribute or a pydantic extra field.
+        if message is not None:
+            extra = getattr(message, "model_extra", None) or {}
+            for attr in ("reasoning_content", "reasoning"):
+                value = getattr(message, attr, None)
+                if not value and isinstance(extra, dict):
+                    value = extra.get(attr)
+                if isinstance(value, str) and value.strip():
+                    return value.strip(), finish_reason
+
+        # 3. Streaming-style delta content.
+        delta = getattr(choice, "delta", None)
+        if delta is not None:
+            delta_content = getattr(delta, "content", None)
+            if isinstance(delta_content, str) and delta_content.strip():
+                return delta_content.strip(), finish_reason
+
+        return None, finish_reason
+
     async def execute_prompt(
         self,
         user_prompt: str,
@@ -198,24 +258,28 @@ class OpenRouterProvider(LLMProvider):
         if use_web_search:
             self._logger.warning("Web search requested but OpenRouter doesn't support Google Search tool")
         
-        # Track key attempts for rotation on 429
+        # Retry loop: rotates keys on 429, and retries transient empty
+        # responses (free models occasionally return no content under load).
         max_key_attempts = self._key_manager.num_keys if self._key_manager else 1
-        keys_tried = 0
+        max_attempts = max_key_attempts + 2
+        attempts = 0
         last_error = None
-        
-        while keys_tried < max_key_attempts:
+        response_text = None
+
+        while attempts < max_attempts:
+            attempts += 1
             try:
                 client = self._get_client()
-                
+
                 # Prompt is already self-contained (system messages merged)
                 messages = [{"role": "user", "content": user_prompt}]
-                
+
                 self._logger.info(
-                    f"Sending prompt to OpenRouter model '{model}'. "
+                    f"Sending prompt to OpenRouter model '{model}' "
+                    f"(attempt {attempts}/{max_attempts}). "
                     f"Prompt preview: '{user_prompt[:100]}...'"
                 )
-                
-                # Add timeout for large requests
+
                 try:
                     completion = await client.chat.completions.create(
                         model=model,
@@ -225,10 +289,6 @@ class OpenRouterProvider(LLMProvider):
                         extra_headers=OPENROUTER_HEADERS,
                         timeout=600.0  # 10 minute timeout for large requests
                     )
-                    
-                    # Success - break out of retry loop
-                    break
-                    
                 except httpx.TimeoutException:
                     self._logger.error(
                         f"Request timed out after 10 minutes for model '{model}'"
@@ -238,116 +298,84 @@ class OpenRouterProvider(LLMProvider):
                     )
                 except httpx.HTTPStatusError as e:
                     if e.response.status_code == 429:
-                        # Rate limit - mark key as exhausted and rotate
-                        keys_tried += 1
+                        # Rate limit - cool the key, rotate, and retry.
                         self._logger.warning(
-                            f"OpenRouter rate limit (429) on key attempt {keys_tried}"
+                            f"OpenRouter rate limit (429) on attempt {attempts}"
                         )
-                        
+                        last_error = AIProcessorError(
+                            "OpenRouter rate limit exceeded"
+                        )
                         if self._key_manager:
                             self._key_manager.mark_key_rate_limited()
-                            if keys_tried < max_key_attempts:
-                                # Force client recreation with new key
-                                self._client = None
-                                self._last_used_key = None
-                                self._logger.info(
-                                    f"Rotating to next OpenRouter key "
-                                    f"({keys_tried}/{max_key_attempts})"
-                                )
-                                last_error = AIProcessorError(
-                                    "OpenRouter rate limit exceeded"
-                                )
-                                continue
-                        
-                        # All keys exhausted or no key manager
-                        raise AIProcessorError(
-                            f"All OpenRouter keys exhausted (429 rate limit)"
-                        )
-                    else:
-                        self._logger.error(
-                            f"HTTP error {e.response.status_code}: "
-                            f"{e.response.text}"
-                        )
-                        raise AIProcessorError(
-                            f"API returned error {e.response.status_code}: "
-                            f"{e.response.text[:200]}"
-                        )
+                        self._client = None
+                        self._last_used_key = None
+                        continue
+                    self._logger.error(
+                        f"HTTP error {e.response.status_code}: "
+                        f"{e.response.text}"
+                    )
+                    raise AIProcessorError(
+                        f"API returned error {e.response.status_code}: "
+                        f"{e.response.text[:200]}"
+                    )
+
+                self._logger.debug(f"Raw completion object: {completion}")
+
+                # Extract usable text (handles content, multimodal list,
+                # delta, and DeepSeek-style reasoning fields).
+                response_text, finish_reason = self._extract_response_text(
+                    completion
+                )
+
+                if response_text:
+                    self._logger.info(
+                        f"Got response text: {len(response_text)} chars"
+                    )
+                    break  # success
+
+                # A genuine content-filter block is not retryable.
+                if finish_reason and (
+                    "content_filter" in finish_reason
+                    or "safety" in finish_reason
+                ):
+                    self._logger.warning(
+                        f"Response blocked by content filter: {finish_reason}"
+                    )
+                    raise AIProcessorError(
+                        "Content was filtered by AI provider. "
+                        "Try with different text."
+                    )
+
+                # Transient empty response - common with free models under
+                # load. Retry, rotating to a different key when possible.
+                self._logger.warning(
+                    f"OpenRouter returned empty content "
+                    f"(finish_reason={finish_reason}); retrying "
+                    f"(attempt {attempts}/{max_attempts})"
+                )
+                last_error = AIProcessorError(
+                    "OpenRouter returned an empty response"
+                )
+                if self._key_manager and self._key_manager.num_keys > 1:
+                    self._key_manager.mark_key_rate_limited()
+                self._client = None
+                self._last_used_key = None
+                await asyncio.sleep(1.0)
+                continue
+
             except AIProcessorError:
                 raise
             except Exception as e:
                 self._logger.error(f"OpenRouter request failed: {e}")
                 raise AIProcessorError(f"OpenRouter API error: {e}")
         else:
-            # Exited loop without success (exhausted all attempts without break)
-            if last_error:
-                raise last_error
-            raise AIProcessorError("All OpenRouter API keys exhausted")
-        
-        # ---- Response handling (reached via break on successful API call) ----
-        # Debug log the response
-        self._logger.debug(f"Raw completion object: {completion}")
-        
-        # Handle response extraction safely
-        response_text = None
-        
-        # Check if we have choices and extract content
-        if completion and hasattr(completion, "choices") and completion.choices:
-            choice = completion.choices[0]
-            message = getattr(choice, "message", None)
-            content = getattr(message, "content", None)
-
-            if isinstance(content, str):
-                response_text = content.strip()
-            elif isinstance(content, list):
-                extracted_parts = []
-                for part in content:
-                    text_part = ""
-                    if hasattr(part, "text"):
-                        text_part = part.text
-                    elif isinstance(part, dict):
-                        text_part = part.get("text", "")
-                    if text_part:
-                        extracted_parts.append(text_part)
-                if extracted_parts:
-                    response_text = "\n".join(extracted_parts).strip()
-            elif content is None and hasattr(choice, "delta"):
-                delta = getattr(choice, "delta", None)
-                if delta is not None:
-                    delta_content = getattr(delta, "content", None)
-                    if isinstance(delta_content, str):
-                        response_text = delta_content.strip()
-            # Additional check for safety filter responses
-            elif hasattr(choice, 'finish_reason') and choice.finish_reason:
-                finish_reason = str(choice.finish_reason).lower()
-                if 'content_filter' in finish_reason or 'safety' in finish_reason:
-                    self._logger.warning(
-                        f"Response blocked by content filter: {choice.finish_reason}"
-                    )
-                    raise AIProcessorError(
-                        "Content was filtered by AI provider. Try with different text."
-                    )
-
-            if response_text:
-                self._logger.info(f"Got response text: {len(response_text)} chars")
-            else:
-                self._logger.warning("Message content is None or empty")
-        else:
-            self._logger.warning("No choices in completion response")
-            # Check if indicates filtering
-            if hasattr(completion, 'usage') and completion.usage is None:
-                self._logger.warning("Completion usage is None, possibly safety filter")
-                raise AIProcessorError(
-                    "Content was filtered by AI provider. Try with different text."
-                )
-        
-        if not response_text:
+            # Loop exhausted without a usable response.
             self._logger.error(
-                f"Could not extract text from completion. Type: {type(completion)}"
+                f"OpenRouter returned no usable content after "
+                f"{attempts} attempt(s)"
             )
-            if completion and hasattr(completion, 'model'):
-                self._logger.error(f"Model used: {completion.model}")
-            raise AIProcessorError(
-                "OpenRouter did not return content. Response may have been filtered."
+            raise last_error or AIProcessorError(
+                "OpenRouter did not return content after retries."
             )
         
         self._logger.info(

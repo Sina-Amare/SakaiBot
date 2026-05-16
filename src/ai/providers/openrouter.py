@@ -580,7 +580,7 @@ class OpenRouterProvider(LLMProvider):
         question: str,
         use_thinking: bool = False,
         use_web_search: bool = False
-    ) -> str:
+    ) -> AIResponseMetadata:
         """Answer a question based on chat history using Persian prompts."""
         if not messages:
             raise AIProcessorError("No messages provided for question answering")
@@ -597,7 +597,13 @@ class OpenRouterProvider(LLMProvider):
                 formatted_messages.append(f"{sender}: {text}")
         
         if not formatted_messages:
-            return "هیچ پیام متنی در تاریخچه ارائه شده یافت نشد."
+            return AIResponseMetadata(
+                response_text="هیچ پیام متنی در تاریخچه ارائه شده یافت نشد.",
+                thinking_requested=use_thinking,
+                thinking_applied=False,
+                web_search_requested=use_web_search,
+                web_search_applied=False,
+            )
         
         combined_history = "\n".join(formatted_messages)
         
@@ -631,7 +637,7 @@ class OpenRouterProvider(LLMProvider):
             use_thinking=use_thinking,
             use_web_search=use_web_search
         )
-        return result.response_text
+        return result
     
     async def close(self) -> None:
         """Clean up OpenRouter client."""

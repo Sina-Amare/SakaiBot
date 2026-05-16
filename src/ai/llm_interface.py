@@ -116,7 +116,7 @@ class LLMProvider(ABC):
         question: str,
         use_thinking: bool = False,
         use_web_search: bool = False
-    ) -> str:
+    ) -> AIResponseMetadata:
         """
         Answer a question based on chat history.
         
@@ -127,7 +127,7 @@ class LLMProvider(ABC):
             use_web_search: Enable web search grounding
             
         Returns:
-            Answer to the question
+            AIResponseMetadata with answer text and execution status
             
         Raises:
             AIProcessorError: If answering fails

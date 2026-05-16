@@ -199,6 +199,31 @@ class AIProcessor:
         if self._provider:
             return self._provider.model_name
         return "None"
+
+    @staticmethod
+    def _ensure_response_metadata(
+        result: Any,
+        *,
+        use_thinking: bool,
+        use_web_search: bool,
+        fallback_reason: Optional[str] = None,
+        provider_fallback_applied: bool = False,
+        provider_fallback_reason: Optional[str] = None,
+    ) -> AIResponseMetadata:
+        """Normalize chat Q&A provider results for Telegram display code."""
+        if isinstance(result, AIResponseMetadata):
+            return result
+
+        return AIResponseMetadata(
+            response_text=str(result) if result is not None else "",
+            thinking_requested=use_thinking,
+            thinking_applied=False,
+            web_search_requested=use_web_search,
+            web_search_applied=False,
+            fallback_reason=fallback_reason,
+            provider_fallback_applied=provider_fallback_applied,
+            provider_fallback_reason=provider_fallback_reason,
+        )
     
     def get_model_for_task(self, task_type: str) -> str:
         """
@@ -434,15 +459,20 @@ class AIProcessor:
         
         # If no fallback provider, use primary directly
         if self._fallback_provider is None:
-            return await self._provider.answer_question_from_history(
+            result = await self._provider.answer_question_from_history(
                 messages=formatted_messages,
                 question=user_question,
                 use_thinking=use_thinking,
                 use_web_search=use_web_search
             )
-        
+            return self._ensure_response_metadata(
+                result,
+                use_thinking=use_thinking,
+                use_web_search=use_web_search,
+            )
+
         # Use fallback mechanism
-        return await self._execute_with_fallback(
+        result = await self._execute_with_fallback(
             operation_name="answer_question",
             primary_func=self._primary_provider.answer_question_from_history,
             fallback_func=self._fallback_provider.answer_question_from_history,
@@ -450,4 +480,15 @@ class AIProcessor:
             messages=formatted_messages,
             question=user_question,
             use_web_search=use_web_search
+        )
+        return self._ensure_response_metadata(
+            result,
+            use_thinking=use_thinking,
+            use_web_search=use_web_search,
+            provider_fallback_applied=self._using_fallback,
+            provider_fallback_reason=(
+                "Primary provider failed"
+                if self._using_fallback
+                else None
+            ),
         )

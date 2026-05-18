@@ -3,7 +3,6 @@
 import asyncio
 import os
 import re
-from html import escape as html_escape
 from pathlib import Path
 from typing import Optional, List, Set
 
@@ -28,6 +27,22 @@ from .base import BaseHandler
 # Flip this to True to re-enable the "🔍 AI Summary & Analysis" message
 # after each /stt call. No other code changes are required.
 STT_AI_SUMMARY_ENABLED = False
+
+
+def _md_safe(text: str) -> str:
+    """Neutralize Markdown-special characters in untrusted text.
+
+    Transcripts and Telegram display names are embedded into messages sent
+    with parse_mode='md'. A stray '*' or '_' could break rendering, so
+    those characters are softened to harmless equivalents.
+    """
+    return (
+        text.replace('`', "'")
+        .replace('*', '∗')   # asterisk -> ∗ (visually similar)
+        .replace('_', '‗')   # underscore -> ‗
+        .replace('[', '(')
+        .replace(']', ')')
+    )
 
 
 class STTHandler(BaseHandler):
@@ -85,28 +100,28 @@ class STTHandler(BaseHandler):
             await client.send_message(chat_id, error_msg, reply_to=reply_to_id)
             return
         
-        # All user-supplied strings embedded in HTML must be escaped.
-        sender_html = html_escape(command_sender_info)
+        # User-supplied display name embedded into a Markdown message.
+        sender_md = _md_safe(command_sender_info)
 
         if is_partial:
             wanted_list = ", ".join(str(i) for i in sorted(chunk_filter))
             initial_status = (
-                f"🎧 <b>Voice Processing</b>\n\n"
+                f"🎧 **Voice Processing**\n\n"
                 f"🔄 Retrying part(s): {wanted_list}\n"
-                f"<i>From {sender_html}</i>"
+                f"__From {sender_md}__"
             )
         else:
             initial_status = (
-                f"🎧 <b>Voice Processing</b>\n\n"
+                f"🎧 **Voice Processing**\n\n"
                 f"🔄 Transcribing...\n"
-                f"<i>From {sender_html}</i>"
+                f"__From {sender_md}__"
             )
 
         status_msg = await client.send_message(
             chat_id,
             initial_status,
             reply_to=reply_to_id,
-            parse_mode='html'
+            parse_mode='md'
         )
 
         downloaded_voice_path = None
@@ -165,10 +180,10 @@ class STTHandler(BaseHandler):
                 verb = "Retrying" if is_partial else "Transcribing"
                 await message_sender.edit_message_safe(
                     status_msg,
-                    f"🎧 <b>Voice Processing</b>\n\n"
+                    f"🎧 **Voice Processing**\n\n"
                     f"🔄 {verb} chunk {current}/{total}...\n"
-                    f"<i>From {sender_html}</i>",
-                    parse_mode='html',
+                    f"__From {sender_md}__",
+                    parse_mode='md',
                 )
 
             async def on_chunk_text(idx: int, total: int, text: str) -> None:
@@ -179,13 +194,14 @@ class STTHandler(BaseHandler):
 
                 async with delivery_lock:
                     if total > 1:
-                        header = f"📝 <b>Transcribed Text</b> — Part {idx}/{total}:\n"
+                        header = f"📝 **Transcribed Text** — Part {idx}/{total}:\n"
                     else:
-                        header = "📝 <b>Transcribed Text</b>:\n"
+                        header = "📝 **Transcribed Text**:\n"
 
-                    # Escape transcript content so chars like <, >, & don't break
-                    # parse_mode='html'. Rare in Persian speech but defensive.
-                    safe_text = html_escape(text)
+                    # Neutralize Markdown-special chars so the transcript
+                    # can't break parse_mode='md'. Rare in Persian speech,
+                    # but defensive.
+                    safe_text = _md_safe(text)
 
                     # Defensive: a single chunk's transcript is normally <2 KB,
                     # but split if it would exceed Telegram's per-message limit.
@@ -197,17 +213,17 @@ class STTHandler(BaseHandler):
 
                         if not delivered_first:
                             ok = await message_sender.edit_message_safe(
-                                status_msg, msg_text, parse_mode='html'
+                                status_msg, msg_text, parse_mode='md'
                             )
                             if not ok:
                                 await message_sender.send_message_safe(
                                     chat_id, msg_text,
-                                    reply_to=reply_to_id, parse_mode='html',
+                                    reply_to=reply_to_id, parse_mode='md',
                                 )
                             delivered_first = True
                         else:
                             await message_sender.send_message_safe(
-                                chat_id, msg_text, parse_mode='html'
+                                chat_id, msg_text, parse_mode='md'
                             )
                             # Stay safely under Telegram's ~30 msgs/min self-bot
                             # send-rate limit. Transcription itself already adds
@@ -245,21 +261,21 @@ class STTHandler(BaseHandler):
                     await asyncio.sleep(0.3)
                     if skipped_indices:
                         summary_lines = [
-                            "ℹ️ <b>Retry complete.</b>",
+                            "ℹ️ **Retry complete.**",
                             f"✅ Recovered: {recovered} part(s)",
                             f"⚠️ Skipped parts: {', '.join(map(str, skipped_indices))}",
                             "",
-                            "Reply with <code>/stt</code> to retry the skipped parts.",
+                            "Reply with `/stt` to retry the skipped parts.",
                         ]
                         await message_sender.send_message_safe(
                             chat_id, "\n".join(summary_lines),
-                            reply_to=reply_to_id, parse_mode='html',
+                            reply_to=reply_to_id, parse_mode='md',
                         )
                     else:
                         await message_sender.send_message_safe(
                             chat_id,
-                            f"✅ <b>Retry complete:</b> all {recovered} part(s) recovered.",
-                            reply_to=reply_to_id, parse_mode='html',
+                            f"✅ **Retry complete:** all {recovered} part(s) recovered.",
+                            reply_to=reply_to_id, parse_mode='md',
                         )
                 else:
                     expected = set(range(1, last_total + 1))
@@ -268,22 +284,22 @@ class STTHandler(BaseHandler):
                     await asyncio.sleep(0.3)
                     if skipped_indices:
                         summary_lines = [
-                            "ℹ️ <b>Transcription complete.</b>",
+                            "ℹ️ **Transcription complete.**",
                             f"✅ Delivered: {delivered_count}/{last_total} parts",
                             f"⚠️ Skipped parts: {', '.join(map(str, skipped_indices))}",
                             "",
-                            "Reply with <code>/stt</code> to retry the skipped parts.",
+                            "Reply with `/stt` to retry the skipped parts.",
                         ]
                         await message_sender.send_message_safe(
                             chat_id, "\n".join(summary_lines),
-                            reply_to=reply_to_id, parse_mode='html',
+                            reply_to=reply_to_id, parse_mode='md',
                         )
                     else:
                         await message_sender.send_message_safe(
                             chat_id,
-                            f"✅ <b>Transcription complete:</b> "
+                            f"✅ **Transcription complete:** "
                             f"{delivered_count}/{last_total} parts delivered.",
-                            reply_to=reply_to_id, parse_mode='html',
+                            reply_to=reply_to_id, parse_mode='md',
                         )
 
             # AI summary (currently disabled — see STT_AI_SUMMARY_ENABLED at top of module).
@@ -294,9 +310,9 @@ class STTHandler(BaseHandler):
                     await asyncio.sleep(0.3)
                     await message_sender.send_message_safe(
                         chat_id,
-                        f"🔍 <b>AI Summary &amp; Analysis:</b>\n{summary_text}",
+                        f"🔍 **AI Summary & Analysis:**\n{summary_text}",
                         reply_to=reply_to_id,
-                        parse_mode='html',
+                        parse_mode='md',
                     )
 
         except AIProcessorError as e:

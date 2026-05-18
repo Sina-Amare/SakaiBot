@@ -529,7 +529,8 @@ class STTHandler(BaseHandler):
         if not api_key:
             return None
         
-        model_name = os.getenv("GEMINI_SUMMARY_MODEL", "gemini-1.5-flash-latest")
+        # gemini-1.5 is retired; default to the current free-tier Flash model.
+        model_name = os.getenv("GEMINI_SUMMARY_MODEL", "gemini-2.5-flash")
         # Use centralized prompt from prompts.py
         prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
             transcribed_text=transcribed_text

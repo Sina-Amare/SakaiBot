@@ -78,6 +78,28 @@ def build_execution_footer(metadata: AIResponseMetadata) -> str:
     return footer  # Old behavior - just return footer
 
 
+def _format_thinking_block(summary: str) -> str:
+    """Render the model's raw reasoning as a clean quote-style block.
+
+    Telethon's markdown parser has no blockquote element, so a real
+    Telegram blockquote is not available in 'md' mode. Instead we draw a
+    light vertical bar (▎) at the start of each line for a quote look —
+    much cleaner than the old monospace code box, which mangled RTL
+    Persian text. Markdown-special characters in the raw reasoning are
+    stripped so they cannot break message parsing.
+    """
+    cleaned = (
+        summary.replace('`', "'")
+        .replace('*', '')
+        .replace('_', '')
+    )
+    lines = [ln.strip() for ln in cleaned.splitlines() if ln.strip()]
+    if not lines:
+        return ""
+    quoted = "\n".join(f"▎ {ln}" for ln in lines)
+    return f"💭 **Thought Process**\n{quoted}"
+
+
 def build_response_parts(metadata: AIResponseMetadata) -> tuple:
     """
     Build header and footer parts for AI response display.
@@ -98,9 +120,9 @@ def build_response_parts(metadata: AIResponseMetadata) -> tuple:
     if metadata.thinking_requested:
         if metadata.thinking_applied:
             if metadata.thinking_summary:
-                header_parts.append(
-                    f"```\n💭 Thought Process:\n{metadata.thinking_summary}\n```"
-                )
+                block = _format_thinking_block(metadata.thinking_summary)
+                if block:
+                    header_parts.append(block)
             footer_parts.append("🧠 **Deep Thinking Applied**")
         else:
             reason = metadata.fallback_reason or "unavailable"

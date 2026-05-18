@@ -136,32 +136,42 @@ def parse_translation_command(command_text: str) -> Tuple[Optional[str], Optiona
 
 def format_translation_response(translation: str, pronunciation: str, target_language: str) -> str:
     """
-    Format translation response with the exact required structure.
-    
+    Format the translation result as a clean, styled Telegram message.
+
+    Produces an emoji header, a heavy-rule separator, the translation, and —
+    for non-Persian targets — a phonetics section. This matches the visual
+    style of the other AI commands (emoji headers, ━ separators, bold)
+    instead of the old bare "Translation (X):" + dashed-line layout.
+    Markdown parse mode is assumed.
+
     Args:
         translation: The translated text
         pronunciation: The Persian phonetic pronunciation
-        target_language: The target language code (will be converted to full name)
-    
+        target_language: The target language code (converted to a full name)
+
     Returns:
-        Formatted response with translation and pronunciation in required format
+        Formatted, styled response string.
     """
     if not translation or not translation.strip():
-        return "No translation available"
-    
-    # Get the full language name
+        return "⚠️ ترجمه‌ای در دسترس نیست"
+
     language_name = get_language_name(target_language)
-    
-    # Skip pronunciation for Persian translations (Persian speakers don't need
-    # Persian phonetics for Persian text - only for non-Persian translations)
+    rule = "━" * 18
+
+    body = (
+        f"🌐 **ترجمه به {language_name}**\n"
+        f"{rule}\n"
+        f"{translation.strip()}"
+    )
+
+    # Persian speakers don't need Persian phonetics for Persian text —
+    # only show pronunciation for non-Persian targets.
     target_lower = target_language.lower()
-    if target_lower in ('fa', 'farsi', 'persian'):
-        formatted_response = f"Translation ({language_name}):\n{translation}\n-----------------------------"
-    else:
-        # Include pronunciation for non-Persian translations
-        formatted_response = f"Translation ({language_name}):\n{translation}\nPronunciation:\n{pronunciation}\n-----------------------------"
-    
-    return formatted_response
+    is_persian_target = target_lower in ('fa', 'farsi', 'persian')
+    if not is_persian_target and pronunciation and pronunciation.strip():
+        body += f"\n\n🗣️ **تلفظ**\n{pronunciation.strip()}"
+
+    return body
 
 
 def extract_translation_from_response(response: str) -> Tuple[str, str]:

@@ -100,7 +100,7 @@ def format_analysis_metadata(
     metadata_content = "\n".join(metadata_lines)
     return f"""
 
-───────────────────────
+━━━━━━━━━━━━━━━━━━
 {LRE}{metadata_content}{PDF}
 """
 

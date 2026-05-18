@@ -162,6 +162,6 @@ def build_response_parts(metadata: AIResponseMetadata) -> tuple:
     footer = ""
     if footer_parts:
         footer_content = " | ".join(footer_parts)
-        footer = f"\n\n───────────────────────────\n{LRE}{footer_content}{PDF}"
+        footer = f"\n\n━━━━━━━━━━━━━━━━━━\n{LRE}{footer_content}{PDF}"
     
     return (header, footer)

@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 import pytz
 
+import openai
 from openai import AsyncOpenAI
-import httpx
 
 from ..llm_interface import LLMProvider
 from ..response_metadata import AIResponseMetadata
@@ -289,34 +289,40 @@ class OpenRouterProvider(LLMProvider):
                         extra_headers=OPENROUTER_HEADERS,
                         timeout=600.0  # 10 minute timeout for large requests
                     )
-                except httpx.TimeoutException:
+                except openai.APITimeoutError:
                     self._logger.error(
-                        f"Request timed out after 10 minutes for model '{model}'"
+                        f"Request timed out for model '{model}'"
                     )
                     raise AIProcessorError(
                         "Request timed out. Try with fewer messages."
                     )
-                except httpx.HTTPStatusError as e:
-                    if e.response.status_code == 429:
-                        # Rate limit - cool the key, rotate, and retry.
-                        self._logger.warning(
-                            f"OpenRouter rate limit (429) on attempt {attempts}"
-                        )
-                        last_error = AIProcessorError(
-                            "OpenRouter rate limit exceeded"
-                        )
-                        if self._key_manager:
-                            self._key_manager.mark_key_rate_limited()
-                        self._client = None
-                        self._last_used_key = None
-                        continue
+                except (openai.RateLimitError,
+                        openai.APIConnectionError,
+                        openai.InternalServerError) as e:
+                    # Retryable: provider rate limit (429), network error, or
+                    # 5xx. The OpenAI SDK wraps OpenRouter's HTTP errors in
+                    # these types - a plain httpx handler never sees them.
+                    self._logger.warning(
+                        f"OpenRouter retryable error on attempt {attempts}: "
+                        f"{type(e).__name__}: {str(e)[:160]}"
+                    )
+                    last_error = AIProcessorError(
+                        f"OpenRouter error: {str(e)[:160]}"
+                    )
+                    if self._key_manager and self._key_manager.num_keys > 1:
+                        self._key_manager.mark_key_rate_limited()
+                    self._client = None
+                    self._last_used_key = None
+                    await asyncio.sleep(2.0)
+                    continue
+                except openai.APIStatusError as e:
+                    # Non-retryable HTTP status (400/401/403/404, ...).
+                    status = getattr(e, "status_code", "?")
                     self._logger.error(
-                        f"HTTP error {e.response.status_code}: "
-                        f"{e.response.text}"
+                        f"OpenRouter API error {status}: {str(e)[:200]}"
                     )
                     raise AIProcessorError(
-                        f"API returned error {e.response.status_code}: "
-                        f"{e.response.text[:200]}"
+                        f"OpenRouter API error {status}: {str(e)[:200]}"
                     )
 
                 self._logger.debug(f"Raw completion object: {completion}")

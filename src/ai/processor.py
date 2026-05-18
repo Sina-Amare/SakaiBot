@@ -335,8 +335,14 @@ class AIProcessor:
         analysis_mode: str = "general",
         output_language: str = "english",
         use_thinking: bool = False
-    ) -> str:
-        """Analyze a collection of messages."""
+    ) -> AIResponseMetadata:
+        """Analyze a collection of messages.
+
+        Returns AIResponseMetadata so callers can report the actual model /
+        provider that served the request (it carries model_used and
+        provider_fallback_applied). For backward compatibility the result
+        still behaves like a string via __str__/__len__/strip().
+        """
         if not self.is_configured:
             raise AIProcessorError(
                 f"AI processor not configured. Provider: {self._config.llm_provider}"
@@ -400,13 +406,16 @@ class AIProcessor:
         return result.response_text
     
     async def analyze_conversation_messages(
-        self, 
+        self,
         messages_data: List[Dict[str, Any]],
         analysis_mode: str = "general",
         output_language: str = "english",
         use_thinking: bool = False
-    ) -> str:
-        """Analyze conversation messages (compatibility wrapper)."""
+    ) -> AIResponseMetadata:
+        """Analyze conversation messages (compatibility wrapper).
+
+        Returns AIResponseMetadata (string-compatible via __str__/strip()).
+        """
         # Convert to expected format for analyze_messages
         messages = []
         participant_mapping = {}

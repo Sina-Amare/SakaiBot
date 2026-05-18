@@ -464,7 +464,7 @@ class OpenRouterProvider(LLMProvider):
         analysis_type: str = "summary",
         output_language: str = "english",
         use_thinking: bool = False
-    ) -> str:
+    ) -> AIResponseMetadata:
         """Analyze messages using OpenRouter."""
         if not messages:
             raise AIProcessorError("No messages provided for analysis")
@@ -572,13 +572,14 @@ class OpenRouterProvider(LLMProvider):
         
         # Use pro model for analysis (complex task)
         result = await self.execute_prompt(
-            formatted_prompt, 
-            max_tokens=max_tokens, 
+            formatted_prompt,
+            max_tokens=max_tokens,
             temperature=0.4,
             task_type="analyze",
             use_thinking=use_thinking
         )
-        return result.response_text
+        # Return full metadata so callers can report the actual model used.
+        return result
     
     async def answer_question_from_history(
         self,

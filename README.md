@@ -414,7 +414,7 @@ SakaiBot/
 | API Key Rotation  | `APIKeyManager`  | Automatic failover on rate limits |
 | Circuit Breaker   | `CircuitBreaker` | Prevent cascade failures          |
 | Rate Limiting     | `RateLimiter`    | Per-user request throttling       |
-| Provider Fallback | `AIProcessor`    | Gemini → OpenRouter fallback      |
+| Provider Fallback | `AIProcessor`    | Configurable primary → fallback   |
 | Error Recovery    | `ErrorHandler`   | User-friendly error messages      |
 
 ## 🛠️ Development

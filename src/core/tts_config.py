@@ -3,6 +3,8 @@
 import os
 from typing import List, Optional
 
+from .constants import DEFAULT_GEMINI_TTS_MODEL, DEFAULT_TTS_VOICE
+
 # Ensure .env is loaded before reading environment variables
 try:
     from dotenv import load_dotenv
@@ -49,6 +51,15 @@ def _get_google_api_key() -> Optional[str]:
     return None
 
 
+def _first_env_value(*names: str) -> Optional[str]:
+    """Return the first non-empty environment value from ``names``."""
+    for name in names:
+        value = os.getenv(name)
+        if value and value.strip():
+            return value.strip()
+    return None
+
+
 # TTS API Configuration
 GOOGLE_API_KEY: Optional[str] = _get_google_api_key()
 
@@ -60,8 +71,14 @@ RETRY_DELAYS: List[float] = [1.0, 2.0, 4.0]  # Exponential backoff: 1s, 2s, 4s
 API_TIMEOUT: int = 30
 
 # TTS Model Configuration
-TTS_MODEL: str = "gemini-2.5-flash-preview-tts"
-DEFAULT_VOICE: str = "Orus"  # Masculine voice
+TTS_MODEL: str = (
+    _first_env_value("GEMINI_TTS_MODEL", "TTS_MODEL")
+    or DEFAULT_GEMINI_TTS_MODEL
+)
+DEFAULT_VOICE: str = (
+    _first_env_value("GEMINI_TTS_VOICE", "TTS_VOICE", "DEFAULT_TTS_VOICE")
+    or DEFAULT_TTS_VOICE
+)
 
 # Audio Settings
 DEFAULT_SAMPLE_RATE: int = 24000

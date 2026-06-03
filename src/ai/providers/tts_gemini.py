@@ -75,14 +75,19 @@ def synthesize_speech(
         keys_checked = []
         if os.getenv("GEMINI_API_KEY_TTS"):
             keys_checked.append("GEMINI_API_KEY_TTS (found but invalid/empty)")
+        if os.getenv("GEMINI_API_KEY_1"):
+            keys_checked.append("GEMINI_API_KEY_1 (found but invalid/empty)")
+        if os.getenv("GEMINI_API_KEY_2"):
+            keys_checked.append("GEMINI_API_KEY_2 (found but invalid/empty)")
         if os.getenv("GEMINI_API_KEY"):
             keys_checked.append("GEMINI_API_KEY (found but invalid/empty)")
         if os.getenv("GOOGLE_API_KEY"):
             keys_checked.append("GOOGLE_API_KEY (found but invalid/empty)")
-        
+
         error_msg = (
             "Google API key not configured for Gemini AI Studio TTS. "
-            "Checked (in order): GEMINI_API_KEY_TTS, GEMINI_API_KEY, GOOGLE_API_KEY. "
+            "Checked (in order): GEMINI_API_KEY_TTS, GEMINI_API_KEY_1, "
+            "GEMINI_API_KEY_2, GEMINI_API_KEY, GOOGLE_API_KEY. "
             f"{'Found keys (but invalid): ' + ', '.join(keys_checked) if keys_checked else 'No keys found in environment.'}"
         )
         logger.error(error_msg)
@@ -96,6 +101,10 @@ def synthesize_speech(
     # Log which key was used (for debugging)
     if os.getenv("GEMINI_API_KEY_TTS") == GOOGLE_API_KEY:
         logger.debug("Using GEMINI_API_KEY_TTS for TTS")
+    elif os.getenv("GEMINI_API_KEY_1") == GOOGLE_API_KEY:
+        logger.debug("Using GEMINI_API_KEY_1 for TTS")
+    elif os.getenv("GEMINI_API_KEY_2") == GOOGLE_API_KEY:
+        logger.debug("Using GEMINI_API_KEY_2 for TTS")
     elif os.getenv("GEMINI_API_KEY") == GOOGLE_API_KEY:
         logger.debug("Using GEMINI_API_KEY for TTS")
     elif os.getenv("GOOGLE_API_KEY") == GOOGLE_API_KEY:

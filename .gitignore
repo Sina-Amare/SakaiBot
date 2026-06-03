@@ -84,6 +84,15 @@ logs/
 # AI Agent Specific
 # =============================================================================
 .claude/
+.cline/
+.windsurf/
+.continue/
+.aider*
+.kilo/
+.codex/
+.antigravitycli/
+.gemini/
+.opencode/
 claude.md
 CLAUDE.md
 AGENTS.md
@@ -92,6 +101,11 @@ agents.md
 AGENTS.local.md
 Agents.local.md
 agents.local.md
+RTK.md
+plan.md
+*_plan.md
+codex_plan.md
+claude_plan.md
 
 # =============================================================================
 # IDE and Editor Specific Files

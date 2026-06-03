@@ -9,7 +9,7 @@ from telethon.tl.types import Message
 
 from ...ai.tts import TextToSpeechProcessor
 from ...ai.tts_queue import tts_queue, TTSStatus
-from ...core.constants import DEFAULT_TTS_VOICE
+from ...core.tts_config import DEFAULT_VOICE
 from ...utils.helpers import clean_temp_files, parse_command_with_params
 from ...utils.logging import get_logger
 from .base import BaseHandler
@@ -39,7 +39,7 @@ class TTSHandler(BaseHandler):
         client: TelegramClient,
         command_sender_info: str,
         text_to_speak: str,
-        voice_id: str = DEFAULT_TTS_VOICE,
+        voice_id: str = DEFAULT_VOICE,
         rate: str = "+0%",
         volume: str = "+0%"
     ) -> None:
@@ -166,7 +166,7 @@ class TTSHandler(BaseHandler):
             )
             return
 
-        voice = params.get("voice", DEFAULT_TTS_VOICE)
+        voice = params.get("voice", DEFAULT_VOICE)
         rate = params.get("rate", "+0%")
         volume = params.get("volume", "+0%")
 
@@ -294,7 +294,7 @@ class TTSHandler(BaseHandler):
                 
                 elif request.status == TTSStatus.PROCESSING:
                     # Update status to show processing
-                    voice_name = request.voice or DEFAULT_TTS_VOICE
+                    voice_name = request.voice or DEFAULT_VOICE
                     processing_text = f"⚙️ Processing...\n🔊 Voice: {voice_name}"
                     if last_status_text != processing_text:
                         await self._safe_edit_message(status_message, processing_text, client)
@@ -308,7 +308,7 @@ class TTSHandler(BaseHandler):
                         if current_position != last_position:
                             last_position = current_position
                             if current_position:
-                                voice_name = request.voice or DEFAULT_TTS_VOICE
+                                voice_name = request.voice or DEFAULT_VOICE
                                 pending_text = (
                                     f"🗣️ Converting text to speech...\n"
                                     f"📋 Status: In queue (Position: {current_position})\n"

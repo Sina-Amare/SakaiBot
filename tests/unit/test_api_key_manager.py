@@ -242,7 +242,7 @@ class TestKeyRotationSequence:
     def test_full_rotation_sequence(self):
         """Test complete rotation through all keys."""
         manager = GeminiKeyManager(
-            ["key1", "key2", "key3"], cooldown_seconds=0
+            ["key1", "key2", "key3"], cooldown_seconds=60
         )
 
         # Start with key1

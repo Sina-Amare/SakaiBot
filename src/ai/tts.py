@@ -16,7 +16,7 @@ try:
 except ImportError:
     pass  # dotenv not available, rely on Pydantic Settings or system env
 
-from ..core.constants import DEFAULT_TTS_VOICE
+from ..core.tts_config import DEFAULT_VOICE
 from ..utils.logging import get_logger
 from .providers.tts_gemini import synthesize_speech as gemini_synthesize_speech
 
@@ -44,7 +44,7 @@ class TextToSpeechProcessor:
         Rasalgethi, Iapetus, Achernar, Zephyr
         """
         if not requested_voice or not requested_voice.strip():
-            return "Orus"  # Default masculine voice
+            return DEFAULT_VOICE
         
         voice = requested_voice.strip()
         
@@ -60,7 +60,7 @@ class TextToSpeechProcessor:
             return voice.lower()
         
         # Old voice names - default to Orus (masculine)
-        return "Orus"
+        return DEFAULT_VOICE
 
     async def _synthesize_with_gemini(self, text: str, voice_name: str, output_file: str) -> bool:
         """Synthesize speech using Gemini TTS provider."""
@@ -108,7 +108,7 @@ class TextToSpeechProcessor:
     async def generate_speech_file(
         self,
         text: str,
-        voice: str = DEFAULT_TTS_VOICE,
+        voice: str = DEFAULT_VOICE,
         rate: str = "+0%",
         volume: str = "+0%",
     ) -> Optional[str]:

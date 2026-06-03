@@ -28,7 +28,7 @@ class PromptEnhancer:
         Enhance a user prompt for image generation using the LLM.
 
         Delegates to ``AIProcessor.execute_custom_prompt``, which already
-        performs Gemini -> OpenRouter fallback internally. (Previously this
+        performs configured provider fallback internally. (Previously this
         class switched ``config.llm_provider`` at runtime to "force" a
         provider — that was a no-op, because AIProcessor builds its provider
         once at construction and never re-reads config.)
@@ -72,10 +72,13 @@ class PromptEnhancer:
                 )
                 return (user_prompt, "none")
 
-            # AIProcessor sets provider_fallback_applied when it switched from
-            # the primary provider to OpenRouter mid-call.
-            if getattr(result, "provider_fallback_applied", False):
-                model_used = "openrouter"
+            # AIProcessor records provider_used, including when it switched to
+            # a configured fallback provider mid-call.
+            if getattr(result, "provider_used", ""):
+                provider = result.provider_used.lower()
+                model_used = "gemini" if "gemini" in provider else "openrouter"
+            elif getattr(result, "provider_fallback_applied", False):
+                model_used = "fallback"
             else:
                 provider = self._ai_processor.provider_name.lower()
                 model_used = "gemini" if "gemini" in provider else "openrouter"

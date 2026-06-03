@@ -2,7 +2,6 @@
 
 import asyncio
 from typing import Set, Optional
-from weakref import WeakSet
 
 from .logging import get_logger
 
@@ -14,8 +13,10 @@ class TaskManager:
     
     def __init__(self):
         """Initialize TaskManager."""
-        # Use WeakSet to avoid keeping references to completed tasks
-        self._tasks: WeakSet[asyncio.Task] = WeakSet()
+        # Keep strong references until tasks complete. asyncio only keeps weak
+        # references internally, so fire-and-forget tasks can otherwise be
+        # garbage-collected before they finish.
+        self._tasks: Set[asyncio.Task] = set()
         self._logger = get_logger(self.__class__.__name__)
     
     def create_task(self, coro) -> asyncio.Task:
@@ -56,8 +57,7 @@ class TaskManager:
         except Exception as e:
             self._logger.error(f"Error in task done callback: {e}", exc_info=True)
         finally:
-            # Task will be automatically removed from WeakSet when no longer referenced
-            pass
+            self._tasks.discard(task)
     
     async def cancel_all(self) -> None:
         """

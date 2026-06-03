@@ -35,6 +35,16 @@ THINKING_SUMMARY_MAX_CHARS: int = 600
 
 class GeminiProvider(LLMProvider):
     """Google Gemini provider for LLM operations with key rotation support."""
+
+    _TASK_MODEL_ATTRS = {
+        "prompt": "gemini_model_prompt",
+        "analyze": "gemini_model_analyze",
+        "tellme": "gemini_model_tellme",
+        "translate": "gemini_model_translate",
+        "image_enhance": "gemini_model_image_enhance",
+        "prompt_enhancer": "gemini_model_prompt_enhancer",
+        "voice_summary": "gemini_model_voice_summary",
+    }
     
     def __init__(self, config: Any) -> None:
         """Initialize Gemini provider with key manager."""
@@ -55,9 +65,13 @@ class GeminiProvider(LLMProvider):
             self._api_key = config.gemini_api_key
         
         # Model configuration - pro for complex tasks, flash for simple
-        self._model_pro = getattr(config, 'gemini_model_pro', 'gemini-2.5-pro')
-        self._model_flash = getattr(config, 'gemini_model_flash', 'gemini-2.5-flash')
-        self._model = config.gemini_model  # Legacy default
+        self._model = getattr(config, 'gemini_model', None) or getattr(config, 'gemini_model_flash', None)
+        self._model_pro = getattr(config, 'gemini_model_pro', None) or self._model
+        self._model_flash = getattr(config, 'gemini_model_flash', None) or self._model
+        self._model_pro_fallback = (
+            getattr(config, 'gemini_model_pro_fallback', None)
+            or self._model_flash
+        )
         
         # Pro model fallback state - when Pro is exhausted, fallback to Flash
         self._pro_model_exhausted_until: Optional[datetime] = None
@@ -86,16 +100,26 @@ class GeminiProvider(LLMProvider):
     
     def get_model_for_task(self, task_type: str) -> str:
         """Get appropriate model based on task complexity.
-        
+
         If Pro model is exhausted (429), automatically falls back to Flash.
         """
+        override_attr = self._TASK_MODEL_ATTRS.get(task_type)
+        if override_attr:
+            override = getattr(self._config, override_attr, None)
+            if override and str(override).strip():
+                return str(override).strip()
+        if task_type == "voice_summary":
+            summary_model = getattr(self._config, "gemini_summary_model", None)
+            if summary_model and str(summary_model).strip():
+                return str(summary_model).strip()
+
         if task_type in COMPLEX_TASKS:
             # Check if Pro model is exhausted
             if self._is_pro_model_exhausted():
                 self._logger.info(
-                    f"Pro model exhausted, using Flash for {task_type}"
+                    f"Pro model exhausted, using fallback model for {task_type}"
                 )
-                return self._model_flash
+                return self._model_pro_fallback
             return self._model_pro
         elif task_type in SIMPLE_TASKS:
             return self._model_flash
@@ -132,8 +156,9 @@ class GeminiProvider(LLMProvider):
         
         self._pro_model_exhausted_until = next_midnight.astimezone(pytz.utc)
         self._logger.warning(
-            f"Pro model (gemini-2.5-pro) exhausted until "
-            f"{self._pro_model_exhausted_until.isoformat()} UTC. Using Flash as fallback."
+            f"Pro model ({self._model_pro}) exhausted until "
+            f"{self._pro_model_exhausted_until.isoformat()} UTC. "
+            f"Using {self._model_pro_fallback} as fallback."
         )
     
     def _calculate_max_tokens(self, task_type: str, num_messages: Optional[int] = None) -> int:
@@ -357,7 +382,8 @@ class GeminiProvider(LLMProvider):
                         thinking_summary=thinking_summary,
                         web_search_requested=use_web_search,
                         web_search_applied=False,
-                        model_used=model
+                        model_used=model,
+                        provider_used=self.provider_name
                     )
                     
                 except Exception as e:
@@ -659,7 +685,8 @@ class GeminiProvider(LLMProvider):
                             web_search_requested=use_web_search,
                             web_search_applied=use_web_search and actual_use_web_search and tools is not None,
                             fallback_reason=web_search_fallback_reason,
-                            model_used=model
+                            model_used=model,
+                            provider_used=self.provider_name
                         )
 
                 except Exception as e:
@@ -984,7 +1011,8 @@ class GeminiProvider(LLMProvider):
             return AIResponseMetadata(
                 response_text="هیچ پیام متنی در تاریخچه ارائه شده یافت نشد.",
                 thinking_requested=use_thinking,
-                thinking_applied=False
+                thinking_applied=False,
+                provider_used=self.provider_name
             )
         
         combined_history = "\n".join(formatted_messages)

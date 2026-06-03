@@ -32,6 +32,16 @@ from ..prompts import (
 class OpenRouterProvider(LLMProvider):
     """OpenRouter provider for LLM operations (used as Gemini fallback)."""
 
+    _TASK_MODEL_ATTRS = {
+        "prompt": "openrouter_model_prompt",
+        "analyze": "openrouter_model_analyze",
+        "tellme": "openrouter_model_tellme",
+        "translate": "openrouter_model_translate",
+        "image_enhance": "openrouter_model_image_enhance",
+        "prompt_enhancer": "openrouter_model_prompt_enhancer",
+        "voice_summary": "openrouter_model_voice_summary",
+    }
+
     def __init__(self, config: Any) -> None:
         """Initialize OpenRouter provider with multi-key support."""
         self._config = config
@@ -43,10 +53,10 @@ class OpenRouterProvider(LLMProvider):
         # Model configuration - pro for complex tasks, flash for simple
         self._model = config.openrouter_model
         self._model_pro = getattr(
-            config, 'openrouter_model_pro', 'google/gemini-2.5-pro'
+            config, 'openrouter_model_pro', self._model
         )
         self._model_flash = getattr(
-            config, 'openrouter_model_flash', 'google/gemini-2.5-flash'
+            config, 'openrouter_model_flash', self._model
         )
 
         # Initialize key manager with all OpenRouter keys (sequential rotation)
@@ -89,6 +99,12 @@ class OpenRouterProvider(LLMProvider):
     
     def get_model_for_task(self, task_type: str) -> str:
         """Get appropriate model based on task complexity."""
+        override_attr = self._TASK_MODEL_ATTRS.get(task_type)
+        if override_attr:
+            override = getattr(self._config, override_attr, None)
+            if override and str(override).strip():
+                return str(override).strip()
+
         if task_type in COMPLEX_TASKS:
             return self._model_pro
         elif task_type in SIMPLE_TASKS:
@@ -397,7 +413,8 @@ class OpenRouterProvider(LLMProvider):
             web_search_requested=use_web_search,
             web_search_applied=False,  # OpenRouter doesn't support web search
             fallback_reason="OpenRouter doesn't support web search" if use_web_search else None,
-            model_used=model
+            model_used=model,
+            provider_used=self.provider_name
         )
     
     async def translate_text(
@@ -610,6 +627,7 @@ class OpenRouterProvider(LLMProvider):
                 thinking_applied=False,
                 web_search_requested=use_web_search,
                 web_search_applied=False,
+                provider_used=self.provider_name,
             )
         
         combined_history = "\n".join(formatted_messages)

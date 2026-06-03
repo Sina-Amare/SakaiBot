@@ -12,6 +12,7 @@ from src.core.exceptions import AIProcessorError
 
 class _FailingQuestionProvider:
     is_configured = True
+    provider_name = "failing_primary"
 
     async def answer_question_from_history(self, **kwargs):
         raise AIProcessorError("primary failed")
@@ -19,6 +20,7 @@ class _FailingQuestionProvider:
 
 class _PlainTextQuestionProvider:
     is_configured = True
+    provider_name = "plain_text_fallback"
 
     async def answer_question_from_history(self, **kwargs):
         return "raw fallback answer"

@@ -35,7 +35,8 @@ def format_analysis_metadata(
     model_name: Optional[str] = None,
     use_thinking: bool = False,
     use_web_search: bool = False,
-    provider_fallback: bool = False
+    provider_fallback: bool = False,
+    provider_name: Optional[str] = None
 ) -> str:
     """
     Generate metadata footer for analysis results.
@@ -84,7 +85,8 @@ def format_analysis_metadata(
 
     # Note when the request was served by the fallback provider
     if provider_fallback:
-        metadata_lines.append("**Provider:** OpenRouter fallback")
+        fallback_label = provider_name or "Fallback provider"
+        metadata_lines.append(f"**Provider:** {fallback_label} fallback")
 
     # Add flags if enabled
     flags = []
@@ -443,13 +445,14 @@ class AIHandler(BaseHandler):
             # Generate metadata footer (English, should NOT be RTL-fixed)
             unique_senders = list(set(m['sender'] for m in messages_data))
             # Report the model that ACTUALLY served the request — reflects
-            # Pro->Flash and Gemini->OpenRouter fallbacks. Falls back to the
+            # Pro->fallback-model and provider fallbacks. Falls back to the
             # statically-configured model only if metadata is unavailable.
             model_name = getattr(analysis_result, 'model_used', '') or \
                 self._ai_processor.get_model_for_task("analyze")
             provider_fallback = getattr(
                 analysis_result, 'provider_fallback_applied', False
             )
+            provider_name = getattr(analysis_result, 'provider_used', None)
             metadata = format_analysis_metadata(
                 num_messages=len(messages_data),
                 unique_senders=unique_senders,
@@ -459,7 +462,8 @@ class AIHandler(BaseHandler):
                 language=output_language,
                 model_name=model_name,
                 use_thinking=use_thinking,
-                provider_fallback=provider_fallback
+                provider_fallback=provider_fallback,
+                provider_name=provider_name
             )
             
             # Return pre-RTL-fixed content + clean metadata

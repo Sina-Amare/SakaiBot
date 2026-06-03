@@ -168,7 +168,7 @@ class CircuitBreaker:
 
 ### 3. Provider Fallback
 
-Gemini primary with OpenRouter fallback.
+Primary provider with optional `LLM_FALLBACK_PROVIDER` fallback.
 
 ```python
 class AIProcessor:

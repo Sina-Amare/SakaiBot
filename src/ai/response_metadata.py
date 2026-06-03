@@ -21,6 +21,7 @@ class AIResponseMetadata:
         web_search_applied: Whether web search was actually used
         fallback_reason: Explanation if a feature fell back to normal mode
         model_used: Name of the AI model that generated the response
+        provider_used: Provider that generated the response
     """
     response_text: str
     thinking_requested: bool = False
@@ -30,10 +31,11 @@ class AIResponseMetadata:
     web_search_applied: bool = False
     fallback_reason: Optional[str] = None
     model_used: str = ""
+    provider_used: str = ""
     # Model fallback tracking (when Pro falls back to Flash)
     model_fallback_applied: bool = False
     model_fallback_reason: Optional[str] = None
-    # Provider fallback tracking (when Gemini falls back to OpenRouter)
+    # Provider fallback tracking (when primary falls back to configured provider)
     provider_fallback_applied: bool = False
     provider_fallback_reason: Optional[str] = None
     
@@ -61,7 +63,7 @@ class AIResponseMetadata:
     
     @property
     def has_provider_fallback(self) -> bool:
-        """Check if provider fallback was applied (Gemini -> OpenRouter)."""
+        """Check if provider fallback was applied."""
         return self.provider_fallback_applied
 
 
@@ -140,10 +142,11 @@ def build_response_parts(metadata: AIResponseMetadata) -> tuple:
         reason = metadata.model_fallback_reason or "Pro model quota exceeded"
         footer_parts.append(f"⚡ Using Flash model ({reason})")
     
-    # Provider fallback notification (Gemini -> OpenRouter)
+    # Provider fallback notification
     if metadata.provider_fallback_applied:
         reason = metadata.provider_fallback_reason or "Primary provider unavailable"
-        footer_parts.append(f"🔄 Using OpenRouter ({reason})")
+        fallback_provider = metadata.provider_used or "fallback provider"
+        footer_parts.append(f"🔄 Using {fallback_provider} ({reason})")
         # If thinking was requested but we fell back to OpenRouter, add note
         if metadata.thinking_requested and not metadata.thinking_applied:
             # Don't duplicate - the thinking fallback is already shown above

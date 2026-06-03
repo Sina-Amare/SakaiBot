@@ -18,6 +18,8 @@ from .constants import (
     DEFAULT_OPENROUTER_MODEL_PRO,
     DEFAULT_OPENROUTER_MODEL_FLASH,
     DEFAULT_TTS_VOICE,
+    DEFAULT_GEMINI_TTS_MODEL,
+    DEFAULT_STT_SUMMARY_MODEL,
     DEFAULT_FLUX_WORKER_URL,
     DEFAULT_SDXL_WORKER_URL
 )
@@ -42,6 +44,10 @@ class Config(BaseSettings):
     
     # LLM Provider Configuration
     llm_provider: str = Field(default="openrouter", description="LLM Provider (openrouter or gemini)")
+    llm_fallback_provider: Optional[str] = Field(
+        default=None,
+        description="Fallback LLM provider (openrouter, gemini, none). Defaults to openrouter when Gemini is primary."
+    )
     
     # OpenRouter Configuration - Multiple API Keys with rotation
     openrouter_api_key: Optional[str] = Field(default=None, description="Legacy OpenRouter API Key")
@@ -52,6 +58,13 @@ class Config(BaseSettings):
     openrouter_model: str = Field(default=DEFAULT_OPENROUTER_MODEL, description="OpenRouter Model Name (legacy)")
     openrouter_model_pro: str = Field(default=DEFAULT_OPENROUTER_MODEL_PRO, description="OpenRouter Pro Model (complex tasks)")
     openrouter_model_flash: str = Field(default=DEFAULT_OPENROUTER_MODEL_FLASH, description="OpenRouter Flash Model (simple tasks)")
+    openrouter_model_prompt: Optional[str] = Field(default=None, description="OpenRouter model override for /prompt")
+    openrouter_model_analyze: Optional[str] = Field(default=None, description="OpenRouter model override for /analyze")
+    openrouter_model_tellme: Optional[str] = Field(default=None, description="OpenRouter model override for /tellme")
+    openrouter_model_translate: Optional[str] = Field(default=None, description="OpenRouter model override for /translate")
+    openrouter_model_image_enhance: Optional[str] = Field(default=None, description="OpenRouter model override for image prompt enhancement")
+    openrouter_model_prompt_enhancer: Optional[str] = Field(default=None, description="OpenRouter model override for image prompt enhancement")
+    openrouter_model_voice_summary: Optional[str] = Field(default=None, description="OpenRouter model override for STT AI summaries")
     
     # Google Gemini Configuration - Multiple API Keys with rotation
     gemini_api_key: Optional[str] = Field(default=None, description="Primary Gemini API Key (legacy, also used as key 1)")
@@ -62,6 +75,18 @@ class Config(BaseSettings):
     gemini_model: str = Field(default=DEFAULT_GEMINI_MODEL, description="Gemini Model Name (legacy)")
     gemini_model_pro: str = Field(default=DEFAULT_GEMINI_MODEL_PRO, description="Gemini Pro Model (complex tasks: analyze, tellme, prompt)")
     gemini_model_flash: str = Field(default=DEFAULT_GEMINI_MODEL_FLASH, description="Gemini Flash Model (simple tasks: translate, image)")
+    gemini_model_pro_fallback: Optional[str] = Field(default=None, description="Gemini model used when the Pro tier hits quota")
+    gemini_model_prompt: Optional[str] = Field(default=None, description="Gemini model override for /prompt")
+    gemini_model_analyze: Optional[str] = Field(default=None, description="Gemini model override for /analyze")
+    gemini_model_tellme: Optional[str] = Field(default=None, description="Gemini model override for /tellme")
+    gemini_model_translate: Optional[str] = Field(default=None, description="Gemini model override for /translate")
+    gemini_model_image_enhance: Optional[str] = Field(default=None, description="Gemini model override for image prompt enhancement")
+    gemini_model_prompt_enhancer: Optional[str] = Field(default=None, description="Gemini model override for image prompt enhancement")
+    gemini_model_voice_summary: Optional[str] = Field(default=None, description="Gemini model override for STT AI summaries")
+    gemini_summary_model: str = Field(default=DEFAULT_STT_SUMMARY_MODEL, description="Legacy direct Gemini summary fallback model for STT")
+    gemini_tts_model: str = Field(default=DEFAULT_GEMINI_TTS_MODEL, description="Gemini TTS model")
+    gemini_tts_voice: str = Field(default=DEFAULT_TTS_VOICE, description="Default Gemini TTS voice")
+    stt_ai_summary_enabled: bool = Field(default=False, description="Enable AI summary after /stt transcription")
     
     # UserBot Configuration
     userbot_max_analyze_messages: int = Field(
@@ -116,6 +141,18 @@ class Config(BaseSettings):
         if v not in ["openrouter", "gemini"]:
             raise ValueError("LLM provider must be 'openrouter' or 'gemini'")
         return v
+
+    @field_validator("llm_fallback_provider")
+    @classmethod
+    def validate_llm_fallback_provider(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        normalized = v.strip().lower()
+        if normalized in ("", "none", "disabled", "off", "false"):
+            return "none"
+        if normalized not in ["openrouter", "gemini"]:
+            raise ValueError("LLM fallback provider must be 'openrouter', 'gemini', or 'none'")
+        return normalized
     
     @field_validator(
         "openrouter_api_key", "openrouter_api_key_1", "openrouter_api_key_2",

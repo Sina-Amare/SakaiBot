@@ -57,7 +57,7 @@ This review covers every Python file in `src/` in dependency order (core → uti
 | src/utils/message_sender.py | 270 | utils | send_message_safe; edit_message_safe; pagination; retry; RTL |
 | src/utils/validators.py | 263 | utils | InputValidator: prompt, language, image, number, path |
 | src/ai/image_queue.py | 359 | ai | Per-model FIFO queues; Flux/SDXL processing |
-| src/ai/processor.py | 399 | ai | AI orchestration; fallback Gemini→OpenRouter; execute_* |
+| src/ai/processor.py | 399 | ai | AI orchestration; configurable provider fallback; execute_* |
 | src/ai/api_key_manager.py | 432 | ai | KeyState; APIKeyManager; rotation; Pacific midnight |
 | src/utils/cache.py | 286 | utils | PV/group cache; load/save JSON; get_pvs/get_groups |
 | src/utils/rtl_fixer.py | 251 | utils | RTL safety for Persian/mixed text |
@@ -298,7 +298,7 @@ This review covers every Python file in `src/` in dependency order (core → uti
 **Findings:**
 
 - translate_text_with_phonetics: No fallback (calls _provider directly); if primary is Gemini and keys exhausted, translation fails. Could add fallback for translate as well.
-- analyze_messages: Forwards to _provider.analyze_messages; no _execute_with_fallback. So analyze does not use OpenRouter fallback when Gemini keys are exhausted. Inconsistent with prompt/answer_question.
+- analyze_messages: Routes through _execute_with_fallback, so the configured fallback provider can serve analysis when the primary provider fails.
 - Participant mapping: analyze_messages builds processed_messages with from_id and participant_mapping; handles None mapping.
 
 ### 5.5 providers/gemini.py
@@ -497,7 +497,7 @@ This review covers every Python file in `src/` in dependency order (core → uti
 - **Singleton getters:** get_settings(), get_task_manager(), get_metrics_collector(), get_ai_rate_limiter(), get_telegram_circuit_breaker(), get_ai_circuit_breaker(), get_shared_client(), get_gemini_key_manager(). All lazy-initialized.
 - **Handler composition:** EventHandlers composes AIHandler, ImageHandler, TTSHandler, STTHandler, CategorizationHandler; each handler is focused. BaseHandler for shared FFmpeg/normalize.
 - **Provider abstraction:** LLMProvider interface; Gemini and OpenRouter implement; AIProcessor holds primary + fallback and uses _execute_with_fallback for prompt and answer_question (but not for translate or analyze).
-- **Fallback chain:** Gemini → OpenRouter for execute_prompt and answer_question_from_history; prompt_enhancer tries OpenRouter then Gemini. Translate and analyze do not use OpenRouter fallback when Gemini is primary.
+- **Fallback chain:** AIProcessor uses the configured primary provider and optional LLM_FALLBACK_PROVIDER for prompt, translate, analyze, tellme, and prompt enhancement flows.
 - **Rate limit + key rotation:** Per-user rate limiter in handlers; API key rotation in providers (mark_key_rate_limited, mark_key_exhausted_for_day). No circuit breaker in any call path.
 
 ### 9.2 Dependency and Layering

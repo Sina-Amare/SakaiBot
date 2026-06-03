@@ -14,7 +14,7 @@ from ..utils.security import mask_api_key
 
 
 class AIProcessor:
-    """Handles AI processing operations with Gemini primary and OpenRouter fallback."""
+    """Handles AI processing operations with configurable provider fallback."""
     
     def __init__(self, config: Config) -> None:
         """Initialize AI processor with primary and fallback providers."""
@@ -29,39 +29,40 @@ class AIProcessor:
         self._initialize_provider()
     
     def _initialize_provider(self) -> None:
-        """Initialize primary (Gemini) and fallback (OpenRouter) providers."""
+        """Initialize primary provider and optional configured fallback."""
         provider_type = self._config.llm_provider.lower()
-        
+
         try:
-            if provider_type == "openrouter":
-                # OpenRouter as primary, no fallback
-                self._provider = OpenRouterProvider(self._config)
-                self._primary_provider = self._provider
-                self._logger.info("Initialized OpenRouter as primary provider")
-            elif provider_type == "gemini":
-                # Gemini as primary, OpenRouter as fallback
-                self._primary_provider = GeminiProvider(self._config)
-                self._provider = self._primary_provider
-                self._logger.info("Initialized Google Gemini as primary provider")
-                
-                # Initialize fallback provider (OpenRouter)
+            if provider_type not in ("openrouter", "gemini"):
+                raise AIProcessorError(f"Unknown LLM provider: {provider_type}")
+
+            self._primary_provider = self._create_provider(provider_type)
+            self._provider = self._primary_provider
+            self._logger.info(
+                f"Initialized {self._provider.provider_name} as primary provider"
+            )
+
+            fallback_type = self._resolve_fallback_provider_type(provider_type)
+            if fallback_type:
                 try:
-                    self._fallback_provider = OpenRouterProvider(self._config)
+                    self._fallback_provider = self._create_provider(fallback_type)
                     if self._fallback_provider.is_configured:
                         self._logger.info(
-                            "Initialized OpenRouter as fallback provider"
+                            f"Initialized {self._fallback_provider.provider_name} "
+                            "as fallback provider"
                         )
                     else:
-                        self._fallback_provider = None
                         self._logger.info(
-                            "OpenRouter fallback not configured, will use Gemini only"
+                            f"{self._fallback_provider.provider_name} fallback "
+                            "not configured"
                         )
+                        self._fallback_provider = None
                 except Exception as e:
-                    self._logger.warning(f"Failed to init fallback provider: {e}")
+                    self._logger.warning(
+                        f"Failed to init {fallback_type} fallback provider: {e}"
+                    )
                     self._fallback_provider = None
-            else:
-                raise AIProcessorError(f"Unknown LLM provider: {provider_type}")
-            
+
             if not self._provider.is_configured:
                 api_keys = getattr(self._config, f"{provider_type}_api_keys", [])
                 api_key = api_keys[0] if api_keys else None
@@ -75,6 +76,37 @@ class AIProcessor:
             raise AIProcessorError(
                 f"Could not initialize {provider_type} provider: {e}"
             )
+
+    def _create_provider(self, provider_type: str) -> LLMProvider:
+        """Create an LLM provider from the configured provider key."""
+        if provider_type == "openrouter":
+            return OpenRouterProvider(self._config)
+        if provider_type == "gemini":
+            return GeminiProvider(self._config)
+        raise AIProcessorError(f"Unknown LLM provider: {provider_type}")
+
+    def _resolve_fallback_provider_type(self, primary_provider_type: str) -> Optional[str]:
+        """Resolve fallback provider while preserving old Gemini->OpenRouter behavior."""
+        configured = getattr(self._config, "llm_fallback_provider", None)
+        if configured is None:
+            configured = "openrouter" if primary_provider_type == "gemini" else "none"
+
+        fallback_type = str(configured).strip().lower()
+        if fallback_type in ("", "none", "disabled", "off", "false"):
+            return None
+        if fallback_type == primary_provider_type:
+            self._logger.info(
+                "Fallback provider matches primary provider; fallback disabled"
+            )
+            return None
+        if fallback_type not in ("openrouter", "gemini"):
+            raise AIProcessorError(f"Unknown fallback provider: {fallback_type}")
+        return fallback_type
+
+    @staticmethod
+    def _provider_supports_native_thinking(provider: Optional[LLMProvider]) -> bool:
+        """Return True for providers that can handle the thinking kwarg natively."""
+        return isinstance(provider, GeminiProvider)
     
     async def _execute_with_fallback(
         self,
@@ -114,8 +146,11 @@ class AIProcessor:
         fallback_kwargs = dict(kwargs)
         if supports_thinking:
             primary_kwargs["use_thinking"] = use_thinking
-            # OpenRouter has no native thinking — always disable for fallback.
-            fallback_kwargs["use_thinking"] = False
+            fallback_kwargs["use_thinking"] = (
+                use_thinking
+                if self._provider_supports_native_thinking(self._fallback_provider)
+                else False
+            )
 
         try:
             # Try primary provider
@@ -137,11 +172,11 @@ class AIProcessor:
             # Switch to fallback provider
             self._logger.warning(
                 f"{operation_name}: primary provider failed ({e}); "
-                f"falling back to OpenRouter"
+                f"falling back to {self._fallback_provider.provider_name}"
             )
             self._using_fallback = True
 
-            # Execute with fallback provider (thinking disabled)
+            # Execute with fallback provider.
             try:
                 result = await fallback_func(**fallback_kwargs)
 
@@ -152,11 +187,20 @@ class AIProcessor:
                     result.provider_fallback_reason = (
                         f"Primary provider failed: {e}"
                     )
-                    if supports_thinking and use_thinking:
+                    result.provider_used = (
+                        result.provider_used
+                        or self._fallback_provider.provider_name
+                    )
+                    if (
+                        supports_thinking
+                        and use_thinking
+                        and not fallback_kwargs.get("use_thinking", False)
+                    ):
                         result.thinking_requested = True
                         result.thinking_applied = False
                         result.fallback_reason = (
-                            "OpenRouter fallback (no native thinking)"
+                            f"{self._fallback_provider.provider_name} fallback "
+                            "(no native thinking)"
                         )
 
                 return result
@@ -174,9 +218,9 @@ class AIProcessor:
         """Check if the AI processor can serve requests.
 
         True when the primary provider is usable OR when a configured
-        fallback provider exists. This matters because GeminiProvider
+        fallback provider exists. This matters because the primary provider
         reports is_configured=False while all its keys are in cooldown —
-        but if the OpenRouter fallback is available the processor can still
+        but if a fallback is available the processor can still
         serve requests, so callers must not abort on the primary alone.
         """
         if self._provider is not None and self._provider.is_configured:
@@ -254,7 +298,7 @@ class AIProcessor:
         use_thinking: bool = False,
         use_web_search: bool = False
     ) -> AIResponseMetadata:
-        """Execute a custom prompt with automatic Gemini→OpenRouter fallback.
+        """Execute a custom prompt with configured provider fallback.
         
         Returns AIResponseMetadata with response text and execution status.
         """
@@ -316,7 +360,7 @@ class AIProcessor:
                 source_language=source_language
             )
 
-        # Route through Gemini -> OpenRouter fallback (translate has no thinking).
+        # Route through configured provider fallback (translate has no thinking).
         return await self._execute_with_fallback(
             operation_name="translate_text",
             primary_func=self._primary_provider.translate_text,
@@ -377,7 +421,7 @@ class AIProcessor:
                 use_thinking=use_thinking
             )
 
-        # Route through Gemini -> OpenRouter fallback.
+        # Route through configured provider fallback.
         return await self._execute_with_fallback(
             operation_name="analyze_messages",
             primary_func=self._primary_provider.analyze_messages,
@@ -393,6 +437,9 @@ class AIProcessor:
         if self._provider:
             await self._provider.close()
             self._provider = None
+        if self._fallback_provider:
+            await self._fallback_provider.close()
+            self._fallback_provider = None
     
     # Backward compatibility methods
     async def execute_tellme_mode(self, prompt: str) -> str:

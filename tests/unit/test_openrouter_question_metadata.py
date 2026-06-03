@@ -17,6 +17,13 @@ def openrouter_config():
         openrouter_model="default-model",
         openrouter_model_pro="pro-model",
         openrouter_model_flash="flash-model",
+        openrouter_model_prompt=None,
+        openrouter_model_analyze=None,
+        openrouter_model_tellme=None,
+        openrouter_model_translate=None,
+        openrouter_model_image_enhance=None,
+        openrouter_model_prompt_enhancer=None,
+        openrouter_model_voice_summary=None,
     )
 
 
@@ -70,3 +77,12 @@ async def test_answer_question_from_history_empty_text_returns_metadata(
     assert "هیچ پیام متنی" in result.response_text
     assert result.thinking_requested is True
     assert result.web_search_requested is True
+
+
+def test_openrouter_per_task_model_override(openrouter_config):
+    """Per-command OpenRouter env fields override the generic pro/flash tiers."""
+    openrouter_config.openrouter_model_translate = "translation-model"
+    provider = OpenRouterProvider(openrouter_config)
+
+    assert provider.get_model_for_task("translate") == "translation-model"
+    assert provider.get_model_for_task("tellme") == "pro-model"

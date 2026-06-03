@@ -40,3 +40,24 @@ def test_openrouter_legacy_key_still_enables_ai():
 
     assert config.openrouter_api_keys == ["sk-or-v1-legacy123456"]
     assert config.is_ai_enabled is True
+
+
+def test_model_and_fallback_env_overrides_are_loaded():
+    """Model/fallback knobs should be available from config."""
+    config = _base_config(
+        llm_provider="gemini",
+        llm_fallback_provider="none",
+        gemini_api_key_1="AIza-testkey123456",
+        gemini_model_prompt="gemini-custom-prompt",
+        openrouter_model_translate="openrouter-translation",
+        gemini_tts_model="gemini-custom-tts",
+        gemini_tts_voice="Puck",
+        stt_ai_summary_enabled=True,
+    )
+
+    assert config.llm_fallback_provider == "none"
+    assert config.gemini_model_prompt == "gemini-custom-prompt"
+    assert config.openrouter_model_translate == "openrouter-translation"
+    assert config.gemini_tts_model == "gemini-custom-tts"
+    assert config.gemini_tts_voice == "Puck"
+    assert config.stt_ai_summary_enabled is True

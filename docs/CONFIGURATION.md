@@ -36,31 +36,51 @@ TELEGRAM_SESSION_NAME=sakaibot_session
 
 ### Primary Provider
 
-| Variable       | Required | Default  | Description                                |
-| -------------- | -------- | -------- | ------------------------------------------ |
-| `LLM_PROVIDER` | ✅       | `gemini` | Primary provider: `gemini` or `openrouter` |
+| Variable                | Required | Default            | Description                                      |
+| ----------------------- | -------- | ------------------ | ------------------------------------------------ |
+| `LLM_PROVIDER`          | ✅       | `gemini`           | Primary provider: `gemini` or `openrouter`       |
+| `LLM_FALLBACK_PROVIDER` | ❌       | `openrouter`*      | Fallback provider: `openrouter`, `gemini`, `none` |
+
+\*Default fallback is `openrouter` only when `LLM_PROVIDER=gemini`; OpenRouter primary defaults to no fallback.
 
 ### Gemini Configuration
 
 Get API keys from [Google AI Studio](https://aistudio.google.com/apikey).
 
-| Variable             | Required | Default            | Description              |
-| -------------------- | -------- | ------------------ | ------------------------ |
-| `GEMINI_API_KEY_1`   | ✅\*     | -                  | Primary Gemini API key   |
-| `GEMINI_API_KEY_2`   | ❌       | -                  | Secondary key (rotation) |
-| `GEMINI_API_KEY_3`   | ❌       | -                  | Tertiary key (rotation)  |
-| `GEMINI_API_KEY_4`   | ❌       | -                  | Fourth key (rotation)    |
-| `GEMINI_API_KEY_TTS` | ❌       | -                  | Dedicated TTS key        |
-| `GEMINI_MODEL_PRO`   | ❌       | `gemini-2.5-pro`   | Model for complex tasks  |
-| `GEMINI_MODEL_FLASH` | ❌       | `gemini-2.5-flash` | Model for simple tasks   |
+| Variable                    | Required | Default                         | Description                  |
+| --------------------------- | -------- | ------------------------------- | ---------------------------- |
+| `GEMINI_API_KEY_1`          | ✅\*     | -                               | Primary Gemini API key       |
+| `GEMINI_API_KEY_2`          | ❌       | -                               | Secondary key (rotation)     |
+| `GEMINI_API_KEY_3`          | ❌       | -                               | Tertiary key (rotation)      |
+| `GEMINI_API_KEY_4`          | ❌       | -                               | Fourth key (rotation)        |
+| `GEMINI_API_KEY_TTS`        | ❌       | -                               | Dedicated TTS key            |
+| `GEMINI_MODEL_PRO`          | ❌       | `gemini-2.5-flash`              | Complex-task tier model      |
+| `GEMINI_MODEL_FLASH`        | ❌       | `gemini-3.1-flash-lite`         | Simple-task tier model       |
+| `GEMINI_MODEL_PRO_FALLBACK` | ❌       | `GEMINI_MODEL_FLASH`            | Model used when Pro quota is exhausted |
+| `GEMINI_TTS_MODEL`          | ❌       | `gemini-3.1-flash-tts-preview`  | TTS model                    |
+| `GEMINI_TTS_VOICE`          | ❌       | `Orus`                          | Default TTS voice            |
+| `GEMINI_SUMMARY_MODEL`      | ❌       | `gemini-3.1-flash-lite`         | Direct STT summary fallback  |
 
 \*Required if `LLM_PROVIDER=gemini`
 
 ```env
 GEMINI_API_KEY_1=your_primary_key
 GEMINI_API_KEY_2=your_backup_key
-GEMINI_MODEL_PRO=gemini-2.5-pro
-GEMINI_MODEL_FLASH=gemini-2.5-flash
+GEMINI_MODEL_PRO=gemini-2.5-flash
+GEMINI_MODEL_FLASH=gemini-3.1-flash-lite
+GEMINI_TTS_MODEL=gemini-3.1-flash-tts-preview
+GEMINI_TTS_VOICE=Orus
+```
+
+Optional per-command Gemini overrides:
+
+```env
+GEMINI_MODEL_PROMPT=gemini-2.5-flash
+GEMINI_MODEL_ANALYZE=gemini-2.5-flash
+GEMINI_MODEL_TELLME=gemini-2.5-flash
+GEMINI_MODEL_TRANSLATE=gemini-3.1-flash-lite
+GEMINI_MODEL_PROMPT_ENHANCER=gemini-3.1-flash-lite
+GEMINI_MODEL_VOICE_SUMMARY=gemini-3.1-flash-lite
 ```
 
 ### OpenRouter Configuration
@@ -73,8 +93,9 @@ Get API keys from [OpenRouter](https://openrouter.ai/).
 | `OPENROUTER_API_KEY_2`   | ❌       | -                         | Secondary key (rotation)   |
 | `OPENROUTER_API_KEY_3`   | ❌       | -                         | Tertiary key (rotation)    |
 | `OPENROUTER_API_KEY_4`   | ❌       | -                         | Fourth key (rotation)      |
-| `OPENROUTER_MODEL_PRO`   | ❌       | `google/gemini-2.5-pro`   | Model for complex tasks    |
-| `OPENROUTER_MODEL_FLASH` | ❌       | `google/gemini-2.5-flash` | Model for simple tasks     |
+| `OPENROUTER_MODEL_PRO`   | ❌       | `google/gemini-2.5-pro`   | Complex-task tier model    |
+| `OPENROUTER_MODEL_FLASH` | ❌       | `google/gemini-2.5-flash` | Simple-task tier model     |
+| `OPENROUTER_MODEL`       | ❌       | flash tier                | Legacy/default model       |
 
 \*\*Required for prompt enhancement and Gemini fallback
 
@@ -84,10 +105,21 @@ OPENROUTER_MODEL_PRO=google/gemini-2.5-pro
 OPENROUTER_MODEL_FLASH=google/gemini-2.5-flash
 ```
 
+Optional per-command OpenRouter overrides:
+
+```env
+OPENROUTER_MODEL_PROMPT=google/gemini-2.5-pro
+OPENROUTER_MODEL_ANALYZE=google/gemini-2.5-pro
+OPENROUTER_MODEL_TELLME=google/gemini-2.5-pro
+OPENROUTER_MODEL_TRANSLATE=google/gemini-2.5-flash
+OPENROUTER_MODEL_PROMPT_ENHANCER=google/gemini-2.5-flash
+OPENROUTER_MODEL_VOICE_SUMMARY=google/gemini-2.5-flash
+```
+
 > **Note:** OpenRouter is used for:
 >
-> 1. Image prompt enhancement (primary)
-> 2. Fallback when all Gemini keys are exhausted
+> 1. Image prompt enhancement when selected as primary or fallback
+> 2. Fallback when Gemini is primary and `LLM_FALLBACK_PROVIDER=openrouter`
 
 ---
 

@@ -92,9 +92,17 @@ def show_status():
         ai_status = "[green]Active[/green]" if config.is_ai_enabled else "[red]Not configured[/red]"
         ai_details = f"Provider: {config.llm_provider.title()}"
         if config.llm_provider == "gemini":
-            ai_details += f" | Model: {config.gemini_model}"
+            ai_details += (
+                f" | Pro: {config.gemini_model_pro}"
+                f" | Flash: {config.gemini_model_flash}"
+            )
         elif config.llm_provider == "openrouter":
-            ai_details += f" | Model: {config.openrouter_model}"
+            ai_details += (
+                f" | Pro: {config.openrouter_model_pro}"
+                f" | Flash: {config.openrouter_model_flash}"
+            )
+        if config.llm_fallback_provider:
+            ai_details += f" | Fallback: {config.llm_fallback_provider}"
         
         table.add_row("AI Provider", ai_status, ai_details)
         

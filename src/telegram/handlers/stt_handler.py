@@ -15,7 +15,8 @@ from ...ai.processor import AIProcessor
 from ...ai.prompts import (
     VOICE_MESSAGE_SUMMARY_PROMPT
 )
-from ...core.constants import MAX_MESSAGE_LENGTH
+from ...core.config import get_settings
+from ...core.constants import MAX_MESSAGE_LENGTH, DEFAULT_STT_SUMMARY_MODEL
 from ...core.exceptions import AIProcessorError
 from ...utils.helpers import clean_temp_files, split_message
 from ...utils.logging import get_logger
@@ -23,10 +24,19 @@ from ...utils.message_sender import MessageSender
 from .base import BaseHandler
 
 
-# AI summarization is currently disabled (external API unavailable).
-# Flip this to True to re-enable the "🔍 AI Summary & Analysis" message
-# after each /stt call. No other code changes are required.
-STT_AI_SUMMARY_ENABLED = False
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _stt_ai_summary_enabled() -> bool:
+    """Read STT summary behavior from config, with env fallback."""
+    try:
+        return bool(get_settings().stt_ai_summary_enabled)
+    except Exception:
+        return _env_bool("STT_AI_SUMMARY_ENABLED", False)
 
 
 def _md_safe(text: str) -> str:
@@ -302,9 +312,9 @@ class STTHandler(BaseHandler):
                             reply_to=reply_to_id, parse_mode='md',
                         )
 
-            # AI summary (currently disabled — see STT_AI_SUMMARY_ENABLED at top of module).
+            # AI summary is controlled by STT_AI_SUMMARY_ENABLED in .env.
             # Skipped in partial/retry mode since the transcript is only a subset.
-            if STT_AI_SUMMARY_ENABLED and full_transcript and not is_partial:
+            if _stt_ai_summary_enabled() and full_transcript and not is_partial:
                 summary_text = await self._build_summary(full_transcript)
                 if summary_text:
                     await asyncio.sleep(0.3)
@@ -541,12 +551,34 @@ class STTHandler(BaseHandler):
 
     async def _generate_persian_summary_with_gemini(self, transcribed_text: str) -> Optional[str]:
         """Fallback summarization using Google Gemini if available."""
-        api_key = os.getenv("GEMINI_API_KEY")
+        try:
+            config = get_settings()
+            api_keys = getattr(config, "gemini_api_keys", [])
+            api_key = api_keys[0] if api_keys else None
+            model_name = (
+                getattr(config, "gemini_model_voice_summary", None)
+                or getattr(config, "gemini_summary_model", None)
+                or getattr(config, "gemini_model_flash", None)
+                or DEFAULT_STT_SUMMARY_MODEL
+            )
+        except Exception:
+            api_key = (
+                os.getenv("GEMINI_API_KEY_1")
+                or os.getenv("GEMINI_API_KEY_2")
+                or os.getenv("GEMINI_API_KEY_3")
+                or os.getenv("GEMINI_API_KEY_4")
+                or os.getenv("GEMINI_API_KEY")
+            )
+            model_name = (
+                os.getenv("GEMINI_MODEL_VOICE_SUMMARY")
+                or os.getenv("GEMINI_SUMMARY_MODEL")
+                or os.getenv("GEMINI_MODEL_FLASH")
+                or DEFAULT_STT_SUMMARY_MODEL
+            )
+
         if not api_key:
             return None
-        
-        # gemini-1.5 is retired; default to the current free-tier Flash model.
-        model_name = os.getenv("GEMINI_SUMMARY_MODEL", "gemini-2.5-flash")
+
         # Use centralized prompt from prompts.py
         prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
             transcribed_text=transcribed_text

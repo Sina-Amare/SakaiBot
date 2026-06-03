@@ -11,7 +11,7 @@ from telethon import TelegramClient, events, functions
 from telethon.tl.types import Message
 from pydub import AudioSegment
 
-from ..core.constants import MAX_MESSAGE_LENGTH, CONFIRMATION_KEYWORD, DEFAULT_TTS_VOICE
+from ..core.constants import MAX_MESSAGE_LENGTH, CONFIRMATION_KEYWORD
 from ..core.exceptions import TelegramError, AIProcessorError
 from ..ai.processor import AIProcessor
 from ..ai.stt import SpeechToTextProcessor

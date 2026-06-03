@@ -38,14 +38,21 @@ def show(show_all):
         
         # LLM settings
         table.add_row("LLM", "Provider", config.llm_provider.title())
-        
+        table.add_row("", "Fallback Provider", config.llm_fallback_provider or "default")
+
         if config.llm_provider == "gemini":
-            table.add_row("", "Gemini Model", config.gemini_model)
+            table.add_row("", "Gemini Pro Model", config.gemini_model_pro)
+            table.add_row("", "Gemini Flash Model", config.gemini_model_flash)
+            table.add_row("", "Gemini Legacy Model", config.gemini_model)
+            if config.gemini_model_pro_fallback:
+                table.add_row("", "Gemini Pro Fallback", config.gemini_model_pro_fallback)
             if config.gemini_api_keys:
                 key_display = config.gemini_api_keys[0][:10] + "..." if show_all else "***"
                 table.add_row("", "Gemini API Keys", f"{len(config.gemini_api_keys)} configured ({key_display})")
         elif config.llm_provider == "openrouter":
-            table.add_row("", "OpenRouter Model", config.openrouter_model)
+            table.add_row("", "OpenRouter Pro Model", config.openrouter_model_pro)
+            table.add_row("", "OpenRouter Flash Model", config.openrouter_model_flash)
+            table.add_row("", "OpenRouter Legacy Model", config.openrouter_model)
             if config.openrouter_api_keys:
                 key_display = config.openrouter_api_keys[0][:10] + "..." if show_all else "***"
                 table.add_row("", "OpenRouter API Keys", f"{len(config.openrouter_api_keys)} configured ({key_display})")
@@ -204,15 +211,20 @@ TELEGRAM_SESSION_NAME=sakaibot_session
 
 # LLM Provider Configuration
 LLM_PROVIDER=gemini  # or openrouter
+LLM_FALLBACK_PROVIDER=openrouter  # openrouter, gemini, or none
 
 # Google Gemini Configuration
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_API_KEY_TTS=your_gemini_tts_api_key_here  # Optional: TTS-specific key (priority over GEMINI_API_KEY)
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL_PRO=gemini-2.5-flash
+GEMINI_MODEL_FLASH=gemini-3.1-flash-lite
+GEMINI_TTS_MODEL=gemini-3.1-flash-tts-preview
+GEMINI_TTS_VOICE=Orus
 
 # OpenRouter Configuration (Alternative)
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=google/gemini-2.5-flash
+OPENROUTER_MODEL_PRO=google/gemini-2.5-pro
+OPENROUTER_MODEL_FLASH=google/gemini-2.5-flash
 
 # UserBot Configuration
 USERBOT_MAX_ANALYZE_MESSAGES=10000

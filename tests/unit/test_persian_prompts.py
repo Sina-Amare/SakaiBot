@@ -197,8 +197,8 @@ class TestTranslationPrompts:
     def test_translation_prompts_fix_persian_typos_before_translation(self) -> None:
         for prompt in (TRANSLATION_AUTO_DETECT_PROMPT, TRANSLATION_SOURCE_TARGET_PROMPT):
             assert "silently fix obvious Persian typos" in prompt
-            assert "Normalize intent before translating" in prompt
-            assert "شومارو خسته کردم" in prompt
-            assert "شمارو خسته کردم" in prompt
-            assert "I made you tired" in prompt
-            assert "phone/number" in prompt
+            assert "Infer the most likely intended wording" in prompt
+            assert "one-letter insertions/deletions" in prompt
+            assert "Translate the corrected intended meaning" in prompt
+            assert "Do not invent extra facts" in prompt
+            assert "شومارو خسته کردم" not in prompt

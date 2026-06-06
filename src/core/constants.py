@@ -26,12 +26,18 @@ DEFAULT_MAX_ANALYZE_MESSAGES: Final[int] = 10000
 MAX_OUTPUT_TOKENS: Final[int] = 100000
 
 # Model Configuration - Pro tier (for complex tasks: analyze, tellme, prompt)
-DEFAULT_GEMINI_MODEL_PRO: Final[str] = "gemini-2.5-flash"
+DEFAULT_GEMINI_MODEL_PRO: Final[str] = "gemini-3.5-flash"
 DEFAULT_OPENROUTER_MODEL_PRO: Final[str] = "google/gemini-2.5-pro"
 
 # Model Configuration - Flash tier (for simple tasks: translate, image enhancement)
 DEFAULT_GEMINI_MODEL_FLASH: Final[str] = "gemini-3.1-flash-lite"
 DEFAULT_OPENROUTER_MODEL_FLASH: Final[str] = "google/gemini-2.5-flash"
+
+# Web-search grounding model. Gemini 3.x has not yet brought Google Search
+# grounding into the free tier the way Gemini 2.5 Flash has, so any request
+# with ``use_web_search=True`` is routed to this model instead of the
+# task-tier model.
+DEFAULT_GEMINI_MODEL_WEB_SEARCH: Final[str] = "gemini-2.5-flash"
 
 # Legacy defaults (for backward compatibility)
 DEFAULT_OPENROUTER_MODEL: Final[str] = DEFAULT_OPENROUTER_MODEL_FLASH

@@ -482,7 +482,21 @@ class GeminiProvider(LLMProvider):
         
         # Select model based on task type
         model = self.get_model_for_task(task_type)
-        
+
+        # Web-search grounding is currently only available on Gemini 2.5
+        # Flash via the free tier; Gemini 3.x doesn't expose the Search
+        # tool in the same way, so override the task-tier choice for any
+        # ``=web`` request. ``get_model_for_task`` stays pure on its
+        # ``task_type`` argument; the routing lives in the calling layer.
+        if use_web_search:
+            web_model = getattr(self._config, "gemini_model_web_search", None)
+            if web_model and web_model != model:
+                self._logger.info(
+                    f"use_web_search=True; overriding model "
+                    f"'{model}' -> '{web_model}'"
+                )
+                model = web_model
+
         # Prompt is already self-contained (system messages merged into prompts)
         full_prompt = user_prompt
         

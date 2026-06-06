@@ -15,6 +15,7 @@ from .constants import (
     DEFAULT_GEMINI_MODEL,
     DEFAULT_GEMINI_MODEL_PRO,
     DEFAULT_GEMINI_MODEL_FLASH,
+    DEFAULT_GEMINI_MODEL_WEB_SEARCH,
     DEFAULT_OPENROUTER_MODEL_PRO,
     DEFAULT_OPENROUTER_MODEL_FLASH,
     DEFAULT_TTS_VOICE,
@@ -75,6 +76,7 @@ class Config(BaseSettings):
     gemini_model: str = Field(default=DEFAULT_GEMINI_MODEL, description="Gemini Model Name (legacy)")
     gemini_model_pro: str = Field(default=DEFAULT_GEMINI_MODEL_PRO, description="Gemini Pro Model (complex tasks: analyze, tellme, prompt)")
     gemini_model_flash: str = Field(default=DEFAULT_GEMINI_MODEL_FLASH, description="Gemini Flash Model (simple tasks: translate, image)")
+    gemini_model_web_search: str = Field(default=DEFAULT_GEMINI_MODEL_WEB_SEARCH, description="Gemini model used when use_web_search=True (pinned because Gemini 3.x lacks free-tier Search grounding)")
     gemini_model_pro_fallback: Optional[str] = Field(default=None, description="Gemini model used when the Pro tier hits quota")
     gemini_model_prompt: Optional[str] = Field(default=None, description="Gemini model override for /prompt")
     gemini_model_analyze: Optional[str] = Field(default=None, description="Gemini model override for /analyze")

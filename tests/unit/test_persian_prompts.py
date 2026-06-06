@@ -198,5 +198,7 @@ class TestTranslationPrompts:
         for prompt in (TRANSLATION_AUTO_DETECT_PROMPT, TRANSLATION_SOURCE_TARGET_PROMPT):
             assert "silently fix obvious Persian typos" in prompt
             assert "Normalize intent before translating" in prompt
-            assert "شومارم خسته کردم" in prompt
+            assert "شومارو خسته کردم" in prompt
+            assert "شمارو خسته کردم" in prompt
+            assert "I made you tired" in prompt
             assert "phone/number" in prompt

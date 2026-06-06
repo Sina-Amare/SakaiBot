@@ -412,7 +412,7 @@ class ImageHandler(BaseHandler):
         else:
             enhancement_note = "⚡ Original prompt (no enhancement)"
         
-        header = f"🎨 Image generated with {model.upper()}\n{enhancement_note}\n\n**Enhanced prompt:**\n"
+        header = f"🎨 Image generated with {model.upper()}\n{enhancement_note}\n\n<b>Enhanced prompt:</b>\n"
         max_caption_length = 1024
         max_prompt_length = max_caption_length - len(header)
         
@@ -430,7 +430,7 @@ class ImageHandler(BaseHandler):
             image_path,
             caption=caption,
             reply_to=reply_to_id,
-            parse_mode='md'
+            parse_mode='html'
         )
         
         # Delete status message

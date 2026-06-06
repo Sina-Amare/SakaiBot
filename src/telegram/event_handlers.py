@@ -272,10 +272,10 @@ class EventHandlers:
         if not message.is_reply:
             await client.send_message(
                 chat_id,
-                "❌ Please use `/stt` in reply to a voice/audio message "
-                "(or to a `/stt` summary to retry).",
+                "❌ Please use <code>/stt</code> in reply to a voice/audio message "
+                "(or to a <code>/stt</code> summary to retry).",
                 reply_to=message.id,
-                parse_mode='md'
+                parse_mode='html'
             )
             return
 
@@ -284,7 +284,7 @@ class EventHandlers:
             await client.send_message(
                 chat_id,
                 "❌ Could not load the replied message.",
-                reply_to=message.id, parse_mode='md',
+                reply_to=message.id, parse_mode='html',
             )
             return
 
@@ -295,9 +295,9 @@ class EventHandlers:
             if chunk_filter is None:
                 await client.send_message(
                     chat_id,
-                    "❌ Invalid chunk spec. Examples: `/stt 12`, "
-                    "`/stt 12,15`, `/stt 12-15`",
-                    reply_to=message.id, parse_mode='md',
+                    "❌ Invalid chunk spec. Examples: <code>/stt 12</code>, "
+                    "<code>/stt 12,15</code>, <code>/stt 12-15</code>",
+                    reply_to=message.id, parse_mode='html',
                 )
                 return
 
@@ -321,8 +321,8 @@ class EventHandlers:
         if not self._is_audio_message(replied_message):
             await client.send_message(
                 chat_id,
-                "❌ The replied message is not a voice, audio, or `/stt` summary.",
-                reply_to=message.id, parse_mode='md',
+                "❌ The replied message is not a voice, audio, or <code>/stt</code> summary.",
+                reply_to=message.id, parse_mode='html',
             )
             return
 

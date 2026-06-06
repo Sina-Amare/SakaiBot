@@ -180,7 +180,15 @@ def get_telegram_formatting_guidelines(language: str = "persian") -> str:
         Formatting guidelines string to append to prompts
     """
     base_guidelines = (
-        f"\n\n**TELEGRAM FORMATTING RULES (MANDATORY FOR ALL LANGUAGES)**:\n"
+        f"\n\n<b>TELEGRAM FORMATTING RULES (MANDATORY FOR ALL LANGUAGES)</b>\n"
+        f"\nOUTPUT FORMAT (CRITICAL):\n"
+        f"- Output Telegram HTML, NOT Markdown.\n"
+        f"- The ONLY allowed tags are: "
+        f"<b>, <i>, <u>, <s>, <code>, <pre>, <blockquote>.\n"
+        f"- Do NOT use Markdown: no **bold**, no *italic*, no `code`, "
+        f"no ``` fences, no # headings, no [text](url) links.\n"
+        f"- If you need to write literal &lt; &gt; or &amp; characters, "
+        f"escape them as HTML entities.\n"
         f"\nSEPARATORS (CRITICAL - USE EXACTLY THIS):\n"
         f"- Section separator: {TELEGRAM_SEPARATOR}\n"
         f"- This is Unicode U+2501 (heavy box line)\n"
@@ -188,11 +196,9 @@ def get_telegram_formatting_guidelines(language: str = "persian") -> str:
         f"- Place separator on its own line with blank line before and after\n"
         f"\nSTRUCTURE:\n"
         f"- Start each section with ONE emoji from: {TELEGRAM_ALLOWED_EMOJIS}\n"
+        f"- Section headers in <b>...</b> tags.\n"
         f"- Keep paragraphs short (2-3 sentences max)\n"
         f"- Add blank line between sections\n"
-        f"\nTEXT STYLING (Telegram Markdown):\n"
-        f"- Bold headers: **Section Title** (double asterisks)\n"
-        f"- Inline code for names/usernames: `username` (backticks)\n"
         f"- Use {TELEGRAM_BULLET} for bullet lists (not * or -)\n"
         f"\nEMOJI RULES:\n"
         f"- ALLOWED: {TELEGRAM_ALLOWED_EMOJIS}\n"
@@ -205,15 +211,17 @@ def get_telegram_formatting_guidelines(language: str = "persian") -> str:
         base_guidelines += (
             f"\nPERSIAN-SPECIFIC RULES:\n"
             f"- Use Persian numerals for sections: ۱. ۲. ۳. ۴. (not 1. 2. 3. 4.)\n"
-            f"- Section header format: **۱. 📝 عنوان**\n"
+            f"- Section header format: <b>۱. 📝 عنوان</b>\n"
             f"- Use {TELEGRAM_BULLET} (bullet) for lists, not * (asterisk)\n"
-            f"- Keep English names/terms in English: `sina`, `ChatGPT`\n"
+            f"- Keep English names/terms in English: "
+            f"<code>sina</code>, <code>ChatGPT</code>\n"
+            f"- Persian half-spaces (نیم‌فاصله): می‌خوای, می‌شه, نکته‌ها\n"
         )
     else:
         base_guidelines += (
             f"\nENGLISH-SPECIFIC RULES:\n"
             f"- Use English numerals: 1. 2. 3. 4.\n"
-            f"- Section header format: **1. 📝 Title**\n"
+            f"- Section header format: <b>1. 📝 Title</b>\n"
             f"- Write ENTIRELY in English - no Persian/Farsi text\n"
         )
     

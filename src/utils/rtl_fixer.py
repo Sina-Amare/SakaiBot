@@ -50,6 +50,14 @@ LTR_SEGMENT_PATTERN: Final[re.Pattern] = re.compile(
 # Matches: (1/2), (2/2), etc.
 PAGINATION_PATTERN: Final[re.Pattern] = re.compile(r'\(\d+/\d+\)')
 
+# HTML tag pattern - matches the FULL tag including angle brackets.
+# Critical: with parse_mode='html', any LRM character injected inside a
+# tag (e.g. `<code‎>`) breaks the parser. Protect every tag and entity
+# before LTR-segment matching runs.
+HTML_TAG_OR_ENTITY_PATTERN: Final[re.Pattern] = re.compile(
+    r'<[^>]+>|&[a-zA-Z]+;|&#\d+;|&#x[0-9a-fA-F]+;'
+)
+
 
 def has_persian_text(text: str) -> bool:
     """
@@ -120,7 +128,17 @@ def fix_rtl_display(text: str) -> str:
     # Quick check: skip if no Persian text
     if not has_persian_text(text):
         return text
-    
+
+    # Step 0: Protect HTML tags and entities. With parse_mode='html', the
+    # LTR-segment regex would otherwise match tag names (e.g. `code` inside
+    # `<code>`) and insert an LRM character there, breaking the parser.
+    html_placeholders = []
+    def protect_html(match):
+        placeholder = f"\u200B__HTML_{len(html_placeholders)}__\u200B"
+        html_placeholders.append(match.group(0))
+        return placeholder
+    text = HTML_TAG_OR_ENTITY_PATTERN.sub(protect_html, text)
+
     # Step 1: Protect pagination patterns by temporarily replacing them
     # This prevents any accidental LRM insertion in pagination like (1/2)
     pagination_placeholders = []
@@ -129,17 +147,17 @@ def fix_rtl_display(text: str) -> str:
         placeholder = f"\u200B__PGNTN_{len(pagination_placeholders)}__\u200B"
         pagination_placeholders.append(match.group(0))
         return placeholder
-    
+
     text = PAGINATION_PATTERN.sub(protect_pagination, text)
-    
+
     # Step 2: Insert LRM after URLs
     # URLs are processed first to avoid breaking them with word-level processing
     text = URL_PATTERN.sub(lambda m: m.group(0) + LRM, text)
-    
+
     # Step 3: Insert LRM after other LTR segments (English words, emails, code)
     # Numbers are intentionally excluded to prevent visual artifacts
     text = LTR_SEGMENT_PATTERN.sub(lambda m: m.group(0) + LRM, text)
-    
+
     # Step 4: Remove LRM before certain characters where it causes visible artifacts
     # This handles usernames like "sina:" or "amirhossein:" in bullet points
     # Pattern: LRM followed by : or ) or ( or end of bullet point context
@@ -147,11 +165,15 @@ def fix_rtl_display(text: str) -> str:
     text = text.replace(LRM + ')', ')')
     text = text.replace(LRM + '(', '(')
     text = text.replace(LRM + ' (', ' (')
-    
+
     # Step 5: Restore pagination patterns
     for i, original in enumerate(pagination_placeholders):
         text = text.replace(f"\u200B__PGNTN_{i}__\u200B", original)
-    
+
+    # Step 6: Restore HTML tags and entities.
+    for i, original in enumerate(html_placeholders):
+        text = text.replace(f"\u200B__HTML_{i}__\u200B", original)
+
     return text
 
 

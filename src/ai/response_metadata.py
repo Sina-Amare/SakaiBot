@@ -83,23 +83,32 @@ def build_execution_footer(metadata: AIResponseMetadata) -> str:
 def _format_thinking_block(summary: str) -> str:
     """Render the model's raw reasoning as a clean quote-style block.
 
-    Telethon's markdown parser has no blockquote element, so a real
-    Telegram blockquote is not available in 'md' mode. Instead we draw a
-    light vertical bar (▎) at the start of each line for a quote look —
-    much cleaner than the old monospace code box, which mangled RTL
-    Persian text. Markdown-special characters in the raw reasoning are
-    stripped so they cannot break message parsing.
+    Now that AI command output uses ``parse_mode='html'``, this function
+    returns Telegram HTML. Phase C will swap the ``▎`` workaround for a
+    real ``<blockquote>``; this commit just gets the bold label and
+    escaping correct.
+
+    Markdown-special characters in the raw reasoning are stripped so they
+    cannot leak into output as literal ``**`` / ``_``, and HTML-special
+    characters are entity-escaped so a ``<`` in the reasoning cannot break
+    message parsing.
     """
     cleaned = (
         summary.replace('`', "'")
         .replace('*', '')
         .replace('_', '')
     )
+    # parse_mode='html': escape unsafe characters in the reasoning text.
+    cleaned = (
+        cleaned.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
     lines = [ln.strip() for ln in cleaned.splitlines() if ln.strip()]
     if not lines:
         return ""
     quoted = "\n".join(f"▎ {ln}" for ln in lines)
-    return f"💭 **Thought Process**\n{quoted}"
+    return f"💭 <b>Thought Process</b>\n{quoted}"
 
 
 def build_response_parts(metadata: AIResponseMetadata) -> tuple:
@@ -125,23 +134,25 @@ def build_response_parts(metadata: AIResponseMetadata) -> tuple:
                 block = _format_thinking_block(metadata.thinking_summary)
                 if block:
                     header_parts.append(block)
-            footer_parts.append("🧠 **Deep Thinking Applied**")
+            footer_parts.append("🧠 <b>Deep Thinking Applied</b>")
         else:
             reason = metadata.fallback_reason or "unavailable"
-            footer_parts.append(f"⚠️ Thinking mode {reason}, used standard response")
-    
+            footer_parts.append(
+                f"⚠️ Thinking mode {reason}, used standard response"
+            )
+
     # Web search status - goes in footer
     if metadata.web_search_requested:
         if metadata.web_search_applied:
-            footer_parts.append("🌐 **Web Search Used**")
+            footer_parts.append("🌐 <b>Web Search Used</b>")
         else:
             footer_parts.append("⚠️ Web search unavailable (billing required)")
-    
+
     # Model fallback notification (Pro -> Flash)
     if metadata.model_fallback_applied:
         reason = metadata.model_fallback_reason or "Pro model quota exceeded"
         footer_parts.append(f"⚡ Using Flash model ({reason})")
-    
+
     # Provider fallback notification
     if metadata.provider_fallback_applied:
         reason = metadata.provider_fallback_reason or "Primary provider unavailable"
@@ -151,10 +162,10 @@ def build_response_parts(metadata: AIResponseMetadata) -> tuple:
         if metadata.thinking_requested and not metadata.thinking_applied:
             # Don't duplicate - the thinking fallback is already shown above
             pass
-    
+
     # Model info - only show if we have other indicators
     if footer_parts and metadata.model_used:
-        footer_parts.append(f"**Model:** {metadata.model_used}")
+        footer_parts.append(f"<b>Model:</b> {metadata.model_used}")
     
     # Build header string (thinking block at top)
     header = ""

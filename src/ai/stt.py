@@ -13,9 +13,9 @@ from ..core.exceptions import AIProcessorError
 from ..utils.logging import get_logger
 
 
-# Google Web Speech API reliably handles audio up to ~60s per request.
-# Stay safely under that and split long audio into chunks.
-_CHUNK_MS = 55_000
+# Google Web Speech API is unofficial and fragile. Although it may accept
+# ~60s clips, shorter chunks avoid many 400 "Bad Request" payload failures.
+_CHUNK_MS = 25_000
 # Small overlap so a fixed cut that lands mid-word can still pick up that word's
 # tail on the next chunk. Kept tight (~100ms) to almost always fall inside
 # inter-word silence, avoiding duplicated words at chunk seams.
@@ -94,12 +94,15 @@ class SpeechToTextProcessor:
                     f"Audio has only 1 chunk; requested chunks "
                     f"{sorted(chunk_filter)} are out of range"
                 )
-            try:
-                text = await asyncio.to_thread(
-                    self._transcribe_file_sync, str(audio_path), language
-                )
-            except AIProcessorError:
-                raise
+            text, error_kind = await self._transcribe_chunk_with_retry(
+                str(audio_path), language, 1, 1
+            )
+            if not text:
+                if error_kind == "service":
+                    raise AIProcessorError(
+                        "STT service unavailable — please try again in a moment"
+                    )
+                raise AIProcessorError("Speech was unintelligible")
             if text and on_chunk_text:
                 await on_chunk_text(1, 1, text.strip())
             if progress_cb:
@@ -232,7 +235,8 @@ class SpeechToTextProcessor:
         return any(
             tok in msg
             for tok in ("api request failed", "request failed", "timeout",
-                       "connection", "5xx", "503", "502", "429")
+                       "connection", "bad request", "400", "5xx", "503",
+                       "502", "429")
         )
 
     def _split_audio(self, audio: AudioSegment) -> List[AudioSegment]:

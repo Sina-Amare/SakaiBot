@@ -140,9 +140,9 @@ def format_translation_response(translation: str, pronunciation: str, target_lan
 
     Produces an emoji header, a heavy-rule separator, the translation, and —
     for non-Persian targets — a phonetics section. This matches the visual
-    style of the other AI commands (emoji headers, ━ separators, bold)
+    style of the other AI commands (emoji headers, ━ separators, HTML bold)
     instead of the old bare "Translation (X):" + dashed-line layout.
-    Markdown parse mode is assumed.
+    Telegram HTML parse mode is assumed.
 
     Args:
         translation: The translated text
@@ -159,7 +159,7 @@ def format_translation_response(translation: str, pronunciation: str, target_lan
     rule = "━" * 18
 
     body = (
-        f"🌐 **ترجمه به {language_name}**\n"
+        f"🌐 <b>ترجمه به {language_name}</b>\n"
         f"{rule}\n"
         f"{translation.strip()}"
     )
@@ -169,7 +169,7 @@ def format_translation_response(translation: str, pronunciation: str, target_lan
     target_lower = target_language.lower()
     is_persian_target = target_lower in ('fa', 'farsi', 'persian')
     if not is_persian_target and pronunciation and pronunciation.strip():
-        body += f"\n\n🗣️ **تلفظ**\n{pronunciation.strip()}"
+        body += f"\n\n🗣️ <b>تلفظ</b>\n{pronunciation.strip()}"
 
     return body
 

@@ -9,6 +9,8 @@ works with the documented placeholders.
 from src.ai.prompts import (
     SHARED_PERSIAN_TONE_RULES,
     PROMPT_ADAPTIVE_PROMPT,
+    TRANSLATION_AUTO_DETECT_PROMPT,
+    TRANSLATION_SOURCE_TARGET_PROMPT,
     ANALYZE_GENERAL_PROMPT,
     ANALYZE_FUN_PROMPT,
     ANALYZE_ROMANCE_PROMPT,
@@ -47,9 +49,10 @@ class TestSharedRules:
         # The rule explicitly tells the model NOT to pad short chats.
         assert "کوتاه" in SHARED_PERSIAN_TONE_RULES
 
-    def test_confidence_calibration(self) -> None:
+    def test_shared_rules_do_not_inject_confidence_grades(self) -> None:
         for grade in ("کم", "متوسط", "بالا"):
-            assert grade in SHARED_PERSIAN_TONE_RULES
+            assert f"({grade})" not in SHARED_PERSIAN_TONE_RULES
+        assert "هیچ برچسب اطمینانی" in SHARED_PERSIAN_TONE_RULES
 
 
 # ---- All prompts inherit the shared rules ----------------------------------
@@ -107,15 +110,25 @@ class TestAnalyzePrompts:
     def test_general_demands_evidence(self) -> None:
         assert "نقل‌قول مستقیم" in ANALYZE_GENERAL_PROMPT
 
+    def test_general_rejects_confidence_label_style(self) -> None:
+        assert "بدون برچسب‌های خشک" in ANALYZE_GENERAL_PROMPT
+        assert "درجه اطمینان" not in ANALYZE_GENERAL_PROMPT
+
     def test_fun_demands_chat_specific_humor(self) -> None:
         # The whole point of fun mode: jokes must come from THIS chat.
         assert "از خود این چت بیاید" in ANALYZE_FUN_PROMPT
         assert "شوخی عمومی" in ANALYZE_FUN_PROMPT
 
     def test_fun_rejects_confidence_labels(self) -> None:
-        assert "آخر جمله‌ها ننویس" in ANALYZE_FUN_PROMPT
-        assert "درجه اطمینان" in ANALYZE_FUN_PROMPT
+        assert "آخر جمله‌ها برچسب" in ANALYZE_FUN_PROMPT
+        assert "برچسب اطمینانی" in ANALYZE_FUN_PROMPT
         assert "فرم ارزیابی کارمند نیست" in ANALYZE_FUN_PROMPT
+        assert "درجه اطمینان" not in ANALYZE_FUN_PROMPT
+
+    def test_shared_rules_do_not_force_confidence_labels_everywhere(self) -> None:
+        assert "فقط وقتی خود پرامپت" in SHARED_PERSIAN_TONE_RULES
+        assert "هیچ برچسب اطمینانی" in SHARED_PERSIAN_TONE_RULES
+        assert "درجه اطمینان" not in SHARED_PERSIAN_TONE_RULES
 
     def test_fun_requires_fact_checking_before_jokes(self) -> None:
         assert "فکت را دوباره" in ANALYZE_FUN_PROMPT
@@ -130,11 +143,26 @@ class TestAnalyzePrompts:
         assert "پویایی عاطفی" in ANALYZE_FUN_PROMPT
         assert "کارآموز روان‌شناسی" in ANALYZE_FUN_PROMPT
 
-    def test_romance_demands_confidence_calibration(self) -> None:
+    def test_romance_demands_natural_uncertainty_without_grade_labels(self) -> None:
         # Romance is the prompt most vulnerable to confident hallucination,
-        # so the per-claim confidence rule must be present in-body too.
-        assert "درجه اطمینان" in ANALYZE_ROMANCE_PROMPT
+        # so it must discuss uncertainty, but not with ugly (بالا)/(متوسط)
+        # labels that leak into every sentence.
+        assert "قاعده قطعیت" in ANALYZE_ROMANCE_PROMPT
+        assert "شواهد کافی نیست" in ANALYZE_ROMANCE_PROMPT
+        assert "درجه اطمینان" not in ANALYZE_ROMANCE_PROMPT
+        assert "هر مورد: نقل‌قول + توضیح + درجه اطمینان" not in ANALYZE_ROMANCE_PROMPT
         assert "درصد" in ANALYZE_ROMANCE_PROMPT
+
+    def test_main_prompts_do_not_force_grade_tags(self) -> None:
+        for name, prompt in (
+            ("shared", SHARED_PERSIAN_TONE_RULES),
+            ("general", ANALYZE_GENERAL_PROMPT),
+            ("fun", ANALYZE_FUN_PROMPT),
+            ("romance", ANALYZE_ROMANCE_PROMPT),
+            ("question", QUESTION_ANSWER_PROMPT),
+        ):
+            for grade in ("(کم)", "(متوسط)", "(بالا)"):
+                assert grade not in prompt, f"{name} contains {grade}"
 
     def test_romance_no_prompt_level_censorship(self) -> None:
         # The user's editorial choice: the prompt does not tell the model
@@ -163,3 +191,12 @@ class TestQuestionAnswer:
     def test_adaptive_length(self) -> None:
         # Short question -> short answer; explicit rule in the prompt.
         assert "یک‌خطی" in QUESTION_ANSWER_PROMPT
+
+
+class TestTranslationPrompts:
+    def test_translation_prompts_fix_persian_typos_before_translation(self) -> None:
+        for prompt in (TRANSLATION_AUTO_DETECT_PROMPT, TRANSLATION_SOURCE_TARGET_PROMPT):
+            assert "silently fix obvious Persian typos" in prompt
+            assert "Normalize intent before translating" in prompt
+            assert "شومارم خسته کردم" in prompt
+            assert "phone/number" in prompt

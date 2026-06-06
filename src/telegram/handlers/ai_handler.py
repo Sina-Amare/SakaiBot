@@ -157,7 +157,12 @@ class AIHandler(BaseHandler):
                 f"<b>Please wait:</b> {rate_limiter._window_seconds} seconds\n"
                 f"<b>Remaining requests:</b> {remaining}"
             )
-            await client.send_message(chat_entity, error_msg, reply_to=reply_to_id)
+            await client.send_message(
+                chat_entity,
+                error_msg,
+                reply_to=reply_to_id,
+                parse_mode='html'
+            )
             return
         
         # For expensive AI commands, check the queue to prevent concurrent operations per chat

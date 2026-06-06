@@ -51,14 +51,27 @@ _TAG_RE = re.compile(
     re.DOTALL,
 )
 
+_VALID_ENTITY_RE: Final[re.Pattern] = re.compile(
+    r"&(?:[a-zA-Z][a-zA-Z0-9]+|#\d+|#x[0-9a-fA-F]+);"
+)
+
 
 def _escape_chars(text: str) -> str:
-    """Escape ``&``, ``<``, ``>`` to HTML entities."""
-    return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
+    """Escape HTML specials while preserving already-valid entities."""
+    if not text:
+        return ""
+
+    out: list[str] = []
+    cursor = 0
+    for m in _VALID_ENTITY_RE.finditer(text):
+        if m.start() > cursor:
+            out.append(text[cursor:m.start()].replace("&", "&amp;"))
+        out.append(m.group(0))
+        cursor = m.end()
+    if cursor < len(text):
+        out.append(text[cursor:].replace("&", "&amp;"))
+
+    return "".join(out).replace("<", "&lt;").replace(">", "&gt;")
 
 
 def sanitize_html(text: str) -> str:

@@ -1,6 +1,7 @@
 """Image generation command handler."""
 
 import asyncio
+import html
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -45,6 +46,21 @@ class ImageHandler(BaseHandler):
         self._ai_processor = ai_processor
         self._image_generator = image_generator
         self._prompt_enhancer = prompt_enhancer
+
+    @staticmethod
+    def _escape_caption_text(text: str, max_length: int) -> str:
+        """Escape untrusted caption text for Telegram HTML and truncate safely."""
+        escaped = html.escape(text or "", quote=False)
+        if len(escaped) <= max_length:
+            return escaped
+
+        truncated = escaped[:max(0, max_length - 3)]
+        # Avoid cutting an entity like "&amp;" into invalid visible fragments.
+        last_amp = truncated.rfind("&")
+        last_semicolon = truncated.rfind(";")
+        if last_amp > last_semicolon:
+            truncated = truncated[:last_amp]
+        return truncated.rstrip() + "..."
     
     async def handle_image_command(
         self,
@@ -416,12 +432,11 @@ class ImageHandler(BaseHandler):
         max_caption_length = 1024
         max_prompt_length = max_caption_length - len(header)
         
-        if len(enhanced_prompt) > max_prompt_length:
-            # Only truncate if it exceeds Telegram's limit
-            truncated_prompt = enhanced_prompt[:max_prompt_length - 3] + "..."
-            self._logger.warning(f"Enhanced prompt truncated for caption (original: {len(enhanced_prompt)} chars)")
-        else:
-            truncated_prompt = enhanced_prompt
+        truncated_prompt = self._escape_caption_text(enhanced_prompt, max_prompt_length)
+        if len(html.escape(enhanced_prompt, quote=False)) > max_prompt_length:
+            self._logger.warning(
+                f"Enhanced prompt truncated for caption (original: {len(enhanced_prompt)} chars)"
+            )
         
         caption = f"{header}{truncated_prompt}"
         

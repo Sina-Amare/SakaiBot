@@ -13,6 +13,7 @@ from src.ai.prompts import (
     ANALYZE_FUN_PROMPT,
     ANALYZE_ROMANCE_PROMPT,
     QUESTION_ANSWER_PROMPT,
+    get_response_scaling_instructions,
 )
 
 
@@ -122,6 +123,14 @@ class TestAnalyzePrompts:
         # to soften or moralize. (Provider safety filters may still block.)
         # We assert by checking the actual rule list is there.
         assert "بدون تعارف" in ANALYZE_ROMANCE_PROMPT
+
+    def test_scaling_instructions_are_html_not_markdown(self) -> None:
+        for mode in ("general", "fun", "romance"):
+            rendered = get_response_scaling_instructions(250, mode)
+            assert "<b>RESPONSE DEPTH SCALING</b>" in rendered
+            assert "**RESPONSE" not in rendered
+            assert "  * " not in rendered
+            assert "```" not in rendered
 
 
 class TestQuestionAnswer:

@@ -30,6 +30,9 @@ class TestSanitizeHtml:
     def test_raw_lt_gt_amp_escaped(self) -> None:
         assert sanitize_html("a < b & c > d") == "a &lt; b &amp; c &gt; d"
 
+    def test_existing_entities_are_preserved(self) -> None:
+        assert sanitize_html("5 &lt; 6 &amp; 7 &gt; 3") == "5 &lt; 6 &amp; 7 &gt; 3"
+
     def test_mixed_allowed_and_disallowed(self) -> None:
         out = sanitize_html("<b>ok</b> and <h2>bad</h2>")
         assert "<b>ok</b>" in out
@@ -75,6 +78,11 @@ class TestPipeline:
         assert "<b>تحلیل</b>" in out
         assert "<i>این اشتباه است</i>" in out
         assert "5 &lt; 3" in out
+
+    def test_pipeline_does_not_double_escape_bot_entities(self) -> None:
+        text = "<code>/prompt=&lt;question&gt;</code> Tom &amp; Jerry"
+        out = clean_telegram_html(text)
+        assert out == "<code>/prompt=&lt;question&gt;</code> Tom &amp; Jerry"
 
     def test_pipeline_never_crashes_on_garbage(self) -> None:
         # No matter how malformed the input, the pipeline returns a string.

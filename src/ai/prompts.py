@@ -92,21 +92,19 @@ def get_response_scaling_instructions(num_messages: int, analysis_type: str = "f
             )
         
         return (
-            f"\n\n**RESPONSE LENGTH SCALING (CRITICAL - READ THIS)**:\n"
-            f"This conversation has {num_messages} messages. Your response MUST be {detail_level}.\n"
+            f"\n\n<b>RESPONSE DEPTH SCALING</b>\n"
+            f"This conversation has {num_messages} messages. Aim for a {detail_level} response, "
+            f"but do not pad shallow chats.\n"
             f"{massive_warning}"
-            f"COMEDY IS THE MAIN EVENT (60-70% of your response):\n"
-            f"- 🎤 Main Act (شوی اصلی): {s['comedy']}\n"
-            f"  * This is NOT a side section - it's the CENTERPIECE\n"
-            f"  * Fill it with content. Build, escalate, explode, land the punchline.\n"
-            f"  * For massive conversations: Cover multiple storylines, show character evolution, include chronological progression\n\n"
-            f"SUPPORTING SECTIONS (keep these BRIEF - 30-40% total):\n"
-            f"- 📊 Quick Stats: {s['stats']}\n"
-            f"- ⚡ Golden Moments: {s['highlights']}\n"
-            f"- 🎭 Character Lineup: {s['profiles']}\n"
-            f"- 🚪 Exit Line: ONE killer sentence\n\n"
-            f"CRITICAL: Do NOT make the comedy section short. It's the MAIN SHOW.\n"
-            f"For {num_messages} messages, users expect comprehensive coverage - deliver it.\n"
+            f"Comedy is the main event when the chat gives enough material:\n"
+            f"• 🎤 Main Act (شوی اصلی): {s['comedy']}\n"
+            f"• Use specific quotes, names, contradictions, and callbacks from this chat.\n"
+            f"• If the evidence is thin, say so and keep the roast shorter instead of inventing jokes.\n\n"
+            f"Supporting sections should stay tight:\n"
+            f"• 📊 Quick Stats: {s['stats']}\n"
+            f"• ⚡ Golden Moments: {s['highlights']}\n"
+            f"• 🎭 Character Lineup: {s['profiles']}\n"
+            f"• 🚪 Exit Line: one strong closing sentence\n"
         )
         
     elif analysis_type == "general":
@@ -152,15 +150,15 @@ def get_response_scaling_instructions(num_messages: int, analysis_type: str = "f
         )
     
     base_instructions = (
-            f"\n\n**RESPONSE LENGTH SCALING (CRITICAL)**:\n"
-            f"This conversation has {num_messages} messages. Your response MUST be proportionally {detail_level}.\n"
+            f"\n\n<b>RESPONSE DEPTH SCALING</b>\n"
+            f"This conversation has {num_messages} messages. Aim for a {detail_level} response, "
+            f"but scale by evidence quality, not only message count.\n"
             f"{massive_warning}"
-            f"- {section_name}: Include {s['highlights']} items with quotes and commentary\n"
-            f"- Profiles/Patterns: {s['profiles']}\n"
-            f"- Executive Summary: {s['summary']}\n"
-            f"- Overall: The more messages provided, the longer and more detailed your analysis should be.\n"
-            f"- Do NOT give a short response for a long conversation. Match depth to input volume.\n"
-            f"- For {num_messages} messages, users expect comprehensive coverage - deliver it.\n"
+            f"• {section_name}: up to {s['highlights']} evidence-backed items when enough material exists\n"
+            f"• Profiles/Patterns: {s['profiles']}\n"
+            f"• Executive Summary: {s['summary']}\n"
+            f"• Use direct quotes for major claims. If evidence is limited, say so and answer shorter.\n"
+            f"• Do not invent quotes, motives, relationship signals, decisions, or events to satisfy length.\n"
         )
     
     return base_instructions

@@ -93,27 +93,27 @@ Get API keys from [OpenRouter](https://openrouter.ai/).
 | `OPENROUTER_API_KEY_2`   | ❌       | -                         | Secondary key (rotation)   |
 | `OPENROUTER_API_KEY_3`   | ❌       | -                         | Tertiary key (rotation)    |
 | `OPENROUTER_API_KEY_4`   | ❌       | -                         | Fourth key (rotation)      |
-| `OPENROUTER_MODEL_PRO`   | ❌       | `google/gemini-2.5-pro`   | Complex-task tier model    |
-| `OPENROUTER_MODEL_FLASH` | ❌       | `google/gemini-2.5-flash` | Simple-task tier model     |
+| `OPENROUTER_MODEL_PRO`   | ❌       | `openrouter/free`   | Complex-task tier model    |
+| `OPENROUTER_MODEL_FLASH` | ❌       | `openrouter/free` | Simple-task tier model     |
 | `OPENROUTER_MODEL`       | ❌       | flash tier                | Legacy/default model       |
 
 \*\*Required for prompt enhancement and Gemini fallback
 
 ```env
 OPENROUTER_API_KEY_1=sk-or-v1-your_key_here
-OPENROUTER_MODEL_PRO=google/gemini-2.5-pro
-OPENROUTER_MODEL_FLASH=google/gemini-2.5-flash
+OPENROUTER_MODEL_PRO=openrouter/free
+OPENROUTER_MODEL_FLASH=openrouter/free
 ```
 
 Optional per-command OpenRouter overrides:
 
 ```env
-OPENROUTER_MODEL_PROMPT=google/gemini-2.5-pro
-OPENROUTER_MODEL_ANALYZE=google/gemini-2.5-pro
-OPENROUTER_MODEL_TELLME=google/gemini-2.5-pro
-OPENROUTER_MODEL_TRANSLATE=google/gemini-2.5-flash
-OPENROUTER_MODEL_PROMPT_ENHANCER=google/gemini-2.5-flash
-OPENROUTER_MODEL_VOICE_SUMMARY=google/gemini-2.5-flash
+OPENROUTER_MODEL_PROMPT=openrouter/free
+OPENROUTER_MODEL_ANALYZE=openrouter/free
+OPENROUTER_MODEL_TELLME=openrouter/free
+OPENROUTER_MODEL_TRANSLATE=openrouter/free
+OPENROUTER_MODEL_PROMPT_ENHANCER=openrouter/free
+OPENROUTER_MODEL_VOICE_SUMMARY=openrouter/free
 ```
 
 > **Note:** OpenRouter is used for:

@@ -27,11 +27,11 @@ MAX_OUTPUT_TOKENS: Final[int] = 100000
 
 # Model Configuration - Pro tier (for complex tasks: analyze, tellme, prompt)
 DEFAULT_GEMINI_MODEL_PRO: Final[str] = "gemini-3.5-flash"
-DEFAULT_OPENROUTER_MODEL_PRO: Final[str] = "google/gemini-2.5-pro"
+DEFAULT_OPENROUTER_MODEL_PRO: Final[str] = "openrouter/free"
 
 # Model Configuration - Flash tier (for simple tasks: translate, image enhancement)
 DEFAULT_GEMINI_MODEL_FLASH: Final[str] = "gemini-3.1-flash-lite"
-DEFAULT_OPENROUTER_MODEL_FLASH: Final[str] = "google/gemini-2.5-flash"
+DEFAULT_OPENROUTER_MODEL_FLASH: Final[str] = "openrouter/free"
 
 # Web-search grounding model. Gemini 3.x has not yet brought Google Search
 # grounding into the free tier the way Gemini 2.5 Flash has, so any request

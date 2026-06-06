@@ -112,6 +112,24 @@ class TestAnalyzePrompts:
         assert "از خود این چت بیاید" in ANALYZE_FUN_PROMPT
         assert "شوخی عمومی" in ANALYZE_FUN_PROMPT
 
+    def test_fun_rejects_confidence_labels(self) -> None:
+        assert "آخر جمله‌ها ننویس" in ANALYZE_FUN_PROMPT
+        assert "درجه اطمینان" in ANALYZE_FUN_PROMPT
+        assert "فرم ارزیابی کارمند نیست" in ANALYZE_FUN_PROMPT
+
+    def test_fun_requires_fact_checking_before_jokes(self) -> None:
+        assert "فکت را دوباره" in ANALYZE_FUN_PROMPT
+        assert "نقل‌قول ساختگی" in ANALYZE_FUN_PROMPT
+        assert "شخصیت‌سازی" in ANALYZE_FUN_PROMPT
+
+    def test_fun_demands_colloquial_persian(self) -> None:
+        assert "محاوره‌ای" in ANALYZE_FUN_PROMPT
+        assert "گزارش تحلیلی" in ANALYZE_FUN_PROMPT
+        assert "می‌کنه" in ANALYZE_FUN_PROMPT
+        assert "فیلتر ضد رسمی‌نویسی" in ANALYZE_FUN_PROMPT
+        assert "پویایی عاطفی" in ANALYZE_FUN_PROMPT
+        assert "کارآموز روان‌شناسی" in ANALYZE_FUN_PROMPT
+
     def test_romance_demands_confidence_calibration(self) -> None:
         # Romance is the prompt most vulnerable to confident hallucination,
         # so the per-claim confidence rule must be present in-body too.

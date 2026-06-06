@@ -223,8 +223,8 @@ GEMINI_TTS_VOICE=Orus
 
 # OpenRouter Configuration (Alternative)
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL_PRO=google/gemini-2.5-pro
-OPENROUTER_MODEL_FLASH=google/gemini-2.5-flash
+OPENROUTER_MODEL_PRO=openrouter/free
+OPENROUTER_MODEL_FLASH=openrouter/free
 
 # UserBot Configuration
 USERBOT_MAX_ANALYZE_MESSAGES=10000

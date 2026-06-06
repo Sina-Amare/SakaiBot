@@ -18,9 +18,9 @@ GEMINI_TTS_VOICE=Orus
 STT_AI_SUMMARY_ENABLED=false
 GEMINI_SUMMARY_MODEL=gemini-3.1-flash-lite
 
-OPENROUTER_MODEL_PRO=deepseek/deepseek-v4-flash:free
-OPENROUTER_MODEL_FLASH=deepseek/deepseek-v4-flash:free
-OPENROUTER_MODEL=deepseek/deepseek-v4-flash:free
+OPENROUTER_MODEL_PRO=openrouter/free
+OPENROUTER_MODEL_FLASH=openrouter/free
+OPENROUTER_MODEL=openrouter/free
 ```
 
 ## Selection Rules
@@ -47,12 +47,12 @@ unset, the provider uses its tier model:
 
 | Command | Primary model with current `.env` | Override key | Fallback model with current `.env` | Fallback override key |
 | --- | --- | --- | --- | --- |
-| `/prompt` | `GEMINI_MODEL_PROMPT` = `gemini-2.5-flash` | `GEMINI_MODEL_PROMPT` | `OPENROUTER_MODEL_PRO` = `deepseek/deepseek-v4-flash:free` | `OPENROUTER_MODEL_PROMPT` |
-| `/analyze` | `GEMINI_MODEL_ANALYZE` = `gemini-2.5-flash` | `GEMINI_MODEL_ANALYZE` | `OPENROUTER_MODEL_PRO` = `deepseek/deepseek-v4-flash:free` | `OPENROUTER_MODEL_ANALYZE` |
-| `/tellme` | `GEMINI_MODEL_TELLME` = `gemini-2.5-flash` | `GEMINI_MODEL_TELLME` | `OPENROUTER_MODEL_PRO` = `deepseek/deepseek-v4-flash:free` | `OPENROUTER_MODEL_TELLME` |
-| `/translate` | `GEMINI_MODEL_TRANSLATE` = `gemini-3.1-flash-lite` | `GEMINI_MODEL_TRANSLATE` | `OPENROUTER_MODEL_FLASH` = `deepseek/deepseek-v4-flash:free` | `OPENROUTER_MODEL_TRANSLATE` |
-| `/image=flux=...` prompt enhancement | `GEMINI_MODEL_PROMPT_ENHANCER` = `gemini-3.1-flash-lite` | `GEMINI_MODEL_PROMPT_ENHANCER` | `OPENROUTER_MODEL_FLASH` = `deepseek/deepseek-v4-flash:free` | `OPENROUTER_MODEL_PROMPT_ENHANCER` |
-| `/image=sdxl=...` prompt enhancement | `GEMINI_MODEL_PROMPT_ENHANCER` = `gemini-3.1-flash-lite` | `GEMINI_MODEL_PROMPT_ENHANCER` | `OPENROUTER_MODEL_FLASH` = `deepseek/deepseek-v4-flash:free` | `OPENROUTER_MODEL_PROMPT_ENHANCER` |
+| `/prompt` | `GEMINI_MODEL_PROMPT` = `gemini-2.5-flash` | `GEMINI_MODEL_PROMPT` | `OPENROUTER_MODEL_PRO` = `openrouter/free` | `OPENROUTER_MODEL_PROMPT` |
+| `/analyze` | `GEMINI_MODEL_ANALYZE` = `gemini-2.5-flash` | `GEMINI_MODEL_ANALYZE` | `OPENROUTER_MODEL_PRO` = `openrouter/free` | `OPENROUTER_MODEL_ANALYZE` |
+| `/tellme` | `GEMINI_MODEL_TELLME` = `gemini-2.5-flash` | `GEMINI_MODEL_TELLME` | `OPENROUTER_MODEL_PRO` = `openrouter/free` | `OPENROUTER_MODEL_TELLME` |
+| `/translate` | `GEMINI_MODEL_TRANSLATE` = `gemini-3.1-flash-lite` | `GEMINI_MODEL_TRANSLATE` | `OPENROUTER_MODEL_FLASH` = `openrouter/free` | `OPENROUTER_MODEL_TRANSLATE` |
+| `/image=flux=...` prompt enhancement | `GEMINI_MODEL_PROMPT_ENHANCER` = `gemini-3.1-flash-lite` | `GEMINI_MODEL_PROMPT_ENHANCER` | `OPENROUTER_MODEL_FLASH` = `openrouter/free` | `OPENROUTER_MODEL_PROMPT_ENHANCER` |
+| `/image=sdxl=...` prompt enhancement | `GEMINI_MODEL_PROMPT_ENHANCER` = `gemini-3.1-flash-lite` | `GEMINI_MODEL_PROMPT_ENHANCER` | `OPENROUTER_MODEL_FLASH` = `openrouter/free` | `OPENROUTER_MODEL_PROMPT_ENHANCER` |
 | `/tts` | `GEMINI_TTS_MODEL` = `gemini-3.1-flash-tts-preview` | `GEMINI_TTS_MODEL` or `TTS_MODEL` | None | None |
 | `/stt` transcription | Google Web Speech API via `speech_recognition` | Not model-configurable | None | None |
 | `/stt` optional AI summary | disabled by `STT_AI_SUMMARY_ENABLED=false`; if enabled, `GEMINI_MODEL_VOICE_SUMMARY` = `gemini-3.1-flash-lite` | `GEMINI_MODEL_VOICE_SUMMARY` or `GEMINI_SUMMARY_MODEL` | `OPENROUTER_MODEL_VOICE_SUMMARY` if configured, else OpenRouter legacy/default | `OPENROUTER_MODEL_VOICE_SUMMARY` |

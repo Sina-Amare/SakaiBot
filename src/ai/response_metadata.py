@@ -81,24 +81,27 @@ def build_execution_footer(metadata: AIResponseMetadata) -> str:
 
 
 def _format_thinking_block(summary: str) -> str:
-    """Render the model's raw reasoning as a clean quote-style block.
+    """Render the model's raw reasoning as a real Telegram ``<blockquote>``.
 
-    Now that AI command output uses ``parse_mode='html'``, this function
-    returns Telegram HTML. Phase C will swap the ``▎`` workaround for a
-    real ``<blockquote>``; this commit just gets the bold label and
-    escaping correct.
+    parse_mode='html' supports a proper ``<blockquote>`` element, which
+    renders as an indented, vertically-bordered quote in Telegram clients.
+    The previous ``▎`` line-prefix workaround existed because Markdown had
+    no blockquote element; now that AI output is HTML, we use the real
+    thing — visually cleaner and the bidi/RTL behavior is handled by
+    Telegram's client rather than relying on a custom prefix per line.
 
-    Markdown-special characters in the raw reasoning are stripped so they
-    cannot leak into output as literal ``**`` / ``_``, and HTML-special
-    characters are entity-escaped so a ``<`` in the reasoning cannot break
-    message parsing.
+    Markdown-special characters in the raw reasoning are softened so they
+    can't leak as literal ``**`` / ``_`` / backticks, and HTML-special
+    characters are entity-escaped so a ``<`` in the reasoning can't break
+    message parsing. A trailing ``[...]`` from the truncation marker is
+    rewritten to a styled ``<i>…</i>`` indicator.
     """
     cleaned = (
         summary.replace('`', "'")
         .replace('*', '')
         .replace('_', '')
     )
-    # parse_mode='html': escape unsafe characters in the reasoning text.
+    # Escape unsafe characters in the reasoning text.
     cleaned = (
         cleaned.replace("&", "&amp;")
         .replace("<", "&lt;")
@@ -107,8 +110,14 @@ def _format_thinking_block(summary: str) -> str:
     lines = [ln.strip() for ln in cleaned.splitlines() if ln.strip()]
     if not lines:
         return ""
-    quoted = "\n".join(f"▎ {ln}" for ln in lines)
-    return f"💭 <b>Thought Process</b>\n{quoted}"
+    body = "\n".join(lines)
+    # Style the upstream truncation marker (set by GeminiProvider when the
+    # raw reasoning exceeds THINKING_SUMMARY_MAX_CHARS).
+    body = body.replace("[...truncated]", "<i>… truncated</i>")
+    return (
+        f"💭 <b>Thought Process</b>\n"
+        f"<blockquote>{body}</blockquote>"
+    )
 
 
 def build_response_parts(metadata: AIResponseMetadata) -> tuple:

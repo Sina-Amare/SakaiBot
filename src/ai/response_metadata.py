@@ -38,6 +38,12 @@ class AIResponseMetadata:
     # Provider fallback tracking (when primary falls back to configured provider)
     provider_fallback_applied: bool = False
     provider_fallback_reason: Optional[str] = None
+    # Live performance data. ``None`` means "not measured / not reported by
+    # provider" — the footer hides the field rather than showing a placeholder
+    # like ``Tokens: 0`` which would be wrong.
+    latency_seconds: Optional[float] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
     
     def __str__(self) -> str:
         """Return response text for backward compatibility."""
@@ -121,70 +127,83 @@ def _format_thinking_block(summary: str) -> str:
 
 
 def build_response_parts(metadata: AIResponseMetadata) -> tuple:
-    """
-    Build header and footer parts for AI response display.
-    
+    """Build header and footer parts for AI response display.
+
+    Footer is laid out on two conditional lines:
+
+    Line 1 - facts, joined by "  ·  ":
+        <b>Model:</b> X  ·  <b>Time:</b> 4.2s  ·  <b>Tokens:</b> 312
+        Each field appears only when populated. Tokens: 0 and Time: 0.0s
+        are placeholder values, never shown.
+
+    Line 2 - badges, joined by "  ·  ":
+        🧠 Deep Thinking  ·  🌐 Web Search  ·  🔄 Fallback: ...
+        Only the badges that actually fired show up.
+
     Returns:
-        Tuple of (header: str, footer: str)
-        - header: Thinking block to prepend (or empty string)
-        - footer: Metadata line to append (or empty string)
+        Tuple of (header, footer); either may be an empty string.
     """
-    header_parts = []
-    footer_parts = []
-    
-    # Unicode directional controls for LTR display
-    LRE = '\u202A'  # Left-to-Right Embedding
-    PDF = '\u202C'  # Pop Directional Formatting
-    
-    # Thinking status - goes in HEADER
+    # Unicode directional controls for LTR display in RTL contexts.
+    LRE = "\u202A"  # Left-to-Right Embedding
+    PDF = "\u202C"  # Pop Directional Formatting
+
+    # ---- Header: the thinking block ----
+    header_parts: list = []
+    if metadata.thinking_requested and metadata.thinking_applied:
+        if metadata.thinking_summary:
+            block = _format_thinking_block(metadata.thinking_summary)
+            if block:
+                header_parts.append(block)
+
+    # ---- Footer line 1: live facts (only populated fields) ----
+    fact_parts: list = []
+    if metadata.model_used:
+        fact_parts.append(f"<b>Model:</b> {metadata.model_used}")
+    if metadata.latency_seconds is not None and metadata.latency_seconds > 0:
+        fact_parts.append(f"<b>Time:</b> {metadata.latency_seconds:.1f}s")
+    if metadata.output_tokens is not None and metadata.output_tokens > 0:
+        # Show "in/out" when both are present so the user can see prompt
+        # cost vs response cost; otherwise just the output count.
+        if metadata.input_tokens is not None and metadata.input_tokens > 0:
+            fact_parts.append(
+                f"<b>Tokens:</b> {metadata.input_tokens}/"
+                f"{metadata.output_tokens}"
+            )
+        else:
+            fact_parts.append(f"<b>Tokens:</b> {metadata.output_tokens}")
+
+    # ---- Footer line 2: status badges (only ones that fired) ----
+    badge_parts: list = []
     if metadata.thinking_requested:
         if metadata.thinking_applied:
-            if metadata.thinking_summary:
-                block = _format_thinking_block(metadata.thinking_summary)
-                if block:
-                    header_parts.append(block)
-            footer_parts.append("🧠 <b>Deep Thinking Applied</b>")
+            badge_parts.append("🧠 Deep Thinking")
         else:
             reason = metadata.fallback_reason or "unavailable"
-            footer_parts.append(
-                f"⚠️ Thinking mode {reason}, used standard response"
-            )
-
-    # Web search status - goes in footer
+            badge_parts.append(f"⚠️ Thinking {reason}")
     if metadata.web_search_requested:
         if metadata.web_search_applied:
-            footer_parts.append("🌐 <b>Web Search Used</b>")
+            badge_parts.append("🌐 Web Search")
         else:
-            footer_parts.append("⚠️ Web search unavailable (billing required)")
-
-    # Model fallback notification (Pro -> Flash)
+            badge_parts.append("⚠️ Web Search unavailable")
     if metadata.model_fallback_applied:
-        reason = metadata.model_fallback_reason or "Pro model quota exceeded"
-        footer_parts.append(f"⚡ Using Flash model ({reason})")
-
-    # Provider fallback notification
+        reason = metadata.model_fallback_reason or "Pro quota exceeded"
+        badge_parts.append(f"⚡ Flash ({reason})")
     if metadata.provider_fallback_applied:
-        reason = metadata.provider_fallback_reason or "Primary provider unavailable"
-        fallback_provider = metadata.provider_used or "fallback provider"
-        footer_parts.append(f"🔄 Using {fallback_provider} ({reason})")
-        # If thinking was requested but we fell back to OpenRouter, add note
-        if metadata.thinking_requested and not metadata.thinking_applied:
-            # Don't duplicate - the thinking fallback is already shown above
-            pass
+        provider = metadata.provider_used or "fallback"
+        reason = metadata.provider_fallback_reason or "primary unavailable"
+        badge_parts.append(f"🔄 Fallback: {provider} ({reason})")
 
-    # Model info - only show if we have other indicators
-    if footer_parts and metadata.model_used:
-        footer_parts.append(f"<b>Model:</b> {metadata.model_used}")
-    
-    # Build header string (thinking block at top)
-    header = ""
-    if header_parts:
-        header = "\n".join(header_parts) + "\n\n"
-    
-    # Build footer string (metadata at bottom)
+    # ---- Assemble ----
+    header = ("\n".join(header_parts) + "\n\n") if header_parts else ""
+
+    footer_lines: list = []
+    if fact_parts:
+        footer_lines.append(f"{LRE}{'  ·  '.join(fact_parts)}{PDF}")
+    if badge_parts:
+        footer_lines.append(f"{LRE}{'  ·  '.join(badge_parts)}{PDF}")
+
     footer = ""
-    if footer_parts:
-        footer_content = " | ".join(footer_parts)
-        footer = f"\n\n━━━━━━━━━━━━━━━━━━\n{LRE}{footer_content}{PDF}"
-    
+    if footer_lines:
+        footer = "\n\n━━━━━━━━━━━━━━━━━━\n" + "\n".join(footer_lines)
+
     return (header, footer)

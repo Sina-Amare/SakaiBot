@@ -1,6 +1,7 @@
 """OpenRouter LLM provider implementation (fallback provider)."""
 
 import asyncio
+import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import pytz
@@ -269,11 +270,16 @@ class OpenRouterProvider(LLMProvider):
                 "reflected in the thoroughness and accuracy of your final response."
             )
             user_prompt = user_prompt + thinking_instruction
-        
+
         # Note: OpenRouter doesn't support Google Search tool directly
         if use_web_search:
             self._logger.warning("Web search requested but OpenRouter doesn't support Google Search tool")
-        
+
+        # Wall-clock latency for the metadata footer. Measured around the
+        # whole retry loop so a 429 + recovery is reflected as one number.
+        started = time.monotonic()
+        completion: Any = None
+
         # Retry loop: rotates keys on 429, and retries transient empty
         # responses (free models occasionally return no content under load).
         max_key_attempts = self._key_manager.num_keys if self._key_manager else 1
@@ -405,6 +411,14 @@ class OpenRouterProvider(LLMProvider):
             f"Response length: {len(response_text)} chars"
         )
         
+        # Pull usage stats if the model reported them. Free OpenRouter
+        # models often omit usage — leave the fields as None in that case
+        # so the footer hides them rather than showing "Tokens: 0".
+        latency = time.monotonic() - started
+        usage = getattr(completion, "usage", None)
+        in_tok = getattr(usage, "prompt_tokens", None) if usage else None
+        out_tok = getattr(usage, "completion_tokens", None) if usage else None
+
         # Return AIResponseMetadata for consistency with GeminiProvider
         return AIResponseMetadata(
             response_text=response_text,
@@ -414,7 +428,10 @@ class OpenRouterProvider(LLMProvider):
             web_search_applied=False,  # OpenRouter doesn't support web search
             fallback_reason="OpenRouter doesn't support web search" if use_web_search else None,
             model_used=model,
-            provider_used=self.provider_name
+            provider_used=self.provider_name,
+            latency_seconds=latency,
+            input_tokens=in_tok,
+            output_tokens=out_tok,
         )
     
     async def translate_text(

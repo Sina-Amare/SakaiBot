@@ -241,13 +241,19 @@ class GeminiProvider(LLMProvider):
         """
         from google import genai
         from google.genai import types
-        
+
         max_retries = 3
         retry_delay = 1.0
         keys_tried = 0
         max_key_attempts = self._key_manager.num_keys if self._key_manager else 1
         last_error = None
-        
+
+        # Wall-clock latency for the metadata footer.
+        started = time.monotonic()
+        # Captured from the final successful API response so the metadata
+        # footer can show token usage.
+        usage_meta = None
+
         self._logger.info(
             f"[THINKING] Starting native thinking for model={model}, "
             f"budget={THINKING_BUDGET_DEFAULT}, max_keys={max_key_attempts}"
@@ -300,7 +306,8 @@ class GeminiProvider(LLMProvider):
                         contents=prompt,
                         config=config
                     )
-                    
+                    usage_meta = getattr(response, "usage_metadata", None)
+
                     # Debug logging for troubleshooting (only in debug mode)
                     if self._logger.isEnabledFor(logging.DEBUG):
                         self._logger.debug(
@@ -375,6 +382,10 @@ class GeminiProvider(LLMProvider):
                         f"Thinking: {len(raw_thinking or '')} chars"
                     )
                     
+                    latency = time.monotonic() - started
+                    in_tok = getattr(usage_meta, "prompt_token_count", None) if usage_meta else None
+                    out_tok = getattr(usage_meta, "candidates_token_count", None) if usage_meta else None
+
                     return AIResponseMetadata(
                         response_text=answer_text.strip() if answer_text else "",
                         thinking_requested=True,
@@ -383,7 +394,10 @@ class GeminiProvider(LLMProvider):
                         web_search_requested=use_web_search,
                         web_search_applied=False,
                         model_used=model,
-                        provider_used=self.provider_name
+                        provider_used=self.provider_name,
+                        latency_seconds=latency,
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
                     )
                     
                 except Exception as e:
@@ -551,7 +565,13 @@ class GeminiProvider(LLMProvider):
         retry_delay = 1.0
         keys_tried = 0
         max_key_attempts = self._key_manager.num_keys if self._key_manager else 1
-        
+
+        # Wall-clock latency for the metadata footer.
+        started = time.monotonic()
+        # Captured from the final successful API response so the footer can
+        # show token usage; stays None if the SDK didn't populate it.
+        usage_meta = None
+
         # Track web search usage - may be disabled if 403 error occurs
         actual_use_web_search = use_web_search
         web_search_fallback_reason = None
@@ -621,7 +641,10 @@ class GeminiProvider(LLMProvider):
                     except asyncio.TimeoutError:
                         self._logger.error(f"LLM response timed out after 5 minutes for model '{model}'")
                         raise AIProcessorError("Request timed out. The LLM did not respond within the expected time. Try again later or with a shorter prompt.")
-                    
+
+                    # Capture usage stats for the metadata footer (may be None).
+                    usage_meta = getattr(response, "usage_metadata", None)
+
                     # Extract text from response
                     response_text = None
                     
@@ -678,6 +701,10 @@ class GeminiProvider(LLMProvider):
                         # Build and return metadata with execution status
                         # Thinking is considered applied if it was requested and we got a response
                         # (since it's prompt-based, if the API call succeeded, thinking worked)
+                        latency = time.monotonic() - started
+                        in_tok = getattr(usage_meta, "prompt_token_count", None) if usage_meta else None
+                        out_tok = getattr(usage_meta, "candidates_token_count", None) if usage_meta else None
+
                         return AIResponseMetadata(
                             response_text=response_text,
                             thinking_requested=use_thinking,
@@ -686,7 +713,10 @@ class GeminiProvider(LLMProvider):
                             web_search_applied=use_web_search and actual_use_web_search and tools is not None,
                             fallback_reason=web_search_fallback_reason,
                             model_used=model,
-                            provider_used=self.provider_name
+                            provider_used=self.provider_name,
+                            latency_seconds=latency,
+                            input_tokens=in_tok,
+                            output_tokens=out_tok,
                         )
 
                 except Exception as e:

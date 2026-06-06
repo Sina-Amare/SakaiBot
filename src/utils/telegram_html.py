@@ -42,9 +42,12 @@ _ALLOWED_TAGS: Final[frozenset] = frozenset({
 })
 
 # Opening, closing, or attribute-bearing tag. Group 1 captures the slash on
-# closing tags, group 2 the tag name.
+# closing tags, group 2 the tag name. Critical: NO whitespace allowed
+# between ``<`` and the slash-or-name. ``< b >`` (math notation, etc.) must
+# NOT be treated as a tag — otherwise user-supplied "5 < 3" gets mangled
+# into a stray ``<3>`` element.
 _TAG_RE = re.compile(
-    r"<\s*(/)?\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*)>",
+    r"<(/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>",
     re.DOTALL,
 )
 

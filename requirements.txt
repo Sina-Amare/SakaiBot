@@ -50,6 +50,12 @@ aiohttp>=3.9.0        # Async HTTP client (for image generation workers)
 httpx[socks]>=0.25.0  # HTTP client with async and SOCKS proxy support
 
 # -----------------------------------------------------------------------------
+# Web Control Panel (only needed to run `sakaibot panel`)
+# -----------------------------------------------------------------------------
+fastapi>=0.110,<0.116   # Local control-panel web API
+uvicorn>=0.29,<0.31     # ASGI server (plain asyncio; shares the Telethon loop)
+
+# -----------------------------------------------------------------------------
 # Utilities
 # -----------------------------------------------------------------------------
 pytz>=2023.3          # Timezone handling

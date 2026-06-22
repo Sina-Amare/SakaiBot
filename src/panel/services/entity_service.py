@@ -1,0 +1,278 @@
+"""Entity service: per-entity detail, message history, media enumeration,
+and lazy/cached real profile photos. All READ-ONLY and throttled.
+"""
+
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from telethon.tl.types import (
+    InputMessagesFilterDocument,
+    InputMessagesFilterPhotos,
+    InputMessagesFilterVideo,
+)
+
+from ...utils.logging import get_logger
+from ..errors import PanelNotFound, PanelUnavailable
+from ..media_cache import AVATAR_TTL_SECONDS
+
+logger = get_logger(__name__)
+
+HISTORY_MAX = 200
+MEDIA_MAX = 60
+
+
+class EntityService:
+    def __init__(self, state: Any) -> None:
+        self.state = state
+
+    def _require_client(self):
+        if self.state.client is None:
+            raise PanelUnavailable()
+        return self.state.client
+
+    # ---------- detail ----------
+    async def detail(self, entity_id: int) -> Dict[str, Any]:
+        client = self._require_client()
+        row = self.state.dialogs.find(entity_id) or {}
+        entity = await self.state.throttle.tg_read(lambda: client.get_entity(int(entity_id)))
+        display_name = row.get("display_name")
+        if not display_name:
+            display_name = (
+                getattr(entity, "title", None)
+                or " ".join(
+                    p for p in [getattr(entity, "first_name", ""), getattr(entity, "last_name", "")] if p
+                ).strip()
+                or f"Entity {entity_id}"
+            )
+        return {
+            "ok": True,
+            "id": int(entity_id),
+            "kind": row.get("kind", "pv"),
+            "display_name": display_name,
+            "username": (f"@{entity.username}" if getattr(entity, "username", None) else None),
+            "is_forum": bool(getattr(entity, "forum", False)),
+            "member_count": getattr(entity, "participants_count", None),
+            "has_photo": getattr(entity, "photo", None) is not None,
+            "verified": bool(getattr(entity, "verified", False)),
+            "is_bot": bool(getattr(entity, "bot", False)),
+        }
+
+    # ---------- history ----------
+    def _sender_name(self, msg: Any, entity_kind: str, entity_name: str) -> str:
+        if getattr(msg, "out", False):
+            return "You"
+        if entity_kind == "pv":
+            return entity_name
+        sender = getattr(msg, "sender", None)  # cached only; no extra RPC
+        if sender is not None:
+            name = " ".join(
+                p for p in [getattr(sender, "first_name", ""), getattr(sender, "last_name", "")] if p
+            ).strip()
+            if name:
+                return name
+            if getattr(sender, "title", None):
+                return sender.title
+        sid = getattr(msg, "sender_id", None)
+        return f"#{sid}" if sid else "Unknown"
+
+    async def history(
+        self,
+        entity_id: int,
+        *,
+        limit: int = 30,
+        before_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        client = self._require_client()
+        limit = max(1, min(int(limit), HISTORY_MAX))
+        row = self.state.dialogs.find(entity_id) or {}
+        kind = row.get("kind", "pv")
+        ename = row.get("display_name", str(entity_id))
+
+        kwargs: Dict[str, Any] = {"limit": limit}
+        if before_id:
+            kwargs["max_id"] = int(before_id)
+
+        messages = await self.state.throttle.tg_read(
+            lambda: client.get_messages(int(entity_id), **kwargs)
+        )
+        items: List[Dict[str, Any]] = []
+        for msg in messages:  # newest-first as returned by Telethon
+            text = msg.message or ""
+            items.append(
+                {
+                    "id": msg.id,
+                    "sender": self._sender_name(msg, kind, ename),
+                    "out": bool(getattr(msg, "out", False)),
+                    "text": text,
+                    "timestamp": msg.date.isoformat() if msg.date else None,
+                    "has_media": getattr(msg, "media", None) is not None,
+                    "is_voice": bool(getattr(msg, "voice", None) or getattr(msg, "audio", None)),
+                }
+            )
+        oldest_id = messages[-1].id if messages else None
+        return {"ok": True, "items": items, "oldest_id": oldest_id}
+
+    async def messages_for_ai(self, entity_id: int, count: int) -> List[Dict[str, Any]]:
+        """Chronological [{sender, text, timestamp}] for analyze/tellme."""
+        client = self._require_client()
+        count = max(1, min(int(count), 10000))
+        row = self.state.dialogs.find(entity_id) or {}
+        kind = row.get("kind", "pv")
+        ename = row.get("display_name", str(entity_id))
+        messages = await self.state.throttle.tg_read(
+            lambda: client.get_messages(int(entity_id), limit=count)
+        )
+        out: List[Dict[str, Any]] = []
+        for msg in reversed(messages):  # oldest -> newest
+            if not (msg.message or "").strip():
+                continue
+            out.append(
+                {
+                    "sender": self._sender_name(msg, kind, ename),
+                    "text": msg.message,
+                    "timestamp": msg.date,
+                }
+            )
+        return out
+
+    # ---------- media enumeration ----------
+    @staticmethod
+    def _media_kind(msg: Any) -> Optional[str]:
+        if getattr(msg, "photo", None):
+            return "photo"
+        if getattr(msg, "voice", None) or getattr(msg, "audio", None):
+            return "audio"
+        doc = getattr(msg, "document", None)
+        if doc is not None:
+            mime = (getattr(doc, "mime_type", "") or "").lower()
+            if mime.startswith("video/"):
+                return "video"
+            if mime.startswith("audio/"):
+                return "audio"
+            if mime.startswith("image/"):
+                return "photo"
+            return "document"
+        if getattr(msg, "video", None):
+            return "video"
+        return None
+
+    async def media(
+        self,
+        entity_id: int,
+        *,
+        kind: str = "all",
+        limit: int = 24,
+        before_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        client = self._require_client()
+        limit = max(1, min(int(limit), MEDIA_MAX))
+        flt = {
+            "photo": InputMessagesFilterPhotos(),
+            "document": InputMessagesFilterDocument(),
+            "video": InputMessagesFilterVideo(),
+        }.get(kind)
+
+        kwargs: Dict[str, Any] = {"limit": limit}
+        if flt is not None:
+            kwargs["filter"] = flt
+        if before_id:
+            kwargs["max_id"] = int(before_id)
+
+        messages = await self.state.throttle.tg_read(
+            lambda: client.get_messages(int(entity_id), **kwargs)
+        )
+        items: List[Dict[str, Any]] = []
+        for msg in messages:
+            mk = self._media_kind(msg)
+            if mk is None:
+                continue
+            doc = getattr(msg, "document", None)
+            file_name = None
+            size = None
+            mime = None
+            if doc is not None:
+                mime = getattr(doc, "mime_type", None)
+                size = getattr(doc, "size", None)
+                for attr in getattr(doc, "attributes", []) or []:
+                    if getattr(attr, "file_name", None):
+                        file_name = attr.file_name
+            items.append(
+                {
+                    "message_id": msg.id,
+                    "kind": mk,
+                    "file_name": file_name,
+                    "size": size,
+                    "mime": mime,
+                    "has_thumb": bool(getattr(msg, "photo", None) or doc),
+                    "timestamp": msg.date.isoformat() if msg.date else None,
+                }
+            )
+        oldest_id = messages[-1].id if messages else None
+        return {"ok": True, "items": items, "oldest_id": oldest_id}
+
+    # ---------- real profile photo (lazy + cached) ----------
+    async def real_avatar_path(self, entity_id: int) -> Optional[str]:
+        cache = self.state.media_cache
+        path = cache.avatar_path(entity_id)
+        if cache.is_fresh(path, AVATAR_TTL_SECONDS):
+            return str(path)
+        if cache.is_fresh(cache.avatar_sentinel(entity_id), AVATAR_TTL_SECONDS):
+            return None  # known to have no photo
+
+        client = self._require_client()
+        try:
+            entity = await self.state.throttle.tg_read(lambda: client.get_entity(int(entity_id)))
+            result = await self.state.throttle.tg_read(
+                lambda: client.download_profile_photo(entity, file=str(path)),
+                kind="download",
+            )
+        except Exception as exc:  # noqa: BLE001 - avatar is best-effort
+            logger.warning("avatar download failed for %s: %s", entity_id, exc)
+            return None
+        if result:
+            return str(result)
+        # No photo — write a sentinel to avoid re-downloading on every scroll.
+        try:
+            cache.avatar_sentinel(entity_id).write_text("1", encoding="utf-8")
+        except OSError:
+            pass
+        return None
+
+    # ---------- media download (file / thumb) ----------
+    async def media_file(
+        self, entity_id: int, message_id: int, *, thumb: bool = False
+    ) -> Dict[str, Any]:
+        client = self._require_client()
+        cache = self.state.media_cache
+        cached = cache.thumb_path(entity_id, message_id) if thumb else cache.media_path(
+            entity_id, message_id
+        )
+        if cache.is_fresh(cached):
+            return {"path": str(cached), "mime": self._guess_mime(cached)}
+
+        msg = await self.state.throttle.tg_read(
+            lambda: client.get_messages(int(entity_id), ids=int(message_id))
+        )
+        if not msg or getattr(msg, "media", None) is None:
+            raise PanelNotFound("No media on that message.")
+
+        if thumb:
+            out = await self.state.throttle.tg_read(
+                lambda: client.download_media(msg, file=str(cached), thumb=-1),
+                kind="download",
+            )
+        else:
+            out = await self.state.throttle.tg_read(
+                lambda: client.download_media(msg, file=str(cached.with_suffix(""))),
+                kind="download",
+            )
+        if not out:
+            raise PanelNotFound("Could not download media.")
+        return {"path": str(out), "mime": self._guess_mime(Path(out))}
+
+    @staticmethod
+    def _guess_mime(path: Path) -> str:
+        import mimetypes
+
+        mime, _ = mimetypes.guess_type(str(path))
+        return mime or "application/octet-stream"

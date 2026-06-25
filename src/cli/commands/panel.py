@@ -20,20 +20,38 @@ from ..utils import (
 )
 
 
+def _lan_ip() -> str:
+    """Best-effort local LAN IP (works offline; UDP socket sends nothing)."""
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except Exception:
+        return "0.0.0.0"
+    finally:
+        s.close()
+
+
 @click.command()
 @click.option("--port", default=None, type=int, help="Port to serve the panel on (default 8765).")
+@click.option("--host", default=None, help="Bind host (default 127.0.0.1).")
+@click.option("--expose-lan", is_flag=True, default=False, help="Bind to your LAN IP so a phone on the same Wi-Fi can reach it (REQUIRES --tls-cert/--tls-key).")
+@click.option("--tls-cert", default=None, help="Path to a TLS certificate (PEM) to serve HTTPS.")
+@click.option("--tls-key", default=None, help="Path to the TLS private key (PEM) to serve HTTPS.")
 @click.option("--no-monitoring", is_flag=True, default=False, help="Run as a pure private console (bot does NOT process chat commands).")
 @click.option("--real-photos", is_flag=True, default=False, help="Fetch real profile photos (lazy + cached). Default is initials only.")
 @click.option("--verbose", is_flag=True, default=False, help="Verbose monitoring output.")
-def panel(port, no_monitoring, real_photos, verbose):
-    """Launch the premium local web control panel."""
+def panel(port, host, expose_lan, tls_cert, tls_key, no_monitoring, real_photos, verbose):
+    """Launch the premium Aigram web control panel."""
     try:
-        asyncio.run(_run_panel(port, not no_monitoring, real_photos, verbose))
+        asyncio.run(_run_panel(port, host, expose_lan, tls_cert, tls_key, not no_monitoring, real_photos, verbose))
     except KeyboardInterrupt:
         console.print("\n[cyan]Panel stopped.[/cyan]")
 
 
-async def _run_panel(port, with_monitoring, real_photos, verbose):
+async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring, real_photos, verbose):
     from src.core.config import get_settings
     from src.cli.state import CLIState
     from src.cli.utils import set_shared_client, clear_shared_client
@@ -90,10 +108,14 @@ async def _run_panel(port, with_monitoring, real_photos, verbose):
             analyze_started = True
             display_info("Monitoring active: the bot still responds to chat commands.")
 
+        resolved_host = _lan_ip() if expose_lan else host
         panel_config = PanelConfig.from_env(
             port=port,
+            host=resolved_host,
             real_photos=True if real_photos else None,
             with_monitoring=with_monitoring,
+            tls_certfile=tls_cert,
+            tls_keyfile=tls_key,
         )
         state = build_panel_state(
             client=client,
@@ -106,9 +128,14 @@ async def _run_panel(port, with_monitoring, real_photos, verbose):
         )
         handle = await start_panel(state)
 
-        url = f"http://{panel_config.host}:{panel_config.port}"
-        console.rule("[bold cyan]SakaiBot Control Panel[/bold cyan]")
+        url = panel_config.url
+        console.rule("[bold #2dd4bf]Aigram Control Panel[/bold #2dd4bf]")
         display_success(f"Panel running at {url}")
+        if panel_config.host not in ("127.0.0.1", "::1", "localhost"):
+            console.print(
+                f"  [bold yellow]⚠ Exposed on the network ({panel_config.host}). "
+                f"Anyone with the token can drive this account — keep it secret.[/bold yellow]"
+            )
         console.print(f"  [bold]Token:[/bold] [yellow]{panel_config.token}[/yellow]")
         console.print(f"  [bold]Open:[/bold]  [green]{url}/?token={panel_config.token}[/green]")
         console.print("  Press Ctrl+C to stop.\n")
@@ -134,3 +161,42 @@ async def _run_panel(port, with_monitoring, real_photos, verbose):
         if client_manager:
             await client_manager.disconnect()
         display_info("Panel stopped.")
+
+
+@click.command()
+@click.option("--port", default=None, type=int, help="Port to serve setup on (default 8765).")
+@click.option("--host", default=None, help="Bind host (default 127.0.0.1).")
+@click.option("--tls-cert", default=None, help="TLS certificate (PEM) for HTTPS.")
+@click.option("--tls-key", default=None, help="TLS private key (PEM) for HTTPS.")
+def setup(port, host, tls_cert, tls_key):
+    """First-run onboarding: log in to Telegram + add API keys from the panel."""
+    try:
+        asyncio.run(_run_setup(port, host, tls_cert, tls_key))
+    except KeyboardInterrupt:
+        console.print("\n[cyan]Setup stopped.[/cyan]")
+
+
+async def _run_setup(port, host, tls_cert, tls_key):
+    from src.panel.config import PanelConfig
+    from src.panel.state import build_setup_state
+    from src.panel.runner import start_panel
+
+    panel_config = PanelConfig.from_env(
+        port=port, host=host, tls_certfile=tls_cert, tls_keyfile=tls_key, with_monitoring=False
+    )
+    state = build_setup_state(panel_config)
+    handle = await start_panel(state)
+    url = panel_config.url
+    console.rule("[bold #2dd4bf]Aigram Setup[/bold #2dd4bf]")
+    display_success(f"Open the setup wizard to configure Aigram:")
+    console.print(f"  [bold]Open:[/bold]  [green]{url}/?token={panel_config.token}[/green]")
+    console.print(f"  [bold]Token:[/bold] [yellow]{panel_config.token}[/yellow]")
+    console.print("  Press Ctrl+C to stop.\n")
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    finally:
+        await handle.stop()
+        display_info("Setup stopped. Run 'sakaibot panel' to launch the full panel.")

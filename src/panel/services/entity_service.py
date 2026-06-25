@@ -75,12 +75,41 @@ class EntityService:
         sid = getattr(msg, "sender_id", None)
         return f"#{sid}" if sid else "Unknown"
 
+    def _format_message(self, msg: Any, kind: str, ename: str) -> Dict[str, Any]:
+        """Shared message shape used by history, polling, and send echo."""
+        media_kind = self._media_kind(msg)
+        file_name, mime = self._doc_meta(msg)
+        return {
+            "id": msg.id,
+            "sender": self._sender_name(msg, kind, ename),
+            "out": bool(getattr(msg, "out", False)),
+            "text": msg.message or "",
+            "timestamp": msg.date.isoformat() if msg.date else None,
+            "has_media": getattr(msg, "media", None) is not None,
+            "media_kind": media_kind,
+            "file_name": file_name,
+            "mime": mime,
+            "is_voice": bool(getattr(msg, "voice", None) or getattr(msg, "audio", None)),
+        }
+
+    def _reply_snippet(self, msg: Any, kind: str, ename: str) -> Dict[str, Any]:
+        """Compact preview of a replied-to message (text or a media label)."""
+        text = (msg.message or "").strip()
+        if not text:
+            mk = self._media_kind(msg)
+            text = {
+                "photo": "Photo", "sticker": "Sticker", "video": "Video",
+                "gif": "GIF", "audio": "Voice message", "document": "File",
+            }.get(mk, "Media" if getattr(msg, "media", None) else "")
+        return {"id": msg.id, "sender": self._sender_name(msg, kind, ename), "text": text}
+
     async def history(
         self,
         entity_id: int,
         *,
         limit: int = 30,
         before_id: Optional[int] = None,
+        after_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         client = self._require_client()
         limit = max(1, min(int(limit), HISTORY_MAX))
@@ -91,26 +120,41 @@ class EntityService:
         kwargs: Dict[str, Any] = {"limit": limit}
         if before_id:
             kwargs["max_id"] = int(before_id)
+        if after_id:  # live polling: only messages newer than what we have
+            kwargs["min_id"] = int(after_id)
 
         messages = await self.state.throttle.tg_read(
             lambda: client.get_messages(int(entity_id), **kwargs)
         )
-        items: List[Dict[str, Any]] = []
-        for msg in messages:  # newest-first as returned by Telethon
-            text = msg.message or ""
-            items.append(
-                {
-                    "id": msg.id,
-                    "sender": self._sender_name(msg, kind, ename),
-                    "out": bool(getattr(msg, "out", False)),
-                    "text": text,
-                    "timestamp": msg.date.isoformat() if msg.date else None,
-                    "has_media": getattr(msg, "media", None) is not None,
-                    "is_voice": bool(getattr(msg, "voice", None) or getattr(msg, "audio", None)),
+        items: List[Dict[str, Any]] = [self._format_message(m, kind, ename) for m in messages]
+
+        # Batch-resolve reply previews for the whole page in ONE extra read.
+        reply_ids = {
+            getattr(m.reply_to, "reply_to_msg_id", None)
+            for m in messages
+            if getattr(m, "reply_to", None) is not None
+        }
+        reply_ids.discard(None)
+        if reply_ids:
+            try:
+                replied = await self.state.throttle.tg_read(
+                    lambda: client.get_messages(int(entity_id), ids=list(reply_ids))
+                )
+                rmap = {
+                    r.id: self._reply_snippet(r, kind, ename)
+                    for r in replied
+                    if r is not None
                 }
-            )
+                for item, m in zip(items, messages):
+                    rid = getattr(getattr(m, "reply_to", None), "reply_to_msg_id", None)
+                    if rid in rmap:
+                        item["reply"] = rmap[rid]
+            except Exception as exc:  # noqa: BLE001 - reply preview is best-effort
+                logger.debug("reply preview fetch failed for %s: %s", entity_id, exc)
+
         oldest_id = messages[-1].id if messages else None
-        return {"ok": True, "items": items, "oldest_id": oldest_id}
+        newest_id = messages[0].id if messages else None
+        return {"ok": True, "items": items, "oldest_id": oldest_id, "newest_id": newest_id}
 
     async def messages_for_ai(self, entity_id: int, count: int) -> List[Dict[str, Any]]:
         """Chronological [{sender, text, timestamp}] for analyze/tellme."""
@@ -140,6 +184,10 @@ class EntityService:
     def _media_kind(msg: Any) -> Optional[str]:
         if getattr(msg, "photo", None):
             return "photo"
+        if getattr(msg, "sticker", None):
+            return "sticker"
+        if getattr(msg, "gif", None):
+            return "gif"
         if getattr(msg, "voice", None) or getattr(msg, "audio", None):
             return "audio"
         doc = getattr(msg, "document", None)
@@ -155,6 +203,18 @@ class EntityService:
         if getattr(msg, "video", None):
             return "video"
         return None
+
+    @staticmethod
+    def _doc_meta(msg: Any) -> tuple[Optional[str], Optional[str]]:
+        """(file_name, mime) for a message's document, if any — no RPC."""
+        doc = getattr(msg, "document", None)
+        if doc is None:
+            return None, None
+        file_name = None
+        for attr in getattr(doc, "attributes", []) or []:
+            if getattr(attr, "file_name", None):
+                file_name = attr.file_name
+        return file_name, getattr(doc, "mime_type", None)
 
     async def media(
         self,

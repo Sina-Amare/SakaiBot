@@ -37,15 +37,20 @@ async def start_panel(state: Any) -> PanelHandle:
     app = create_app(state)
     cfg = state.panel_config
 
+    ssl_kwargs = {}
+    if cfg.tls_enabled:
+        ssl_kwargs = {"ssl_certfile": cfg.tls_certfile, "ssl_keyfile": cfg.tls_keyfile}
+
     uconfig = uvicorn.Config(
         app,
-        host=cfg.host,            # PanelConfig already enforced loopback-only
+        host=cfg.host,            # PanelConfig enforces loopback unless TLS is set
         port=cfg.port,
         loop="none",              # use the running Telethon loop
         lifespan="on",
         log_level="warning",
         access_log=False,
         timeout_graceful_shutdown=5,
+        **ssl_kwargs,
     )
     server = uvicorn.Server(uconfig)
     # The bot owns SIGINT; uvicorn must not install its own handlers.

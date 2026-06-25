@@ -178,7 +178,7 @@ async def _start_monitoring(verbose: bool):
                         actual_message_for_categorization_content=replied_message,
                         cli_state_ref={
                             'selected_target_group': cli_state.selected_target_group,
-                            'active_command_topic_map': cli_state.active_command_to_topic_map,
+                            'active_command_to_topic_map': cli_state.active_command_to_topic_map,
                             'is_monitoring_active': True
                         },
                         is_direct_auth_user_command=True  # Mark as authorized user command

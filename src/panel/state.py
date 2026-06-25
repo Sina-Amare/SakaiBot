@@ -41,6 +41,11 @@ class PanelState:
     status: Any = None
     auth: Any = None
     commands: Any = None
+    keys: Any = None
+    groups: Any = None
+    messenger: Any = None
+    onboarding: Any = None
+    env_writer: Any = None
 
     def client_ready(self) -> bool:
         try:
@@ -73,6 +78,10 @@ def build_panel_state(
     from .services.status_service import StatusService
     from .services.auth_service import AuthService
     from .services.command_service import CommandService
+    from .services.keys_service import KeysService
+    from .services.group_service import GroupService
+    from .services.messenger_service import MessengerService
+    from .env_writer import EnvWriter
 
     state = PanelState(
         panel_config=panel_config,
@@ -92,9 +101,43 @@ def build_panel_state(
         media_cache=MediaCache(),
     )
 
+    state.env_writer = EnvWriter()
     state.dialogs = DialogsService(state)
     state.entity = EntityService(state)
     state.status = StatusService(state)
     state.auth = AuthService(state)
     state.commands = CommandService(state)
+    state.keys = KeysService(state)
+    state.groups = GroupService(state)
+    state.messenger = MessengerService(state)
+    from .onboarding import OnboardingService
+    state.onboarding = OnboardingService(state)
+    return state
+
+
+def build_setup_state(panel_config: PanelConfig) -> PanelState:
+    """A minimal state for first-run onboarding (no authed client yet)."""
+    from .env_writer import EnvWriter
+    from .media_cache import MediaCache
+    from .onboarding import OnboardingService
+
+    state = PanelState(
+        panel_config=panel_config,
+        config=None,
+        client=None,
+        client_manager=None,
+        ai_processor=None,
+        stt_processor=None,
+        tts_processor=None,
+        image_generator=None,
+        prompt_enhancer=None,
+        cache_manager=None,
+        telegram_utils=None,
+        settings_manager=None,
+        user_verifier=None,
+        throttle=Throttle(),
+        media_cache=MediaCache(),
+    )
+    state.env_writer = EnvWriter()
+    state.onboarding = OnboardingService(state)
     return state

@@ -75,3 +75,11 @@ class Throttle:
                 logger.warning("FloodWait %ss; sleeping once then retrying", seconds)
                 await asyncio.sleep(seconds + 1)
                 return await coro_factory()
+
+    async def tg_write(self, coro_factory: Callable[[], Awaitable[T]]) -> T:
+        """Run a Telegram WRITE (send) under the same pacing + FloodWait control.
+
+        Writes are only ever the user's explicit composer sends. They share the
+        rpc semaphore and pacing with reads so the account is never hammered.
+        """
+        return await self.tg_read(coro_factory, kind="rpc")

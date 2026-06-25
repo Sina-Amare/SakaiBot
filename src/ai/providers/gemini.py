@@ -75,6 +75,10 @@ class GeminiProvider(LLMProvider):
         
         # Pro model fallback state - when Pro is exhausted, fallback to Flash
         self._pro_model_exhausted_until: Optional[datetime] = None
+        # Serializes legacy-SDK standard calls so a concurrent request can't
+        # change the GLOBAL genai key mid-flight (the thinking path uses a
+        # per-key Client and is unaffected).
+        self._genai_lock = asyncio.Lock()
     
     @property
     def is_configured(self) -> bool:
@@ -636,22 +640,30 @@ class GeminiProvider(LLMProvider):
                             )
                             tools = None  # Ensure tools is None if setup fails
                     
-                    # Use asyncio to run the async call with timeout
+                    # Use asyncio to run the async call with timeout.
+                    # The legacy SDK keys requests via a GLOBAL genai.configure(),
+                    # so we serialize configure+call under a lock and re-assert
+                    # the current key right before the request. This prevents a
+                    # concurrent request from swapping the global key mid-flight
+                    # (a real correctness risk under the panel's concurrency).
+                    import google.generativeai as _genai_legacy
                     try:
                         # Build request parameters
-                        if tools:
-                            response = await asyncio.wait_for(
-                                client.generate_content_async(
-                                    full_prompt,
-                                    tools=tools
-                                ),
-                                timeout=300 # 5 minute timeout for LLM response
-                            )
-                        else:
-                            response = await asyncio.wait_for(
-                                client.generate_content_async(full_prompt),
-                                timeout=300 # 5 minute timeout for LLM response
-                            )
+                        async with self._genai_lock:
+                            _genai_legacy.configure(api_key=current_key)
+                            if tools:
+                                response = await asyncio.wait_for(
+                                    client.generate_content_async(
+                                        full_prompt,
+                                        tools=tools
+                                    ),
+                                    timeout=300 # 5 minute timeout for LLM response
+                                )
+                            else:
+                                response = await asyncio.wait_for(
+                                    client.generate_content_async(full_prompt),
+                                    timeout=300 # 5 minute timeout for LLM response
+                                )
                     except asyncio.TimeoutError:
                         self._logger.error(f"LLM response timed out after 5 minutes for model '{model}'")
                         raise AIProcessorError("Request timed out. The LLM did not respond within the expected time. Try again later or with a shorter prompt.")

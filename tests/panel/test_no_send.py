@@ -1,11 +1,16 @@
-"""THE critical invariant: the panel web layer never sends to Telegram.
+"""THE critical invariant: the panel never sends to Telegram *implicitly*.
+
+Aigram is a real client now, so the chat composer CAN send — but only via the
+one deliberate, audited bridge (``messenger_service.py``) on an explicit user
+action. Every other route stays strictly read-only.
 
 Two checks:
-1. Static guard — forbidden Telegram write identifiers must not appear in the
-   panel service/web layer source (monitor_runtime.py is the deliberate, allowed
-   bot-monitoring bridge and is excluded).
-2. Runtime guard — drive every endpoint and assert the mock client's write
-   methods are never called.
+1. Static guard — forbidden Telegram write identifiers must not appear anywhere
+   in the panel source EXCEPT the two allowed bridges: ``monitor_runtime.py``
+   (bot monitoring) and ``messenger_service.py`` (the user's composer send).
+2. Runtime guard — drive every read/command endpoint and assert the mock
+   client's write methods are never called (the send route is tested separately
+   in ``test_messenger.py`` to confirm it DOES send on demand).
 """
 
 from pathlib import Path
@@ -16,8 +21,10 @@ from .conftest import FORBIDDEN_CLIENT_CALLS
 
 PANEL_DIR = Path(__file__).resolve().parents[2] / "src" / "panel"
 
-# Files allowed to reference event-handler registration (the monitoring bridge).
-EXCLUDED = {"monitor_runtime.py"}
+# The only files allowed to reference Telegram write APIs:
+#  - monitor_runtime.py  : the bot-monitoring event bridge
+#  - messenger_service.py : the user's explicit composer send (the one write path)
+EXCLUDED = {"monitor_runtime.py", "messenger_service.py"}
 
 FORBIDDEN_TOKENS = [
     "send_message",
@@ -67,6 +74,11 @@ ALL_ENDPOINT_CALLS = [
     ("GET", "/api/entity/101/history", None),
     ("GET", "/api/entity/201/media", None),
     ("GET", "/api/auth", None),
+    ("GET", "/api/keys", None),
+    ("GET", "/api/groups", None),
+    ("GET", "/api/groups/state", None),
+    ("GET", "/api/groups/201/topics", None),
+    ("GET", "/api/tts/voices", None),
     ("POST", "/api/cmd/prompt", {"text": "Explain gravity simply"}),
     ("POST", "/api/cmd/translate", {"text": "hello", "target_lang": "fa"}),
     ("POST", "/api/cmd/analyze", {"entity_id": 201, "count": 5, "mode": "general", "language": "english"}),

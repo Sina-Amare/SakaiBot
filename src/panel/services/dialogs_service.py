@@ -53,6 +53,25 @@ class DialogsService:
         else:
             return None
 
+        # Last-message preview comes free with iter_dialogs (no extra RPC).
+        last = getattr(dialog, "message", None)
+        preview = ""
+        if last is not None:
+            if getattr(last, "message", None):
+                preview = last.message.replace("\n", " ")[:90]
+            elif getattr(last, "media", None) is not None:
+                if getattr(last, "photo", None):
+                    preview = "📷 Photo"
+                elif getattr(last, "sticker", None):
+                    preview = "🩷 Sticker"
+                elif getattr(last, "voice", None) or getattr(last, "audio", None):
+                    preview = "🎤 Voice"
+                elif getattr(last, "video", None) or getattr(last, "gif", None):
+                    preview = "🎬 Video"
+                else:
+                    preview = "📄 File"
+        last_date = getattr(dialog, "date", None)
+
         return {
             "id": int(entity.id),
             "kind": kind,
@@ -60,6 +79,8 @@ class DialogsService:
             "username": f"@{username}" if username else None,
             "has_photo": getattr(entity, "photo", None) is not None,
             "is_forum": bool(getattr(entity, "forum", False)),
+            "preview": preview,
+            "last_date": last_date.isoformat() if last_date else None,
         }
 
     async def _walk(self) -> List[Dict[str, Any]]:

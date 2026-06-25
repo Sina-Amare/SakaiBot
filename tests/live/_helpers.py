@@ -79,3 +79,20 @@ async def live_panel():
 
 def auth_header():
     return {"Authorization": f"Bearer {LIVE_TOKEN}"}
+
+
+@contextlib.asynccontextmanager
+async def setup_panel():
+    """Serve the panel in first-run SETUP mode (no Telegram client/creds)."""
+    from src.panel.config import PanelConfig
+    from src.panel.runner import start_panel
+    from src.panel.state import build_setup_state
+
+    pcfg = PanelConfig(port=TEST_PORT + 1, token="setup-token")
+    state = build_setup_state(pcfg)
+    handle = await start_panel(state)
+    base = f"http://{pcfg.host}:{pcfg.port}"
+    try:
+        yield state, base
+    finally:
+        await handle.stop()

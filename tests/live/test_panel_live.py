@@ -177,6 +177,89 @@ async def test_live_command_fetches_full_count_regardless_of_preview():
 
 
 @pytest.mark.asyncio
+async def test_live_key_test_real_provider():
+    """The 'Test connection' button: a real minimal SDK call per provider."""
+    async with live_panel() as (state, base, client):
+        prov = state.config.llm_provider
+        keys = getattr(state.config, f"{prov}_api_keys", []) or []
+        if not keys:
+            pytest.skip(f"No {prov} keys configured")
+        good = await state.keys.test_key(prov, key=keys[0])
+        assert good["ok"] is True, f"real key test failed: {good}"
+        assert good["latency_ms"] >= 0
+        # a junk key must fail gracefully (no exception, ok=False + error)
+        bad = await state.keys.test_key(prov, key="sk-invalid-junk-key-000000")
+        assert bad["ok"] is False and bad.get("error")
+
+
+@pytest.mark.asyncio
+async def test_live_group_topics_read_only():
+    """Categorization: list real groups + fetch real forum topics (read-only)."""
+    async with live_panel() as (state, base, client):
+        groups = (await state.groups.list_groups())["items"]
+        assert isinstance(groups, list)
+        forum = next((g for g in groups if g.get("is_forum")), None)
+        if not forum:
+            pytest.skip("No forum group available to read topics from.")
+        topics = (await state.groups.list_topics(forum["id"]))["items"]
+        assert isinstance(topics, list)
+        if topics:
+            assert "id" in topics[0] and "title" in topics[0]
+
+
+@pytest.mark.asyncio
+async def test_live_send_to_saved_messages():
+    """The composer DOES write — verified SAFELY against Saved Messages only.
+
+    Sends a marked message (+ a reply), confirms it really landed in the chat
+    and is echoed back shaped like a history item, then deletes the test
+    messages so nothing lingers. Never targets a third party.
+    """
+    async with live_panel() as (state, base, client):
+        entity = await client.get_entity(TEST_CHAT)
+        marker = "Aigram live test — please ignore"
+        sent_ids = []
+        try:
+            async with httpx.AsyncClient(base_url=base, timeout=60) as hc:
+                r = await hc.post(
+                    f"/api/entity/{entity.id}/send",
+                    json={"text": marker},
+                    headers=auth_header(),
+                )
+                assert r.status_code == 200, r.text
+                msg = r.json()["message"]
+                assert msg["out"] is True and msg["text"] == marker
+                sent_ids.append(msg["id"])
+
+                # it really landed in Telegram
+                newest = await client.get_messages(entity, limit=1)
+                assert newest and newest[0].message == marker
+
+                # reply threading sends too
+                r2 = await hc.post(
+                    f"/api/entity/{entity.id}/send",
+                    json={"text": marker + " (reply)", "reply_to": msg["id"]},
+                    headers=auth_header(),
+                )
+                assert r2.status_code == 200, r2.text
+                sent_ids.append(r2.json()["message"]["id"])
+
+                # empty text is rejected (no message created)
+                bad = await hc.post(
+                    f"/api/entity/{entity.id}/send",
+                    json={"text": "   "},
+                    headers=auth_header(),
+                )
+                assert bad.status_code == 400
+        finally:
+            if sent_ids:  # tidy Saved Messages (test-side cleanup, not panel code)
+                try:
+                    await client.delete_messages(entity, sent_ids)
+                except Exception:
+                    pass
+
+
+@pytest.mark.asyncio
 async def test_live_token_enforced():
     async with live_panel() as (state, base, client):
         async with httpx.AsyncClient(base_url=base, timeout=30) as hc:

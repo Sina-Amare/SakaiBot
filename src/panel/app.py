@@ -54,7 +54,67 @@ def create_app(state: Any) -> FastAPI:
 
     @api.get("/keys")
     async def keys() -> Dict[str, Any]:
-        return state.status.keys()
+        return state.keys.list_keys()
+
+    @api.post("/keys")
+    async def keys_add(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.keys.add_key(payload.get("provider"), payload.get("key", ""))
+
+    @api.put("/keys/provider")
+    async def keys_provider(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.keys.set_provider(payload.get("primary"), payload.get("fallback"))
+
+    @api.put("/keys/models")
+    async def keys_models(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.keys.set_models(payload.get("overrides", {}))
+
+    @api.post("/keys/test")
+    async def keys_test(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.keys.test_key(
+            payload.get("provider"), key=payload.get("key"), index=payload.get("index")
+        )
+
+    @api.put("/keys/{provider}/{index}")
+    async def keys_set(provider: str, index: int, payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.keys.set_key(provider, index, payload.get("key", ""))
+
+    @api.delete("/keys/{provider}/{index}")
+    async def keys_remove(provider: str, index: int) -> Dict[str, Any]:
+        return await state.keys.remove_key(provider, index)
+
+    # ---- categorization / groups ----
+    @api.get("/groups")
+    async def groups_list() -> Dict[str, Any]:
+        return await state.groups.list_groups()
+
+    @api.get("/groups/state")
+    async def groups_state() -> Dict[str, Any]:
+        return state.groups.get_state()
+
+    @api.get("/groups/{group_id}/topics")
+    async def groups_topics(group_id: int) -> Dict[str, Any]:
+        return await state.groups.list_topics(group_id)
+
+    @api.put("/groups/target")
+    async def groups_target(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return state.groups.set_target(int(payload.get("group_id")))
+
+    @api.post("/groups/mappings")
+    async def groups_add_map(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return state.groups.add_mapping(payload.get("command", ""), int(payload.get("topic_id")))
+
+    @api.delete("/groups/mappings")
+    async def groups_clear() -> Dict[str, Any]:
+        return state.groups.clear()
+
+    @api.delete("/groups/mappings/{command}")
+    async def groups_del_map(command: str) -> Dict[str, Any]:
+        return state.groups.remove_mapping(command)
+
+    # ---- tts voices ----
+    @api.get("/tts/voices")
+    async def tts_voices() -> Dict[str, Any]:
+        return state.status.tts_voices()
 
     @api.get("/models")
     async def models() -> Dict[str, Any]:
@@ -63,6 +123,31 @@ def create_app(state: Any) -> FastAPI:
     @api.get("/help")
     async def help_() -> Dict[str, Any]:
         return state.status.help()
+
+    # ---- onboarding / first-run setup ----
+    @api.get("/setup/status")
+    async def setup_status() -> Dict[str, Any]:
+        if not state.onboarding:
+            return {"ok": True, "needs_setup": False}
+        return state.onboarding.status()
+
+    @api.post("/setup/start")
+    async def setup_start(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.onboarding.start(
+            payload.get("api_id"), payload.get("api_hash", ""), payload.get("phone", "")
+        )
+
+    @api.post("/setup/code")
+    async def setup_code(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.onboarding.submit_code(payload.get("code", ""))
+
+    @api.post("/setup/password")
+    async def setup_password(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.onboarding.submit_password(payload.get("password", ""))
+
+    @api.post("/setup/finalize")
+    async def setup_finalize(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+        return await state.onboarding.finalize(payload.get("llm"))
 
     # ---- dialogs ----
     @api.get("/dialogs")
@@ -82,9 +167,22 @@ def create_app(state: Any) -> FastAPI:
 
     @api.get("/entity/{entity_id}/history")
     async def entity_history(
-        entity_id: int, limit: int = 30, before_id: Optional[int] = None
+        entity_id: int,
+        limit: int = 30,
+        before_id: Optional[int] = None,
+        after_id: Optional[int] = None,
     ) -> Dict[str, Any]:
-        return await state.entity.history(entity_id, limit=limit, before_id=before_id)
+        return await state.entity.history(
+            entity_id, limit=limit, before_id=before_id, after_id=after_id
+        )
+
+    @api.post("/entity/{entity_id}/send")
+    async def entity_send(
+        entity_id: int, payload: Dict[str, Any] = Body(default={})
+    ) -> Dict[str, Any]:
+        return await state.messenger.send_text(
+            entity_id, payload.get("text", ""), payload.get("reply_to")
+        )
 
     @api.get("/entity/{entity_id}/media")
     async def entity_media(

@@ -25,12 +25,15 @@ DEFAULT_MAX_ANALYZE_MESSAGES: Final[int] = 10000
 # AI Constants
 MAX_OUTPUT_TOKENS: Final[int] = 100000
 
-# Model Configuration - Pro tier (for complex tasks: analyze, tellme, prompt)
-DEFAULT_GEMINI_MODEL_PRO: Final[str] = "gemini-3.5-flash"
+# Model Configuration - Pro tier (for complex tasks: analyze, tellme, prompt).
+# Pinned to gemini-2.5-flash: it's the newest Flash with a GENEROUS free-tier
+# daily quota. The 3.x Flash models exist but ship a tiny free RPD that 429s
+# almost immediately, so they're a poor default for a free self-host product.
+DEFAULT_GEMINI_MODEL_PRO: Final[str] = "gemini-2.5-flash"
 DEFAULT_OPENROUTER_MODEL_PRO: Final[str] = "openrouter/free"
 
 # Model Configuration - Flash tier (for simple tasks: translate, image enhancement)
-DEFAULT_GEMINI_MODEL_FLASH: Final[str] = "gemini-3.1-flash-lite"
+DEFAULT_GEMINI_MODEL_FLASH: Final[str] = "gemini-2.5-flash-lite"
 DEFAULT_OPENROUTER_MODEL_FLASH: Final[str] = "openrouter/free"
 
 # Web-search grounding model. Gemini 3.x has not yet brought Google Search

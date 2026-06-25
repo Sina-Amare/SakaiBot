@@ -13,7 +13,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.cli.commands import group, monitor, config
-from src.cli.commands.panel import panel
+from src.cli.commands.panel import panel, setup as panel_setup
 from src.cli.utils import (
     setup_environment, display_banner,
     normalize_command_mappings, normalize_selected_group
@@ -164,6 +164,7 @@ cli.add_command(group)
 cli.add_command(monitor)
 cli.add_command(config)
 cli.add_command(panel)
+cli.add_command(panel_setup)
 
 # Add status command
 @cli.command()

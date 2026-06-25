@@ -7,6 +7,15 @@ from ...utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Gemini TTS prebuilt voices (mirrors src/ai/tts.py validation list).
+GEMINI_TTS_VOICES = [
+    "achernar", "achird", "algenib", "algieba", "alnilam", "aoede", "autonoe",
+    "callirrhoe", "charon", "despina", "enceladus", "erinome", "fenrir", "gacrux",
+    "iapetus", "kore", "laomedeia", "leda", "orus", "puck", "pulcherrima",
+    "rasalgethi", "sadachbia", "sadaltager", "schedar", "sulafat", "umbriel",
+    "vindemiatrix", "zephyr", "zubenelgenubi",
+]
+
 
 class StatusService:
     def __init__(self, state: Any) -> None:
@@ -134,3 +143,8 @@ class StatusService:
             ],
             "note": "Results appear ONLY in this panel — nothing is ever sent to the Telegram chat.",
         }
+
+    def tts_voices(self) -> Dict[str, Any]:
+        from ...core.tts_config import DEFAULT_VOICE
+
+        return {"ok": True, "voices": GEMINI_TTS_VOICES, "default": DEFAULT_VOICE}

@@ -11,6 +11,7 @@ Results envelope:
 """
 
 import asyncio
+import asyncio
 import secrets
 import tempfile
 import uuid
@@ -22,6 +23,10 @@ from ...utils.logging import get_logger
 from ..errors import PanelError, PanelNotFound
 
 logger = get_logger(__name__)
+
+# Hard wall-clock cap per command so a stuck provider can't hang a request
+# forever (providers also enforce their own per-attempt timeouts).
+COMMAND_DEADLINE_SECONDS = 240
 
 
 class CommandService:
@@ -62,6 +67,15 @@ class CommandService:
         if not self.state.ai_processor.is_configured:
             raise PanelError("AI provider is not configured. Check /status.", status_code=503)
 
+    async def _deadline(self, coro):
+        try:
+            return await asyncio.wait_for(coro, timeout=COMMAND_DEADLINE_SECONDS)
+        except asyncio.TimeoutError:
+            raise PanelError(
+                "The request took too long and was stopped. Try a smaller request.",
+                status_code=504,
+            )
+
     # ---------- prompt ----------
     async def run_prompt(self, text: str, *, think: bool = False, web: bool = False) -> Dict[str, Any]:
         self._ensure_ai()
@@ -78,13 +92,13 @@ class CommandService:
 
         guidelines = get_telegram_formatting_guidelines("persian")
         full_prompt = PROMPT_ADAPTIVE_PROMPT.format(user_prompt=text + guidelines)
-        result = await self.state.ai_processor.execute_custom_prompt(
+        result = await self._deadline(self.state.ai_processor.execute_custom_prompt(
             user_prompt=full_prompt,
             max_tokens=32000,
             task_type="prompt",
             use_thinking=think,
             use_web_search=web,
-        )
+        ))
         return self._render_text(result)
 
     # ---------- translate ----------
@@ -98,9 +112,9 @@ class CommandService:
             raise PanelError("Both text and target language are required.")
         if not InputValidator.validate_language_code(target_lang):
             raise PanelError(f"'{target_lang}' is not a valid language code.")
-        result = await self.state.ai_processor.translate_text_with_phonetics(
+        result = await self._deadline(self.state.ai_processor.translate_text_with_phonetics(
             text_to_translate=text, target_language=target_lang, source_language=source or "auto"
-        )
+        ))
         return self._render_text(result)
 
     # ---------- analyze ----------
@@ -117,12 +131,12 @@ class CommandService:
         messages = await self.state.entity.messages_for_ai(entity_id, count)
         if not messages:
             raise PanelError("No text messages found in that chat to analyze.")
-        result = await self.state.ai_processor.analyze_conversation_messages(
+        result = await self._deadline(self.state.ai_processor.analyze_conversation_messages(
             messages_data=messages,
             analysis_mode=mode,
             output_language=language,
             use_thinking=think,
-        )
+        ))
         out = self._render_text(result)
         out["meta"] = {**out.get("meta", {}), "messages": len(messages), "mode": mode}
         return out
@@ -144,9 +158,9 @@ class CommandService:
         messages = await self.state.entity.messages_for_ai(entity_id, count)
         if not messages:
             raise PanelError("No text messages found in that chat.")
-        result = await self.state.ai_processor.answer_question_from_chat_history(
+        result = await self._deadline(self.state.ai_processor.answer_question_from_chat_history(
             messages_data=messages, user_question=question, use_thinking=think, use_web_search=web
-        )
+        ))
         return self._render_text(result)
 
     # ---------- image ----------

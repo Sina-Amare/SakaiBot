@@ -45,6 +45,9 @@ def make_message(**kw):
         document=kw.get("document", None),
         video=kw.get("video", None),
         photo=kw.get("photo", None),
+        sticker=kw.get("sticker", None),
+        gif=kw.get("gif", None),
+        reply_to=kw.get("reply_to", None),
         sender=kw.get("sender", None),
         sender_id=kw.get("sender_id", 999),
     )
@@ -92,6 +95,12 @@ def build_mock_client():
     # Forbidden writes — present so we can assert they're never called.
     for name in FORBIDDEN_CLIENT_CALLS:
         setattr(client, name, AsyncMock())
+    # send_message is the one allowed write (composer); give it a realistic echo
+    # so the send route serializes — the no-send guard still asserts it is never
+    # called by the READ/command endpoints.
+    client.send_message = AsyncMock(
+        return_value=make_message(id=99999, text="echo", out=True)
+    )
     return client
 
 
@@ -119,8 +128,12 @@ def build_mock_config():
     return SimpleNamespace(
         llm_provider="gemini",
         llm_fallback_provider="openrouter",
-        gemini_api_keys=["k1", "k2"],
-        openrouter_api_keys=["o1"],
+        gemini_api_keys=["k1value123", "k2value123"],
+        openrouter_api_keys=["o1value123"],
+        gemini_api_key_1="k1value123", gemini_api_key_2="k2value123",
+        gemini_api_key_3=None, gemini_api_key_4=None,
+        openrouter_api_key_1="o1value123", openrouter_api_key_2=None,
+        openrouter_api_key_3=None, openrouter_api_key_4=None,
         ffmpeg_path_resolved=None,
         gemini_tts_model="gemini-tts",
         gemini_tts_voice="Orus",
@@ -168,6 +181,11 @@ def build_state(tmp_path, *, client=None, ai=None, real_photos=False):
     cache = MagicMock()
     cache.load_pv_cache = MagicMock(return_value=([], None))
 
+    tg_utils = MagicMock()
+    tg_utils.get_forum_topics = AsyncMock(
+        return_value=[{"id": 1, "title": "General"}, {"id": 12, "title": "Memes"}]
+    )
+
     pcfg = PanelConfig(token=TOKEN, real_photos=real_photos)
     state = PanelState(
         panel_config=pcfg,
@@ -180,17 +198,28 @@ def build_state(tmp_path, *, client=None, ai=None, real_photos=False):
         image_generator=image_gen,
         prompt_enhancer=enhancer,
         cache_manager=cache,
-        telegram_utils=MagicMock(),
+        telegram_utils=tg_utils,
         settings_manager=settings,
         user_verifier=verifier,
         throttle=Throttle(min_gap_seconds=0.0),  # no pacing delay in tests
         media_cache=MediaCache(tmp_path / "cache"),
     )
+    from src.panel.services.keys_service import KeysService
+    from src.panel.services.group_service import GroupService
+    from src.panel.services.messenger_service import MessengerService
+
+    state.env_writer = MagicMock()
+    state.env_writer.set_many = MagicMock()
     state.dialogs = DialogsService(state)
     state.entity = EntityService(state)
     state.status = StatusService(state)
     state.auth = AuthService(state)
     state.commands = CommandService(state)
+    state.keys = KeysService(state)
+    state.groups = GroupService(state)
+    state.messenger = MessengerService(state)
+    from src.panel.onboarding import OnboardingService
+    state.onboarding = OnboardingService(state)
     # Audio decode needs FFmpeg + a real file; transcription is mocked, so stub
     # the WAV conversion to keep offline tests FFmpeg-free.
     state.commands._to_wav = lambda src, dst: None

@@ -1,4 +1,4 @@
-/* SakaiBot Control Panel — vanilla SPA (no build step). */
+/* Aigram Control Panel — vanilla SPA (no build step). */
 (() => {
   "use strict";
 
@@ -70,13 +70,14 @@
   // ---- gate ----
   async function tryUnlock(token) {
     State.token = token;
-    // health is open; status validates the token
+    // /setup/status validates the token and tells us whether to run the wizard
     try {
-      await api("/status");
-      sessionStorage.setItem("panel_token", token);
+      const su = await api("/setup/status");
+      localStorage.setItem("panel_token", token);  // persist for installed PWA
       $("#gate").classList.add("hidden");
       $("#app").classList.remove("hidden");
-      boot();
+      if (su.needs_setup) renderWizard();
+      else boot();
       return true;
     } catch (e) {
       $("#gate-err").textContent = e.status === 401 ? "Invalid token." : (e.message || "Failed");
@@ -85,7 +86,7 @@
   }
 
   function initGate() {
-    const saved = tokenFromUrl() || sessionStorage.getItem("panel_token") || "";
+    const saved = tokenFromUrl() || localStorage.getItem("panel_token") || sessionStorage.getItem("panel_token") || "";
     $("#gate-go").addEventListener("click", () => tryUnlock($("#gate-token").value.trim()));
     $("#gate-token").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock($("#gate-token").value.trim()); });
     if (saved) { $("#gate-token").value = saved; tryUnlock(saved); }
@@ -172,7 +173,7 @@
         img,
         el("div", { class: "meta" }, [
           el("div", { class: "name", dir: "auto", text: it.display_name || String(it.id) }),
-          el("div", { class: "sub", text: it.username || ("id " + it.id) }),
+          el("div", { class: "sub", dir: "auto", text: it.preview || it.username || ("id " + it.id) }),
         ]),
         el("span", { class: "kind-badge kind-" + it.kind, text: it.kind }),
       ]);
@@ -202,9 +203,11 @@
     io.observe(img);
   }
 
-  // ---- entity view ----
+  // ---- entity view (chat) ----
   async function selectEntity(it) {
     State.entity = it;
+    closeDrawers();
+    clearReply();
     $$(".dialog-row").forEach((r) => r.classList.toggle("active", r.dataset.id == it.id));
     $("#empty-main").classList.add("hidden");
     $("#entity-view").classList.remove("hidden");
@@ -217,22 +220,46 @@
     if (it.username) sub.appendChild(el("span", { text: it.username }));
     sub.appendChild(el("span", { class: "faint", text: "id " + it.id }));
     $("#ev-avatar").src = avatarUrl(it.id, true);
-    switchEvTab("commands");
-    renderCommands(it);
+    const input = $("#composer-input");
+    input.value = "";
+    autoGrow(input);
+    setSendEnabled(false);
+    await loadChat();
+    input.focus();
   }
 
-  function initEntityTabs() {
-    $$("#ev-tabs .tab").forEach((t) =>
-      t.addEventListener("click", () => switchEvTab(t.dataset.ev))
-    );
+  function initEntityActions() {
+    $("#ev-ai-btn").addEventListener("click", openAi);
+    $("#composer-ai").addEventListener("click", openAi);
+    $("#ev-media-btn").addEventListener("click", openMediaModal);
+    const input = $("#composer-input");
+    input.addEventListener("input", () => { autoGrow(input); setSendEnabled(input.value.trim().length > 0); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (input.value.trim()) sendMessage(); }
+    });
+    $("#composer-send").addEventListener("click", sendMessage);
   }
-  function switchEvTab(name) {
-    $$("#ev-tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.ev === name));
-    $("#ev-commands").classList.toggle("hidden", name !== "commands");
-    $("#ev-messages").classList.toggle("hidden", name !== "messages");
-    $("#ev-media").classList.toggle("hidden", name !== "media");
-    if (name === "messages") loadMessages();
-    if (name === "media") loadMedia();
+
+  function setSendEnabled(on) { $("#composer-send").disabled = !on; }
+  function autoGrow(t) { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 168) + "px"; }
+
+  // AI commands + shared media open as overlays over the chat
+  function openModal(title, render) {
+    const modal = $("#modal"), body = $("#modal-body");
+    $("#modal-title").textContent = title;
+    body.innerHTML = "<div class='muted'>Loading…</div>";
+    modal.classList.remove("hidden");
+    Promise.resolve()
+      .then(() => render(body))
+      .catch((e) => { body.innerHTML = `<div class='err'>${esc(e.message)}</div>`; });
+  }
+  function openAi() {
+    if (!State.entity) return;
+    openModal("✨ AI · " + (State.entity.display_name || State.entity.id), (body) => { body.innerHTML = ""; renderCommands(body, State.entity); });
+  }
+  function openMediaModal() {
+    if (!State.entity) return;
+    openModal("Shared media · " + (State.entity.display_name || State.entity.id), (body) => loadMedia(body, State.entity));
   }
 
   // command cards
@@ -275,8 +302,7 @@
     ]);
   }
 
-  function renderCommands(it) {
-    const pane = $("#ev-commands");
+  function renderCommands(pane, it) {
     pane.innerHTML = "";
     const grid = el("div", { class: "card-cmds" });
     const chatScoped = it.kind === "pv" || it.kind === "group" || it.kind === "channel";
@@ -305,8 +331,9 @@
 
     grid.appendChild(card("Translate", "🌐", "Translate with Persian phonetics.", [
       { key: "target_lang", label: "Target language", value: "en" },
+      { key: "source", label: "Source language", value: "auto" },
       { key: "text", type: "textarea", label: "Text", ph: "متن برای ترجمه…" },
-    ], (v, btn) => runCommand("translate", { text: v.text, target_lang: v.target_lang, source: "auto" }, "Translate", btn)));
+    ], (v, btn) => runCommand("translate", { text: v.text, target_lang: v.target_lang, source: v.source || "auto" }, "Translate", btn)));
 
     grid.appendChild(card("Image", "🎨", "Generate an image — rendered inline.", [
       { key: "model", type: "select", label: "Model", options: [{ v: "flux", t: "Flux (fast)" }, { v: "sdxl", t: "SDXL (photoreal)" }] },
@@ -314,88 +341,281 @@
     ], (v, btn) => runCommand("image", { model: v.model, prompt: v.prompt }, "Image", btn)));
 
     grid.appendChild(card("Text-to-Speech", "🔊", "Generate audio — plays inline.", [
-      { key: "voice", label: "Voice (optional)", ph: "e.g. Orus" },
-      { key: "text", type: "textarea", label: "Text", ph: "Hello from SakaiBot" },
+      (State.voices && State.voices.length)
+        ? { key: "voice", type: "select", label: "Voice", options: [{ v: "", t: "default" }, ...State.voices.map((v) => ({ v, t: v }))] }
+        : { key: "voice", label: "Voice (optional)", ph: "e.g. Orus" },
+      { key: "text", type: "textarea", label: "Text", ph: "Hello from Aigram" },
     ], (v, btn) => runCommand("tts", { text: v.text, voice: v.voice || null }, "TTS", btn)));
 
     pane.appendChild(grid);
   }
 
-  // ---- messages (with scroll-up pagination) ----
+  // ---- chat engine (full re-render; media nodes cached per message id) ----
   const PAGE = 30;
-  let msgState = { oldestId: null, loading: false, hasMore: true };
+  let chat = { items: [], oldestId: null, loading: false, hasMore: true };
+  const mediaNodes = new Map(); // msgId -> cached media element (survives re-renders, no re-fetch)
+  const newIds = new Set();     // ids to animate in ONCE (only genuinely new messages)
 
-  function messageBubble(m) {
-    const bubble = el("div", { class: "msg" + (m.out ? " out" : "") }, [
-      el("div", { class: "who", dir: "auto", text: `${m.sender} · ${fmtTime(m.timestamp)}` }),
-      el("div", { class: "body", dir: "auto", text: m.text || (m.has_media ? "[media]" : "") }),
-    ]);
-    if (m.is_voice) {
-      bubble.appendChild(el("button", {
-        class: "btn voice-btn", text: "🎤 Transcribe (STT)",
-        onclick: () => runCommand("stt", { entity_id: State.entity.id, message_id: m.id }, "STT", null),
-      }));
+  function sameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function dayLabel(iso) {
+    const d = new Date(iso), now = new Date(), y = new Date(now);
+    y.setDate(now.getDate() - 1);
+    if (sameDay(d, now)) return "Today";
+    if (sameDay(d, y)) return "Yesterday";
+    const opts = { month: "short", day: "numeric" };
+    if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+    return d.toLocaleDateString([], opts);
+  }
+  function clockTime(iso) {
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch (_) { return ""; }
+  }
+
+  async function loadChat() {
+    stopPolling();
+    const scroll = $("#chat-scroll");
+    scroll.innerHTML = "<div class='chat-top muted'>Loading…</div>";
+    chat = { items: [], oldestId: null, loading: false, hasMore: true };
+    mediaNodes.clear();
+    scroll.onscroll = () => { if (scroll.scrollTop < 80) loadOlder(); };
+    await loadOlder(true);
+    scroll.scrollTop = scroll.scrollHeight;
+    startPolling();
+  }
+
+  // ---- live updates (visibility-aware polling; ban-safe, throttled server-side) ----
+  const POLL_MS = 6000;
+  let pollTimer = null;
+  function newestNumericId() {
+    for (let i = chat.items.length - 1; i >= 0; i--) {
+      if (typeof chat.items[i].id === "number") return chat.items[i].id;
     }
-    return bubble;
+    return null;
   }
-
-  async function loadMessages() {
-    const pane = $("#ev-messages");
-    pane.innerHTML = "";
-    msgState = { oldestId: null, loading: false, hasMore: true };
-    const top = el("div", { class: "msg-top muted", text: "Loading…" });
-    const scroll = el("div", { class: "msg-scroll" }, [top]);
-    pane.appendChild(scroll);
-    scroll.addEventListener("scroll", () => {
-      if (scroll.scrollTop < 60) loadOlderMessages(scroll, top);
-    });
-    await loadOlderMessages(scroll, top, true);
-    scroll.scrollTop = scroll.scrollHeight; // start at the newest (bottom)
-  }
-
-  async function loadOlderMessages(scroll, top, initial = false) {
-    if (msgState.loading || !msgState.hasMore) return;
-    msgState.loading = true;
-    if (!initial) top.textContent = "Loading older…";
+  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+  function startPolling() { stopPolling(); pollTimer = setInterval(pollNew, POLL_MS); }
+  async function pollNew() {
+    if (!State.entity || document.hidden || chat.loading) return;
+    const after = newestNumericId();
+    if (!after) return;
     try {
-      const cursor = msgState.oldestId ? `&before_id=${msgState.oldestId}` : "";
+      const data = await api(`/entity/${State.entity.id}/history?limit=20&after_id=${after}`);
+      const known = new Set(chat.items.map((x) => x.id));
+      const fresh = (data.items || []).filter((m) => typeof m.id === "number" && !known.has(m.id));
+      if (!fresh.length) return;
+      fresh.reverse(); // newest-first -> chronological
+      fresh.forEach((m) => newIds.add(m.id));
+      chat.items.push(...fresh);
+      renderChat();
+    } catch (_) { /* transient network blip; next tick retries */ }
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && State.entity) pollNew(); });
+
+  async function loadOlder(initial = false) {
+    if (chat.loading || !chat.hasMore) return;
+    chat.loading = true;
+    const scroll = $("#chat-scroll");
+    const top = scroll.querySelector(".chat-top");
+    if (top && !initial) top.textContent = "Loading older…";
+    try {
+      const cursor = chat.oldestId ? `&before_id=${chat.oldestId}` : "";
       const data = await api(`/entity/${State.entity.id}/history?limit=${PAGE}${cursor}`);
-      if (!data.items.length) {
-        msgState.hasMore = false;
-        top.textContent = initial ? "No messages." : "";
-        return;
-      }
-      const older = data.items.slice().reverse(); // oldest -> newest
+      const older = (data.items || []).slice().reverse(); // oldest -> newest
+      if (!older.length) { chat.hasMore = false; renderChat(); return; }
       const prevH = scroll.scrollHeight;
-      const frag = document.createDocumentFragment();
-      for (const m of older) frag.appendChild(messageBubble(m));
-      top.after(frag); // older page sits just below the indicator, above existing
-      msgState.oldestId = data.oldest_id;
-      if (data.items.length < PAGE) { msgState.hasMore = false; top.textContent = "Beginning of chat"; }
-      else { top.textContent = "↑ scroll for older"; }
+      chat.items = older.concat(chat.items);
+      chat.oldestId = data.oldest_id;
+      if (data.items.length < PAGE) chat.hasMore = false;
+      renderChat();
       if (!initial) scroll.scrollTop = scroll.scrollTop + (scroll.scrollHeight - prevH);
     } catch (e) {
-      top.textContent = e.message;
+      const t = scroll.querySelector(".chat-top");
+      if (t) t.textContent = e.message;
     } finally {
-      msgState.loading = false;
+      chat.loading = false;
     }
   }
 
-  // ---- media ----
-  async function loadMedia() {
-    const pane = $("#ev-media");
+  function renderChat() {
+    const scroll = $("#chat-scroll");
+    const prevTop = scroll.scrollTop;
+    const atBottom = scroll.scrollHeight - prevTop - scroll.clientHeight < 48;
+    scroll.innerHTML = "";
+    const topText = !chat.hasMore ? "Beginning of chat" : "↑ scroll up for older";
+    scroll.appendChild(el("div", { class: "chat-top muted", text: chat.items.length ? topText : "No messages yet." }));
+    let prev = null;
+    const isGroupChat = State.entity && State.entity.kind === "group"; // multi-sender only
+    for (const m of chat.items) {
+      const cur = new Date(m.timestamp);
+      if (!prev || !sameDay(new Date(prev.timestamp), cur)) {
+        scroll.appendChild(el("div", { class: "day-sep" }, el("span", { text: dayLabel(m.timestamp) })));
+      }
+      const grouped = prev && prev.out === m.out && prev.sender === m.sender &&
+        sameDay(new Date(prev.timestamp), cur) && (cur - new Date(prev.timestamp)) < 5 * 60 * 1000;
+      scroll.appendChild(bubbleRow(m, !grouped, isGroupChat, newIds.has(m.id)));
+      prev = m;
+    }
+    newIds.clear(); // each message animates in only once
+    // keep the viewport anchored: pin to bottom if we were there, else hold place
+    scroll.scrollTop = atBottom ? scroll.scrollHeight : prevTop;
+  }
+
+  function bubbleRow(m, groupStart, isGroupChat, fresh) {
+    const media = renderMedia(m);
+    let cls = "bubble" + (m.out ? " out" : "") + (groupStart ? " gstart" : "") + (fresh ? " just-in" : "");
+    if (media && !m.text) {
+      if (m.media_kind === "sticker") cls += " sticker-bubble";
+      else if (m.media_kind !== "audio") cls += " media-only";
+    }
+    const bubble = el("div", { class: cls });
+    if (groupStart && !m.out && isGroupChat) bubble.appendChild(el("div", { class: "b-sender", dir: "auto", text: m.sender }));
+    if (m.reply) bubble.appendChild(replyPreview(m.reply));
+    if (media) bubble.appendChild(media);
+    if (m.text) bubble.appendChild(el("div", { class: "b-text", dir: "auto", text: m.text }));
+    if (m.media_kind === "audio") bubble.appendChild(el("button", {
+      class: "stt-btn", title: "Transcribe with AI",
+      onclick: () => runCommand("stt", { entity_id: State.entity.id, message_id: m.id }, "STT", null),
+    }, el("span", { text: "🎤 Transcribe" })));
+    bubble.appendChild(el("div", { class: "b-meta" }, [
+      el("span", { text: clockTime(m.timestamp) }),
+      m.out ? el("span", { class: "tick" + (m.pending ? " pending" : ""), text: m.pending ? "🕓" : "✓" }) : null,
+    ]));
+    const row = el("div", { class: "msg-row" + (m.out ? " out" : "") + (groupStart ? " gstart" : "") }, [
+      bubble,
+      typeof m.id === "number" ? el("button", { class: "row-reply", title: "Reply", text: "↩", onclick: () => setReply(m) }) : null,
+    ]);
+    return row;
+  }
+
+  const MEDIA_LABEL = { sticker: "Sticker", photo: "Photo", video: "Video", gif: "GIF", audio: "Audio", document: "File" };
+  const MEDIA_ICON = { sticker: "🩷", photo: "📷", video: "🎬", gif: "🎞️", audio: "🎤", document: "📄" };
+  function mediaFallback(kind) {
+    return el("div", { class: "m-fallback" }, [
+      el("span", { class: "m-fb-ic", text: MEDIA_ICON[kind] || "📄" }),
+      el("span", { text: MEDIA_LABEL[kind] || "Media" }),
+    ]);
+  }
+  // Swap a broken media element for a clean labelled placeholder (never show
+  // a browser's broken-image glyph or raw alt text).
+  function withFallback(img, node, kind) {
+    img.addEventListener("error", () => node.replaceChildren(mediaFallback(kind)));
+    return img;
+  }
+
+  function renderMedia(m) {
+    if (!m.has_media) return null;
+    if (typeof m.id === "number" && mediaNodes.has(m.id)) return mediaNodes.get(m.id);
+    const fileUrl = mediaUrl(`/api/entity/${State.entity.id}/media/${m.id}/file`);
+    const thumbUrl = mediaUrl(`/api/entity/${State.entity.id}/media/${m.id}/thumb`);
+    let node;
+    switch (m.media_kind) {
+      case "photo":
+        node = el("div", { class: "m-photo", onclick: () => window.open(fileUrl, "_blank") });
+        node.appendChild(withFallback(el("img", { loading: "lazy", src: thumbUrl, alt: "" }), node, "photo"));
+        break;
+      case "sticker":
+        // Stickers may be .tgs (Lottie) / .webm — not <img>-renderable. The static
+        // THUMBNAIL always is, so use it (with a tidy placeholder on failure).
+        node = el("div", { class: "m-sticker" });
+        node.appendChild(withFallback(el("img", { loading: "lazy", src: thumbUrl, alt: "" }), node, "sticker"));
+        break;
+      case "video":
+      case "gif":
+        node = el("div", { class: "m-photo m-video", onclick: () => window.open(fileUrl, "_blank") });
+        node.appendChild(withFallback(el("img", { loading: "lazy", src: thumbUrl, alt: "" }), node, "video"));
+        node.appendChild(el("span", { class: "play", html: "&#9658;" }));
+        break;
+      case "audio":
+        node = el("audio", { class: "m-audio", controls: "", preload: "none", src: fileUrl });
+        break;
+      default:
+        node = el("a", { class: "m-doc", href: fileUrl, target: "_blank", rel: "noopener" }, [
+          el("span", { class: "m-doc-ic", text: "📄" }),
+          el("span", { class: "m-doc-name", dir: "auto", text: m.file_name || m.mime || "file" }),
+        ]);
+    }
+    if (typeof m.id === "number") mediaNodes.set(m.id, node);
+    return node;
+  }
+
+  // ---- reply ----
+  function setReply(m) {
+    State.replyTo = { id: m.id, sender: m.sender, text: m.text || mediaLabel(m) };
+    const bar = $("#reply-bar");
+    bar.innerHTML = "";
+    bar.appendChild(el("div", { class: "reply-acc" }));
+    bar.appendChild(el("div", { class: "reply-meta" }, [
+      el("div", { class: "reply-to", dir: "auto", text: "↩ " + State.replyTo.sender }),
+      el("div", { class: "reply-snip", dir: "auto", text: (State.replyTo.text || "").slice(0, 90) }),
+    ]));
+    bar.appendChild(el("button", { class: "reply-x", title: "Cancel reply", text: "✕", onclick: clearReply }));
+    bar.classList.remove("hidden");
+    $("#composer-input").focus();
+  }
+  function clearReply() { State.replyTo = null; const b = $("#reply-bar"); if (b) { b.classList.add("hidden"); b.innerHTML = ""; } }
+  function mediaLabel(m) {
+    return { photo: "📷 Photo", video: "🎬 Video", sticker: "🩷 Sticker", audio: "🎤 Voice", gif: "GIF", document: "📄 File" }[m.media_kind] || (m.has_media ? "Media" : "");
+  }
+  function replyPreview(r) {
+    return el("div", { class: "b-reply" }, [
+      el("div", { class: "b-reply-to", dir: "auto", text: r.sender || "" }),
+      el("div", { class: "b-reply-snip", dir: "auto", text: (r.text || "").slice(0, 90) }),
+    ]);
+  }
+
+  // ---- send (write to Telegram) ----
+  async function sendMessage() {
+    const input = $("#composer-input");
+    const text = input.value.trim();
+    if (!text || !State.entity) return;
+    const replyTo = State.replyTo ? State.replyTo.id : null;
+    const replySnap = State.replyTo ? { sender: State.replyTo.sender, text: State.replyTo.text } : null;
+    setSendEnabled(false);
+    input.value = ""; autoGrow(input);
+    const optimistic = {
+      id: "pending-" + Date.now(), out: true, sender: "You", text,
+      timestamp: new Date().toISOString(), has_media: false, media_kind: null, pending: true, reply: replySnap,
+    };
+    chat.items.push(optimistic);
+    newIds.add(optimistic.id);
+    clearReply();
+    renderChat();
+    const scroll = $("#chat-scroll"); scroll.scrollTop = scroll.scrollHeight;
+    try {
+      const data = await api(`/entity/${State.entity.id}/send`, { method: "POST", body: { text, reply_to: replyTo } });
+      const idx = chat.items.findIndex((x) => x.id === optimistic.id);
+      if (idx >= 0) {
+        const real = data.message || Object.assign(optimistic, { pending: false });
+        if (optimistic.reply && !real.reply) real.reply = optimistic.reply; // echo lacks reply preview
+        chat.items[idx] = real;
+      }
+      renderChat();
+      scroll.scrollTop = scroll.scrollHeight;
+    } catch (e) {
+      const idx = chat.items.findIndex((x) => x.id === optimistic.id);
+      if (idx >= 0) chat.items.splice(idx, 1);
+      renderChat();
+      input.value = text; autoGrow(input); setSendEnabled(true);
+      toast(e.message, true);
+    }
+  }
+
+  // ---- shared media (modal grid) ----
+  async function loadMedia(pane, it) {
     pane.innerHTML = "<div class='muted'>Loading media…</div>";
     try {
-      const data = await api(`/entity/${State.entity.id}/media?kind=all&limit=24`);
+      const data = await api(`/entity/${it.id}/media?kind=all&limit=30`);
       pane.innerHTML = "";
       if (!data.items.length) { pane.innerHTML = "<div class='muted'>No media in this chat.</div>"; return; }
       const grid = el("div", { class: "media-grid" });
       for (const m of data.items) {
-        const fileUrl = mediaUrl(`/api/entity/${State.entity.id}/media/${m.message_id}/file`);
+        const fileUrl = mediaUrl(`/api/entity/${it.id}/media/${m.message_id}/file`);
         const tile = el("div", { class: "media-tile", onclick: () => window.open(fileUrl, "_blank") },
           el("span", { class: "badge2", text: m.kind }));
         if (m.kind === "photo" || m.kind === "video") {
-          tile.appendChild(el("img", { loading: "lazy", src: mediaUrl(`/api/entity/${State.entity.id}/media/${m.message_id}/thumb`) }));
+          tile.appendChild(el("img", { loading: "lazy", src: mediaUrl(`/api/entity/${it.id}/media/${m.message_id}/thumb`) }));
         } else {
           tile.appendChild(el("div", { class: "doc", text: m.file_name || m.mime || m.kind }));
         }
@@ -407,6 +627,7 @@
 
   // ---- run command + results ----
   async function runCommand(kind, payload, title, btn) {
+    $("#modal").classList.add("hidden"); // reveal the results rail behind the AI sheet
     if (btn) { btn.disabled = true; btn.dataset.html = btn.innerHTML; btn.innerHTML = '<span class="spin"></span><span>Running…</span>'; }
     const card = addResultCard(title);
     try {
@@ -441,6 +662,7 @@
     ]);
     body.insertBefore(card, body.firstChild);
     updateRailCount();
+    openRailMobile();
     return card;
   }
 
@@ -498,28 +720,88 @@
 
   async function openDash(which) {
     const modal = $("#modal"); const body = $("#modal-body");
-    $("#modal-title").textContent = { keys: "API Key Health", models: "Model Matrix", auth: "Authorized Users", help: "Help" }[which] || which;
+    $("#modal-title").textContent = { keys: "Keys & Providers", routing: "Categorization & Routing", models: "Model Matrix", auth: "Authorized Users", help: "Help" }[which] || which;
     body.innerHTML = "<div class='muted'>Loading…</div>";
     modal.classList.remove("hidden");
     try {
-      if (which === "keys") body.replaceChildren(renderKeys(await api("/keys")));
+      if (which === "keys") await renderKeys(body);
+      else if (which === "routing") await renderRouting(body);
       else if (which === "models") body.replaceChildren(renderModels(await api("/models")));
       else if (which === "help") body.replaceChildren(renderHelp(await api("/help")));
       else if (which === "auth") await renderAuth(body);
     } catch (e) { body.innerHTML = `<div class='err'>${esc(e.message)}</div>`; }
   }
 
-  function renderKeys(d) {
-    const wrap = el("div");
+  async function renderKeys(body) {
+    const d = await api("/keys");
+    body.innerHTML = "";
+
+    // provider selector
+    const mkSel = (id, val, opts) =>
+      el("select", { id }, opts.map((o) => el("option", { value: o, selected: o === val ? "" : null, text: o })));
+    const primarySel = mkSel("k-primary", d.primary, ["gemini", "openrouter"]);
+    const fallbackSel = mkSel("k-fallback", d.fallback || "none", ["none", "gemini", "openrouter"]);
+    body.appendChild(el("div", { class: "field-row", style: "align-items:flex-end;margin-bottom:16px" }, [
+      el("div", { class: "field" }, [el("label", { class: "field-label", text: "Primary" }), primarySel]),
+      el("div", { class: "field" }, [el("label", { class: "field-label", text: "Fallback" }), fallbackSel]),
+      el("button", { class: "btn btn-primary", text: "Save", onclick: async () => {
+        try { await api("/keys/provider", { method: "PUT", body: { primary: primarySel.value, fallback: fallbackSel.value } });
+          toast("Provider updated"); renderKeys(body); }
+        catch (e) { toast(e.message, true); }
+      }}),
+    ]));
+
     for (const p of d.providers) {
-      wrap.appendChild(el("div", { class: "auth-row" }, [
-        el("strong", { class: "grow", text: p.name }),
-        el("span", { class: "muted", text: `${p.configured_keys} key(s)` }),
-        p.is_primary ? el("span", { class: "pill good", text: "primary" }) : el("span", { class: "pill neutral", text: "fallback" }),
+      const card = el("div", { class: "card", style: "margin-bottom:14px" });
+      card.appendChild(el("div", { class: "card-head" }, [
+        el("strong", { class: "grow", text: p.provider }),
+        p.is_primary ? el("span", { class: "pill good", text: "primary" }) : null,
+        p.is_fallback ? el("span", { class: "pill warn", text: "fallback" }) : null,
       ]));
+      for (const s of p.slots) {
+        const row = el("div", { class: "auth-row" }, [
+          el("span", { class: "faint", text: "#" + s.index }),
+          el("code", { class: "grow", text: s.present ? s.masked : "— empty —" }),
+        ]);
+        if (s.present) {
+          const status = el("span", {});
+          row.appendChild(el("button", { class: "btn btn-sm", text: "Test", onclick: async (e) => {
+            const b = e.target; b.disabled = true; b.textContent = "…";
+            try {
+              const r = await api("/keys/test", { method: "POST", body: { provider: p.provider, index: s.index } });
+              status.className = "pill " + (r.ok ? "good" : "bad");
+              status.textContent = r.ok ? `✓ ${r.latency_ms}ms` : `✗ ${r.error || "failed"}`;
+            } finally { b.disabled = false; b.textContent = "Test"; }
+          }}));
+          row.appendChild(status);
+          row.appendChild(el("button", { class: "icon-btn", text: "✕", title: "Remove", onclick: async () => {
+            try { await api(`/keys/${p.provider}/${s.index}`, { method: "DELETE" }); toast("Key removed"); renderKeys(body); }
+            catch (e) { toast(e.message, true); }
+          }}));
+        }
+        card.appendChild(row);
+      }
+      const inp = el("input", { type: "password", placeholder: `Paste a ${p.provider} API key…`, autocomplete: "off" });
+      card.appendChild(el("div", { class: "field-row", style: "margin-top:12px;align-items:flex-end" }, [
+        el("span", { class: "grow" }, [inp]),
+        el("button", { class: "btn btn-sm", text: "Test", onclick: async (e) => {
+          const v = inp.value.trim(); if (!v) return; const b = e.target; b.disabled = true; b.textContent = "…";
+          try { const r = await api("/keys/test", { method: "POST", body: { provider: p.provider, key: v } });
+            toast(r.ok ? `✓ key works (${r.latency_ms}ms)` : `✗ ${r.error || "failed"}`, !r.ok); }
+          finally { b.disabled = false; b.textContent = "Test"; }
+        }}),
+        el("button", { class: "btn btn-primary btn-sm", text: "Add", onclick: async () => {
+          const v = inp.value.trim(); if (!v) return;
+          try { await api("/keys", { method: "POST", body: { provider: p.provider, key: v } }); toast("Key added & applied"); renderKeys(body); }
+          catch (e) { toast(e.message, true); }
+        }}),
+      ]));
+      body.appendChild(card);
     }
+
     if (d.live && d.live.keys) {
-      const table = el("table", { class: "keytable" }, [
+      body.appendChild(el("h3", { text: "Live key health", style: "margin:14px 0 6px" }));
+      body.appendChild(el("table", { class: "keytable" }, [
         el("tr", {}, [el("th", { text: "#" }), el("th", { text: "Status" }), el("th", { text: "Available" }), el("th", { text: "Errors" })]),
         ...d.live.keys.map((k) => el("tr", {}, [
           el("td", { text: "#" + (k.index + 1) + (k.is_current ? " ◀" : "") }),
@@ -527,11 +809,8 @@
           el("td", { text: k.available ? "yes" : "no" }),
           el("td", { text: String(k.error_count) }),
         ])),
-      ]);
-      wrap.appendChild(el("h3", { text: "Live key health", style: "margin-top:14px" }));
-      wrap.appendChild(table);
+      ]));
     }
-    return wrap;
   }
 
   function renderModels(d) {
@@ -586,9 +865,201 @@
     }
   }
 
+  async function renderRouting(body) {
+    body.innerHTML = "";
+    const [groups, st] = await Promise.all([api("/groups"), api("/groups/state")]);
+    body.appendChild(el("p", { class: "muted", text:
+      "Map a /command → forum topic. Reply to a message with that command and the bot files it into the topic. Mapping changes apply on the next bot start." }));
+
+    const curTarget = st.target && st.target.id;
+    const gSel = el("select", { id: "rt-group" }, [
+      el("option", { value: "", text: "— select target group —" }),
+      ...groups.items.map((g) => el("option", { value: g.id, selected: g.id === curTarget ? "" : null,
+        text: g.title + (g.is_forum ? "" : " (no topics)") })),
+    ]);
+    body.appendChild(el("div", { class: "field-row", style: "align-items:flex-end;margin:10px 0 16px" }, [
+      el("div", { class: "field" }, [el("label", { class: "field-label", text: "Target group" }), gSel]),
+      el("button", { class: "btn btn-primary", text: "Set", onclick: async () => {
+        if (!gSel.value) return;
+        try { await api("/groups/target", { method: "PUT", body: { group_id: +gSel.value } }); toast("Target group set"); renderRouting(body); }
+        catch (e) { toast(e.message, true); }
+      }}),
+    ]));
+
+    const topicsById = {};
+    if (curTarget) {
+      const tWrap = el("div", { html: "<div class='muted'>Loading topics…</div>" });
+      body.appendChild(tWrap);
+      try {
+        const topics = (await api(`/groups/${curTarget}/topics`)).items;
+        topics.forEach((t) => { topicsById[t.id] = t.title; });
+        tWrap.innerHTML = "";
+        if (!topics.length) {
+          tWrap.appendChild(el("div", { class: "muted", text: "This group has no forum topics (enable Topics in Telegram)." }));
+        } else {
+          const topicSel = el("select", {}, topics.map((t) => el("option", { value: t.id, text: t.title })));
+          const cmdInp = el("input", { placeholder: "command (e.g. meme)" });
+          tWrap.appendChild(el("div", { class: "field-row", style: "align-items:flex-end" }, [
+            el("div", { class: "field" }, [el("label", { class: "field-label", text: "Command" }), cmdInp]),
+            el("div", { class: "field" }, [el("label", { class: "field-label", text: "Topic" }), topicSel]),
+            el("button", { class: "btn btn-primary", text: "Add", onclick: async () => {
+              if (!cmdInp.value.trim()) return;
+              try { await api("/groups/mappings", { method: "POST", body: { command: cmdInp.value.trim(), topic_id: +topicSel.value } });
+                toast("Mapping added"); renderRouting(body); }
+              catch (e) { toast(e.message, true); }
+            }}),
+          ]));
+        }
+      } catch (e) { tWrap.innerHTML = `<div class='muted'>${esc(e.message)}</div>`; }
+    }
+
+    body.appendChild(el("h3", { text: "Mappings", style: "margin:16px 0 6px" }));
+    if (!st.mappings.length) body.appendChild(el("div", { class: "muted", text: "No command → topic mappings yet." }));
+    for (const m of st.mappings) {
+      body.appendChild(el("div", { class: "auth-row" }, [
+        el("code", { text: "/" + m.command }),
+        el("span", { class: "faint", text: "→" }),
+        el("span", { class: "grow", text: topicsById[m.topic_id] || ("topic " + m.topic_id) }),
+        el("button", { class: "icon-btn", text: "✕", title: "Remove", onclick: async () => {
+          try { await api("/groups/mappings/" + encodeURIComponent(m.command), { method: "DELETE" }); toast("Removed"); renderRouting(body); }
+          catch (e) { toast(e.message, true); }
+        }}),
+      ]));
+    }
+    if (st.mappings.length) {
+      body.appendChild(el("button", { class: "btn btn-sm", style: "margin-top:12px", text: "Clear all mappings", onclick: async () => {
+        try { await api("/groups/mappings", { method: "DELETE" }); toast("Cleared"); renderRouting(body); }
+        catch (e) { toast(e.message, true); }
+      }}));
+    }
+  }
+
+  // ---- onboarding wizard ----
+  function renderWizard() {
+    let ov = $("#wizard");
+    if (!ov) { ov = el("div", { id: "wizard", class: "gate" }); document.body.appendChild(ov); }
+    ov.classList.remove("hidden");
+    const card = el("div", { class: "gate-card", style: "width:440px;text-align:left" });
+    ov.replaceChildren(card);
+    const head = (t) => el("div", { class: "brand" }, [el("span", { class: "brand-mark", text: "A" }), " " + t]);
+    const field = (id, label, ph, type) => [
+      el("label", { class: "field-label", text: label }),
+      el("input", { id, type: type || "text", placeholder: ph || "", autocomplete: "off" }),
+    ];
+    const sel = (id, label, opts) => [
+      el("label", { class: "field-label", text: label }),
+      el("select", { id }, opts.map((o) => el("option", { value: o.v, text: o.t }))),
+    ];
+    const setMsg = (m) => { const e = $(".wz-msg", card); if (e) e.textContent = m || ""; };
+    const run = async (b, fn) => { b.disabled = true; setMsg(""); try { await fn(); } catch (e) { setMsg(e.message); b.disabled = false; } };
+
+    function step1() {
+      card.replaceChildren(
+        head("Set up Aigram"),
+        el("p", { class: "muted", text: "Get your API ID & hash from my.telegram.org, then log in with your phone." }),
+        ...field("wz-id", "API ID", "12345678"),
+        ...field("wz-hash", "API hash", "0123abc…"),
+        ...field("wz-phone", "Phone (with country code)", "+98…"),
+        el("div", { class: "wz-msg err" }),
+        el("button", { class: "btn btn-primary", text: "Send login code", onclick: (e) => run(e.target, async () => {
+          const r = await api("/setup/start", { method: "POST", body: {
+            api_id: $("#wz-id").value.trim(), api_hash: $("#wz-hash").value.trim(), phone: $("#wz-phone").value.trim() } });
+          r.authorized ? step3() : step2();
+        })}),
+      );
+    }
+    function step2() {
+      card.replaceChildren(
+        head("Enter code"),
+        el("p", { class: "muted", text: "Telegram sent a login code to your account." }),
+        ...field("wz-code", "Login code", "1 2 3 4 5"),
+        el("div", { class: "wz-msg err" }),
+        el("button", { class: "btn btn-primary", text: "Verify", onclick: (e) => run(e.target, async () => {
+          const r = await api("/setup/code", { method: "POST", body: { code: $("#wz-code").value.trim() } });
+          r.needs_password ? step2b() : step3();
+        })}),
+      );
+    }
+    function step2b() {
+      card.replaceChildren(
+        head("Two-step password"),
+        el("p", { class: "muted", text: "Your account has two-step verification enabled." }),
+        ...field("wz-pw", "Password", "", "password"),
+        el("div", { class: "wz-msg err" }),
+        el("button", { class: "btn btn-primary", text: "Verify", onclick: (e) => run(e.target, async () => {
+          await api("/setup/password", { method: "POST", body: { password: $("#wz-pw").value } }); step3();
+        })}),
+      );
+    }
+    function step3() {
+      card.replaceChildren(
+        head("AI provider"),
+        el("p", { class: "muted", text: "Add at least one LLM key. Gemini is recommended; OpenRouter works as a fallback." }),
+        ...sel("wz-prov", "Provider", [{ v: "gemini", t: "Gemini" }, { v: "openrouter", t: "OpenRouter" }]),
+        ...field("wz-key", "API key", "paste a key", "password"),
+        el("div", { class: "wz-msg err" }),
+        el("button", { class: "btn btn-primary", text: "Finish setup", onclick: (e) => run(e.target, async () => {
+          await api("/setup/finalize", { method: "POST", body: { llm: { provider: $("#wz-prov").value, keys: [$("#wz-key").value.trim()] } } });
+          step4();
+        })}),
+      );
+    }
+    function step4() {
+      card.replaceChildren(
+        head("All set 🎉"),
+        el("p", { class: "muted", text: "Aigram is configured and you're logged in. Restart it with the normal command to open the full panel:" }),
+        el("code", { text: "sakaibot panel" }),
+      );
+    }
+    step1();
+  }
+
   // ---- helpers ----
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
   function fmtTime(iso) { if (!iso) return ""; try { return new Date(iso).toLocaleString(); } catch (_) { return iso; } }
+
+  // ---- mobile drawers ----
+  function closeDrawers() {
+    $(".sidebar") && $(".sidebar").classList.remove("open");
+    $(".rail") && $(".rail").classList.remove("open");
+    $("#scrim") && $("#scrim").classList.remove("show");
+  }
+  function toggleDrawer(sel) {
+    const node = $(sel);
+    if (!node) return;
+    const willOpen = !node.classList.contains("open");
+    closeDrawers();
+    if (willOpen) { node.classList.add("open"); $("#scrim").classList.add("show"); }
+  }
+  function openRailMobile() {
+    if (window.innerWidth <= 1180 && $("#rail-btn") && getComputedStyle($("#rail-btn")).display !== "none") {
+      $(".rail").classList.add("open"); $("#scrim").classList.add("show");
+    }
+  }
+  function initMobile() {
+    $("#menu-btn") && $("#menu-btn").addEventListener("click", () => toggleDrawer(".sidebar"));
+    $("#rail-btn") && $("#rail-btn").addEventListener("click", () => toggleDrawer(".rail"));
+    $("#scrim") && $("#scrim").addEventListener("click", closeDrawers);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawers(); });
+  }
+
+  // ---- service worker (PWA) ----
+  function registerSW() {
+    if (!("serviceWorker" in navigator)) return;
+    // Returning users only: if a NEW worker takes control (we shipped fresh
+    // assets), reload once so they immediately run the latest app. Skip on the
+    // very first install (no prior controller) to avoid a needless reload.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloaded || !hadController) return;
+      reloaded = true;
+      location.reload();
+    });
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").then((reg) => reg.update()).catch(() => {});
+    });
+  }
 
   // ---- boot ----
   async function boot() {
@@ -596,14 +1067,17 @@
     if (theme) document.documentElement.dataset.theme = theme;
     await loadStatus();
     try { const s = await api("/status"); realPhotosEnabled = !!(s.panel && s.panel.real_photos); } catch (_) {}
+    try { State.voices = (await api("/tts/voices")).voices; } catch (_) {}
     await loadDialogs();
   }
 
   function init() {
+    registerSW();
     initGate();
     initSidebar();
-    initEntityTabs();
+    initEntityActions();
     initDashboards();
+    initMobile();
   }
 
   document.addEventListener("DOMContentLoaded", init);

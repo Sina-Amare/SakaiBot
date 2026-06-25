@@ -96,10 +96,29 @@ class SettingsManager:
             
             # Ensure parent directory exists
             self._settings_file.parent.mkdir(parents=True, exist_ok=True)
-            
-            with self._settings_file.open('w', encoding='utf-8') as f:
-                json.dump(data_to_save, f, ensure_ascii=False, indent=4)
-            
+
+            # Atomic write: serialize to a temp file in the same dir, fsync, then
+            # os.replace() so a crash mid-write can never corrupt settings.json.
+            import os
+            import tempfile
+
+            target_dir = self._settings_file.resolve().parent
+            fd, tmp = tempfile.mkstemp(
+                dir=str(target_dir), prefix=".settings.", suffix=".tmp"
+            )
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    json.dump(data_to_save, f, ensure_ascii=False, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, self._settings_file)
+            finally:
+                if os.path.exists(tmp):
+                    try:
+                        os.unlink(tmp)
+                    except OSError:
+                        pass
+
             self._logger.info(f"User settings saved successfully to '{self._settings_file}'")
         
         except Exception as e:

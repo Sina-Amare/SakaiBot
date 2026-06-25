@@ -1,491 +1,240 @@
-<p align="center">
-  <h1 align="center">🤖 SakaiBot</h1>
-  <p align="center">
-    <strong>AI-Powered Telegram Userbot with Multi-LLM Support</strong>
-  </p>
-  <p align="center">
-    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python Version"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
-    <a href="https://github.com/psf/black"><img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code Style"></a>
-    <img src="https://img.shields.io/badge/telegram-userbot-blue?logo=telegram" alt="Telegram">
-    <img src="https://img.shields.io/badge/AI-Gemini%20%7C%20OpenRouter-purple" alt="AI Providers">
-  </p>
-</p>
+<div align="center">
+
+# 🟢 Aigram
+
+### Telegram, but AI‑powered.
+
+A **self‑hosted, installable AI messenger** for your Telegram account — read and **send** messages with inline media, and call the AI right inside any chat. Your account, your keys, your server. _(formerly SakaiBot)_
+
+<a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
+<img src="https://img.shields.io/badge/PWA-installable-5a0fc8?logo=pwa&logoColor=white" alt="PWA">
+<img src="https://img.shields.io/badge/Telegram-MTProto-26A5E4?logo=telegram&logoColor=white" alt="Telegram">
+<img src="https://img.shields.io/badge/AI-Gemini%20%7C%20OpenRouter-2dd4bf" alt="AI">
+
+<br/>
+
+<img src="docs/screenshots/chat-dark.png" alt="Aigram — a real AI-powered Telegram messenger" width="880">
+
+</div>
 
 ---
 
-A deployment-oriented Telegram userbot featuring **multi-LLM support** (Gemini + OpenRouter), **image generation** (Flux/SDXL), **voice processing** (TTS/STT), and **intelligent message management**. It includes resilience patterns such as API key rotation, circuit breakers, and graceful fallbacks, with a default automated test baseline.
+Aigram turns your Telegram account into a slick, glassy web app you can install on your phone. It feels like a real messenger — grouped bubbles, inline photos/stickers/voice, replies, date separators, live updates, dark + light — and layers an **AI co‑pilot** on top: analyze a chat, ask questions about its history, translate, generate images, do TTS/STT, or prompt anything. AI results appear **in the panel**, so you decide what (if anything) to send.
 
-## ✨ Highlights
+> [!NOTE]
+> The screenshots below use an **invented demo account** (fake contacts and messages) — no real data.
+
+## 📸 Screenshots
+
+<table>
+<tr>
+<td width="50%" align="center">
+  <img src="docs/screenshots/chat-light.png" alt="Light theme" width="420"><br/>
+  <sub><b>Premium light theme</b> — same chat, soft and bright</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/ai-result.png" alt="AI analyze result" width="420"><br/>
+  <sub><b>AI in the chat</b> — analyze runs, result lands in the panel</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+  <img src="docs/screenshots/ai-sheet.png" alt="AI command sheet" width="420"><br/>
+  <sub><b>✨ AI sheet</b> — analyze, ask, prompt, translate, image, TTS</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/keys.png" alt="Keys and providers" width="420"><br/>
+  <sub><b>Keys &amp; providers</b> — add, test, and hot‑swap API keys</sub>
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
+  <img src="docs/screenshots/chat-mobile.png" alt="Mobile PWA" width="260"><br/>
+  <sub><b>Installable PWA</b> — the full messenger on your phone</sub>
+</td>
+</tr>
+</table>
+
+## ✨ What it does
 
 <table>
 <tr>
 <td width="50%">
 
-**🧠 AI Capabilities**
+**💬 A real messenger**
 
-- Multi-LLM fallback (Gemini → OpenRouter)
-- Deep thinking mode with reasoning summaries
-- Web search grounding for real-time info
-- Persian comedian personality for fun analysis
+- Read **and send** messages (text + replies)
+- Inline media: photos, stickers, video, voice, files
+- Grouped bubbles, date separators, relative time
+- Last‑message previews in the sidebar
+- Live updates, smooth + soft, **dark + light**
 
 </td>
 <td width="50%">
 
-**🎨 Image Generation**
+**🧠 AI in every chat**
 
-- Flux (fast, artistic) & SDXL (photorealistic)
-- AI-powered prompt enhancement
-- Independent queues per model
-- Cloudflare Workers backend
+- **Analyze** a chat • **Ask** about its history
+- **Prompt** anything (deep‑thinking + web search)
+- **Translate** with Persian phonetics
+- **Image** generation (Flux / SDXL)
+- **TTS / STT** (voice ↔ text, with summaries)
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-**🎤 Voice Processing**
+**🔑 Everything in the panel**
 
-- Text-to-Speech (Gemini TTS)
-- Speech-to-Text with AI summaries
-- Multiple voice options
-- Persian language support
+- Add / test / remove provider keys, hot‑reload
+- Switch primary/fallback (Gemini ⇄ OpenRouter)
+- Categorization & routing (group → topic map)
+- Authorized users, model matrix, status, help
 
 </td>
 <td width="50%">
 
-**⚡ Operational Resilience**
+**🏠 Self‑host, private, free**
 
-- API key rotation with cooldowns
-- Circuit breakers for external APIs
-- Per-user rate limiting
-- Structured logging & error handling
+- Your credentials, your session — no central party
+- Installable **PWA** + mobile responsive
+- Multi‑key rotation, FloodWait‑safe throttling
+- Runs on a €1.49 VPS, a home device, or Termux
 
 </td>
 </tr>
 </table>
 
-## 📑 Table of Contents
-
-- [Features](#-features)
-- [Quick Start](#-quick-start)
-- [Installation](#-installation)
-- [Configuration](#-configuration)
-- [Commands Reference](#-commands-reference)
-- [Architecture](#-architecture)
-- [Development](#-development)
-- [Contributing](#-contributing)
-- [License](#-license)
-
-## 🚀 Features
-
-### AI Commands
-
-| Command                    | Description              | Flags                                      |
-| -------------------------- | ------------------------ | ------------------------------------------ |
-| `/prompt=<text>`           | Ask AI anything          | `=think` (deep reasoning), `=web` (search) |
-| `/translate=<lang>=<text>` | Translate with phonetics | Auto-detect source                         |
-| `/analyze=<N>`             | Analyze chat messages    | `=fun`, `=romance`, `=general`, `=think`   |
-| `/tellme=<N>=<question>`   | Ask about chat history   | `=think`, `=web`                           |
-
-### Image Generation
-
-| Command                | Model | Speed   | Auth         |
-| ---------------------- | ----- | ------- | ------------ |
-| `/image=flux=<prompt>` | Flux  | ~15-30s | None         |
-| `/image=sdxl=<prompt>` | SDXL  | ~20-40s | Bearer token |
-
-### Voice Processing
-
-| Command                 | Description                    |
-| ----------------------- | ------------------------------ |
-| `/tts=<text>`           | Text-to-Speech                 |
-| `/stt` (reply to voice) | Speech-to-Text with AI summary |
-
-### Management
-
-| Command                  | Description                      |
-| ------------------------ | -------------------------------- |
-| `/auth list/add/remove`  | Manage authorized users          |
-| `/group list/select/map` | Configure message categorization |
-| `/status`                | Bot status and statistics        |
-| `/help [topic]`          | Comprehensive help system        |
-
-## 🏃 Quick Start
+## ⚡ Quick start
 
 ```bash
-# 1. Clone and enter directory
-git clone https://github.com/Sina-Amare/SakaiBot.git && cd SakaiBot
+git clone <your-fork-of-aigram> aigram && cd aigram
+docker compose up -d
+docker compose exec sakaibot sakaibot setup    # in-panel wizard: Telegram login + LLM keys
+docker compose exec sakaibot sakaibot panel    # open the printed http://127.0.0.1:8765/?token=…
+```
 
-# 2. Create virtual environment
-python -m venv venv && source venv/bin/activate  # Linux/macOS
-# python -m venv venv && venv\Scripts\activate    # Windows
+<details>
+<summary><strong>Or run it locally without Docker</strong></summary>
 
-# 3. Install dependencies
+```bash
+python -m venv venv && source venv/bin/activate    # Windows: venv\Scripts\activate
 pip install -e .
-
-# 4. Configure environment
-cp .env.example .env
-# Edit .env with your credentials
-
-# 5. Start monitoring
-sakaibot monitor start
+sakaibot setup     # first-run wizard writes .env and logs you in
+sakaibot panel     # premium dashboard + the bot stays live in chats
 ```
 
-## 📦 Installation
-
-### Prerequisites
-
-- **Python 3.10+** - [Download](https://python.org/downloads/)
-- **FFmpeg** - Required for audio processing ([Download](https://ffmpeg.org/download.html))
-- **Telegram API** - Get credentials from [my.telegram.org](https://my.telegram.org)
-
-### Detailed Steps
-
-<details>
-<summary><strong>1. Clone Repository</strong></summary>
-
-```bash
-git clone https://github.com/Sina-Amare/SakaiBot.git
-cd SakaiBot
-```
+**Prerequisites:** Python 3.10+, [FFmpeg](https://ffmpeg.org/download.html) (audio), and Telegram API creds from [my.telegram.org](https://my.telegram.org).
 
 </details>
 
-<details>
-<summary><strong>2. Create Virtual Environment</strong></summary>
+Open the printed `http://127.0.0.1:8765/?token=…`, pick a chat, and you're in. Install it on your phone over a free **Cloudflare Tunnel** (HTTPS → Add to Home Screen).
 
-**Linux/macOS:**
+> **Deploy anywhere** — cheap crypto VPS (no credit card), home device / Termux / Raspberry Pi, Cloudflare Tunnel, and an Iran‑friendly path are all in **[DEPLOY.md](DEPLOY.md)**.
 
-```bash
-python -m venv venv
-source venv/bin/activate
-```
+## 🤖 AI commands
 
-**Windows:**
+Available from the **✨ AI** button inside any chat (results render in the panel), or as `/commands` in Telegram itself.
 
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
+| Command | What it does | Flags |
+| --- | --- | --- |
+| `/prompt=<text>` | Ask the AI anything | `=think` (deep reasoning), `=web` (search) |
+| `/translate=<lang>=<text>` | Translate, with Persian phonetics | auto‑detects source |
+| `/analyze=<N>` | Analyze the last N messages | `=fun`, `=romance`, `=general`, `=think` |
+| `/tellme=<N>=<question>` | Answer a question from chat history | `=think`, `=web` |
+| `/image=flux\|sdxl=<prompt>` | Generate an image (prompt auto‑enhanced) | rendered inline |
+| `/tts=<text>` | Text‑to‑Speech (Gemini voices) | plays inline |
+| `/stt` (reply to a voice) | Transcribe + summarize a voice note | — |
 
-</details>
+## 🧠 Models & keys
 
-<details>
-<summary><strong>3. Install Package</strong></summary>
-
-```bash
-# Production install
-pip install -e .
-
-# Development install (includes test/lint tools)
-pip install -e ".[dev]"
-```
-
-</details>
-
-<details>
-<summary><strong>4. Configure Environment</strong></summary>
-
-```bash
-cp .env.example .env
-# Edit .env with your credentials
-```
-
-See [Configuration](#-configuration) for detailed options.
-
-</details>
-
-<details>
-<summary><strong>5. First Run</strong></summary>
-
-```bash
-sakaibot monitor start
-# Enter Telegram verification code when prompted
-# Session is saved for future use
-```
-
-</details>
-
-## ⚙️ Configuration
-
-### Required Settings
+Aigram runs on **Google Gemini** (primary) with **OpenRouter** as fallback, and rotates up to 4 keys per provider. Defaults are pinned to the **free‑tier‑friendly** `gemini-2.5-flash` / `gemini-2.5-flash-lite` (the newest 3.x Flash models have tiny free quotas that rate‑limit instantly). Add and **test** keys live in the **Keys & Providers** panel — no file editing, no restart.
 
 ```env
-# Telegram API (from my.telegram.org)
+# Minimum to start (or just run `sakaibot setup`):
 TELEGRAM_API_ID=12345678
 TELEGRAM_API_HASH=your_api_hash
 TELEGRAM_PHONE_NUMBER=+1234567890
-
-# Primary LLM Provider
 LLM_PROVIDER=gemini
 GEMINI_API_KEY_1=your_gemini_key
+OPENROUTER_API_KEY_1=sk-or-v1-your-key   # fallback + image prompt enhancement
 ```
-
-### OpenRouter (Required for Fallback & Prompt Enhancement)
-
-```env
-# OpenRouter is used for:
-# 1. Image prompt enhancement (primary)
-# 2. Fallback when Gemini keys are exhausted
-OPENROUTER_API_KEY_1=sk-or-v1-your-key
-```
-
-### Optional Settings
 
 <details>
-<summary><strong>Multiple API Keys (Rotation)</strong></summary>
+<summary><strong>More configuration (key rotation, image workers, FFmpeg, models)</strong></summary>
 
 ```env
-# Up to 4 keys per provider - automatic rotation on rate limits
+# Up to 4 keys per provider — automatic rotation on rate limits
 GEMINI_API_KEY_1=key1
 GEMINI_API_KEY_2=key2
-GEMINI_API_KEY_3=key3
-GEMINI_API_KEY_4=key4
-
 OPENROUTER_API_KEY_1=key1
-OPENROUTER_API_KEY_2=key2
-```
 
-</details>
+# Model pins (free-tier friendly defaults shown)
+GEMINI_MODEL_PRO=gemini-2.5-flash          # analyze, tellme, prompt
+GEMINI_MODEL_FLASH=gemini-2.5-flash-lite   # translate, enhancement, summaries
 
-<details>
-<summary><strong>Image Generation Workers</strong></summary>
-
-```env
-# Flux (public, no auth)
+# Image generation (Cloudflare Workers backend)
 FLUX_WORKER_URL=https://your-flux-worker.workers.dev
-
-# SDXL (requires your own worker + API key)
 SDXL_WORKER_URL=https://your-sdxl-worker.workers.dev
 SDXL_API_KEY=your_bearer_token
+
+# FFmpeg (audio) — auto-detected if on PATH
+PATHS_FFMPEG_EXECUTABLE=/usr/bin/ffmpeg    # Windows: C:\ffmpeg\bin\ffmpeg.exe
 ```
 
 </details>
-
-<details>
-<summary><strong>FFmpeg Path</strong></summary>
-
-```env
-# Windows
-PATHS_FFMPEG_EXECUTABLE=C:\ffmpeg\bin\ffmpeg.exe
-
-# Linux/macOS
-PATHS_FFMPEG_EXECUTABLE=/usr/bin/ffmpeg
-```
-
-</details>
-
-## 📖 Commands Reference
-
-### AI Commands
-
-#### `/prompt` - Ask AI Anything
-
-```text
-/prompt=What is quantum computing?
-/prompt=Explain this code: [paste code]
-/prompt=Write a poem about stars=think      # Deep reasoning
-/prompt=Latest news about AI=web            # Web search
-```
-
-#### `/translate` - Translation with Phonetics
-
-```text
-/translate=en=سلام دنیا              # Persian → English
-/translate=fa=Hello world           # English → Persian
-/translate=de                       # (reply) Translate to German
-```
-
-Output includes phonetic pronunciation in Persian script.
-
-#### `/analyze` - Chat Analysis
-
-```text
-/analyze=100                        # Last 100 messages (Persian)
-/analyze=500 en                     # English output
-/analyze=fun=1000                   # Comedy roast style
-/analyze=romance=200                # Relationship analysis
-/analyze=general=500=think          # Deep analysis mode
-```
-
-**Modes:**
-
-- `general` - Professional, structured analysis
-- `fun` - Persian comedian style (Bill Burr-esque)
-- `romance` - Emotional/relationship signals
-
-#### `/tellme` - Ask About History
-
-```text
-/tellme=50=What topics were discussed?
-/tellme=100=Who was most active?=think
-/tellme=200=Summarize the drama=web
-```
-
-### Image Generation
-
-```text
-/image=flux=sunset over mountains
-/image=sdxl=cyberpunk city, neon lights, 4k
-```
-
-- Prompts are automatically enhanced by AI
-- Queue system with position updates
-- Images sent with enhanced prompt as caption
-
-### Voice Commands
-
-```text
-/tts=Hello, how are you?            # Text to speech
-/tts                                # (reply) Convert message to speech
-/stt                                # (reply to voice) Transcribe + summarize
-```
-
-### Authorization
-
-```text
-/auth list                          # View authorized users
-/auth add @username                 # Add by username
-/auth add 123456789                 # Add by user ID
-/auth remove @username              # Remove user
-```
-
-### Group Categorization
-
-```text
-/group list                         # View your groups
-/group select <id>                  # Select target forum group
-/group topics                       # List topics in selected group
-/group map category=topic_id        # Map category to topic
-```
 
 ## 🏗️ Architecture
 
+A FastAPI + vanilla‑JS PWA (no build step) runs on the **same asyncio loop** as the Telethon client, sharing one MTProto session. The AI core *returns* values; the panel is a clean consumer that renders them — and a single audited bridge (`messenger_service.py`) is the only place that ever writes to Telegram.
+
 ```
-SakaiBot/
-├── src/
-│   ├── ai/                     # AI & LLM Layer
-│   │   ├── providers/          # Gemini, OpenRouter implementations
-│   │   ├── processor.py        # AI orchestration with fallback
-│   │   ├── api_key_manager.py  # Key rotation & quota tracking
-│   │   ├── prompt_enhancer.py  # Image prompt enhancement
-│   │   ├── prompts.py          # System prompts (1000+ lines)
-│   │   ├── tts.py              # Text-to-Speech (Gemini)
-│   │   └── stt.py              # Speech-to-Text
-│   │
-│   ├── telegram/               # Telegram Integration
-│   │   ├── handlers/           # Command handlers
-│   │   ├── commands/           # Self-commands (help, auth, status)
-│   │   ├── client.py           # Telethon wrapper
-│   │   └── event_handlers.py   # Event routing
-│   │
-│   ├── cli/                    # Command-Line Interface
-│   │   ├── commands/           # CLI command groups
-│   │   ├── interactive.py      # Menu system
-│   │   └── main.py             # Click entry point
-│   │
-│   ├── core/                   # Core Utilities
-│   │   ├── config.py           # Pydantic configuration
-│   │   ├── constants.py        # App constants
-│   │   └── exceptions.py       # Custom exceptions
-│   │
-│   └── utils/                  # Cross-Cutting Concerns
-│       ├── circuit_breaker.py  # Circuit breaker pattern
-│       ├── rate_limiter.py     # Per-user rate limiting
-│       ├── error_handler.py    # Error recovery strategies
-│       ├── security.py         # API key masking
-│       └── logging.py          # Structured logging
-│
-├── tests/                      # Test Suite
-│   ├── unit/                   # Unit tests
-│   └── integration/            # Integration tests
-│
-├── docker/                     # Docker Configuration
-├── data/                       # Session files (gitignored)
-├── cache/                      # Cache files (gitignored)
-└── logs/                       # Application logs (gitignored)
+src/
+├── panel/                  # FastAPI app + vanilla-JS/PWA control panel
+│   ├── app.py              # thin routes -> services
+│   ├── services/           # dialogs, entity (history/media), messenger (send),
+│   │                       #   commands (AI), keys, groups, status, auth
+│   ├── throttle.py         # ban-safety: pacing + FloodWait handling
+│   └── static/             # index.html, app.css, app.js, sw.js, manifest, icons
+├── ai/                     # LLM layer: providers (Gemini/OpenRouter), TTS, STT,
+│   │                       #   image gen, prompt enhancement, key rotation
+├── telegram/               # Telethon integration, handlers, self-commands
+├── cli/                    # Click CLI: `sakaibot panel` / `setup` / `monitor`
+└── core/                   # config (Pydantic), constants, exceptions
 ```
 
-### Key Patterns
-
-| Pattern           | Implementation   | Purpose                           |
-| ----------------- | ---------------- | --------------------------------- |
-| API Key Rotation  | `APIKeyManager`  | Automatic failover on rate limits |
-| Circuit Breaker   | `CircuitBreaker` | Prevent cascade failures          |
-| Rate Limiting     | `RateLimiter`    | Per-user request throttling       |
-| Provider Fallback | `AIProcessor`    | Configurable primary → fallback   |
-| Error Recovery    | `ErrorHandler`   | User-friendly error messages      |
+| Pattern | Where | Purpose |
+| --- | --- | --- |
+| Shared MTProto session | `cli/utils.get_telegram_client` | one client, never a second |
+| API key rotation | `ai/api_key_manager.py` | failover on rate limits / quota |
+| Provider fallback | `ai/processor.py` | Gemini → OpenRouter |
+| Ban‑safety throttle | `panel/throttle.py` | pacing + FloodWait, one write bridge |
+| Hot reload | `panel/services/keys_service.py` | swap keys/models with no restart |
 
 ## 🛠️ Development
 
-### Setup
-
 ```bash
-# Install with dev dependencies
 pip install -e ".[dev]"
-
-# Install pre-commit hooks
-pre-commit install
+ruff check .                 # lint baseline
+pytest                       # default suite (live tests skipped)
+pytest tests/panel -q        # panel/web tests
+SAKAIBOT_RUN_LIVE_TESTS=1 pytest -m live   # real Telegram + real LLM (needs creds)
 ```
 
-### Quality Checks
+Live E2E uses Playwright (real Chromium) and exercises the full chat — send to **Saved Messages** only, never a third party. Regenerate the README screenshots from fake data anytime; they never contain real chats.
 
-```bash
-# Critical lint baseline
-ruff check .
+## ⚠️ Disclaimer
 
-# Default tests
-pytest
-pytest --cov=src --cov-report=html
-
-# Advisory type report (currently not a blocking gate)
-mypy src
-```
-
-### Running Tests
-
-```bash
-pytest                          # Default suite; live API tests are skipped
-pytest -m unit                  # Unit tests only
-pytest -m integration           # Integration/debug tests only
-SAKAIBOT_RUN_LIVE_TESTS=1 pytest -m live  # Requires real API credentials
-pytest -m "not slow"            # Skip slow tests
-```
-
-## 🤝 Contributing
-
-1. **Fork** the repository
-2. **Create** a feature branch: `git checkout -b feat/my-feature`
-3. **Commit** using [Conventional Commits](https://conventionalcommits.org/):
-   ```
-   feat(ai): add new analysis mode
-   fix(tts): resolve encoding issue
-   docs: update command reference
-   ```
-4. **Push** and open a **Pull Request**
+Aigram logs in as a **real Telegram account** (a userbot). That's against Telegram's ToS and can risk a ban — use a stable IP, avoid mass/automated sending, and keep your access token secret. You run your own instance; nobody else holds your session. See [DEPLOY.md](DEPLOY.md) for the safety notes.
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE). Copyright (c) 2025–2026 Sina Amare.
 
-```
-Copyright (c) 2025 Sina Amare
-```
+## 🙏 Built with
 
-## 🙏 Acknowledgments
+[Telethon](https://github.com/LonamiWebs/Telethon) · [Google Gemini](https://ai.google.dev/) · [OpenRouter](https://openrouter.ai/) · [FastAPI](https://fastapi.tiangolo.com/) · [Click](https://click.palletsprojects.com/) · [Pydantic](https://pydantic.dev/)
 
-Built with these excellent libraries:
-
-- [Telethon](https://github.com/LonamiWebs/Telethon) - Telegram client
-- [Google Gemini](https://ai.google.dev/) - AI models & TTS
-- [OpenRouter](https://openrouter.ai/) - LLM gateway
-- [Click](https://click.palletsprojects.com/) - CLI framework
-- [Rich](https://github.com/Textualize/rich) - Terminal formatting
-- [Pydantic](https://pydantic.dev/) - Configuration validation
-
----
-
-<p align="center">
-  <strong>Made with ❤️ by <a href="https://github.com/Sina-Amare">Sina Amare</a></strong>
-</p>
+<div align="center"><sub>Made with 💚 by <a href="https://github.com/Sina-Amare">Sina Amare</a></sub></div>

@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Aigram" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="stylesheet" href="/app.css?v=2" />
+  <link rel="stylesheet" href="/app.css?v=4" />
 </head>
 <body>
   <!-- Token gate -->
@@ -81,6 +81,15 @@
         </button>
       </div>
       <div id="dialog-list" class="dialog-list"></div>
+      <!-- Mobile-only: the dashboards live here since the topbar nav is hidden on phones -->
+      <div class="sidebar-foot">
+        <button class="chip" data-dash="keys">🔑 Keys</button>
+        <button class="chip" data-dash="routing">🧭 Routing</button>
+        <button class="chip" data-dash="models">🧠 Models</button>
+        <button class="chip" data-dash="auth">👥 Authorized</button>
+        <button class="chip" data-dash="help">❔ Help</button>
+        <button id="theme-toggle-m" class="chip" title="Toggle theme">🌓 Theme</button>
+      </div>
     </aside>
 
     <main class="main" id="main">
@@ -152,6 +161,6 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script src="/app.js?v=2"></script>
+  <script src="/app.js?v=4"></script>
 </body>
 </html>

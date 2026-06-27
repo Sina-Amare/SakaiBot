@@ -51,6 +51,45 @@ def test_mobile_shell_hooks_present():
     assert "initMobile" in js and "closeDrawers" in js, "mobile drawer JS missing"
 
 
+def test_mobile_responsiveness_guards():
+    """Regression: the phone-layout fixes must stay in place.
+
+    These guard the bug where the single-column grid overflowed the phone
+    viewport — a phantom horizontal scrollbar, the desktop account chip leaking
+    into the topbar, and flex children refusing to shrink. They also guard the
+    drawer footer that makes the dashboards reachable at all on phones (the
+    topbar nav is hidden there)."""
+    css = _read("app.css")
+    # no phantom horizontal scroll from the off-canvas drawers
+    assert "overflow-x: hidden" in css, "html/body must clip horizontal overflow"
+    # the topbar's space hogs are hidden so min-content can't widen the column
+    assert ".topbar .account, .topbar .divider { display: none; }" in css, \
+        "account chip + dividers must be hidden on phones"
+    # flex children must be allowed to shrink (min-width:0) instead of overflowing
+    assert "min-width: 0" in css, "flex children need min-width:0 to shrink"
+
+    html = _read("index.html")
+    # the mobile drawer footer carries the dashboards (topbar nav is hidden)
+    assert 'class="sidebar-foot"' in html, "mobile dashboard drawer footer missing"
+    for dash in ["keys", "routing", "models", "auth", "help"]:
+        assert f'data-dash="{dash}"' in html, f"mobile dashboard entry missing: {dash}"
+
+    js = _read("app.js")
+    # every dashboard entry point is wired (topbar nav AND drawer footer)
+    assert '$$("[data-dash]")' in js, "dashboards must wire all [data-dash] entry points"
+    assert "theme-toggle-m" in js, "mobile theme toggle must be wired"
+
+
+def test_asset_cache_versions_consistent():
+    """The ?v= cache-bust on app.css/app.js and the SW shell version must move
+    together, or returning users get a half-stale UI."""
+    html = _read("index.html")
+    import re
+
+    versions = set(re.findall(r"/app\.(?:css|js)\?v=(\d+)", html))
+    assert len(versions) == 1, f"app.css/app.js cache versions disagree: {versions}"
+
+
 def test_pwa_manifest_valid():
     import json
 

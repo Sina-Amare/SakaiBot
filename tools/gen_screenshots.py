@@ -171,7 +171,9 @@ async def main():
             await page.wait_for_timeout(600)
             await page.screenshot(path=str(OUT / "ai-result.png"))
 
-            await page.locator('.chip[data-dash="keys"]').click()
+            # scope to the topbar nav: the same data-dash chip also lives in the
+            # mobile drawer footer, so an unscoped selector matches 2 elements.
+            await page.locator('.dash-nav .chip[data-dash="keys"]').click()
             await page.wait_for_selector("#modal:not(.hidden) .modal-body", timeout=10000)
             await page.wait_for_timeout(600)
             await page.screenshot(path=str(OUT / "keys.png"))
@@ -184,7 +186,13 @@ async def main():
             await browser.close()
 
             browser = await p.chromium.launch()
-            ctx = await browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, device_scale_factor=2)
+            # NOTE: do NOT pass is_mobile=True. Chromium's mobile emulation pins the
+            # layout viewport to a device default (~411 CSS px) regardless of the
+            # 390 viewport, so the >760px desktop layout leaks in: the account chip
+            # stays visible and the topbar overflows. A plain 390px viewport at 2x
+            # lays out at true phone width (account chip hidden, no overflow) while
+            # still capturing a crisp retina image. has_touch keeps it touch-like.
+            ctx = await browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, device_scale_factor=2)
             page = await ctx.new_page()
             await page.goto(f"{base}/?token={tok}")
             await page.wait_for_selector(".dialog-row", timeout=15000)

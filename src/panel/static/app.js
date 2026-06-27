@@ -704,18 +704,22 @@
 
   // ---- dashboards ----
   function initDashboards() {
-    $$(".dash-nav .chip").forEach((c) => c.addEventListener("click", () => openDash(c.dataset.dash)));
+    // Wire every dashboard entry point — topbar nav AND the mobile drawer footer.
+    $$("[data-dash]").forEach((c) =>
+      c.addEventListener("click", () => { closeDrawers(); openDash(c.dataset.dash); })
+    );
     $("#modal-close").addEventListener("click", () => $("#modal").classList.add("hidden"));
     $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") $("#modal").classList.add("hidden"); });
     $("#rail-clear").addEventListener("click", () => {
       $("#rail-body").innerHTML = '<div class="rail-empty">Command results appear here.</div>';
       updateRailCount();
     });
-    $("#theme-toggle").addEventListener("click", () => {
+    const toggleTheme = () => {
       const root = document.documentElement;
       root.dataset.theme = root.dataset.theme === "light" ? "dark" : "light";
       localStorage.setItem("panel_theme", root.dataset.theme);
-    });
+    };
+    [$("#theme-toggle"), $("#theme-toggle-m")].forEach((b) => b && b.addEventListener("click", toggleTheme));
   }
 
   async function openDash(which) {
@@ -761,7 +765,7 @@
       for (const s of p.slots) {
         const row = el("div", { class: "auth-row" }, [
           el("span", { class: "faint", text: "#" + s.index }),
-          el("code", { class: "grow", text: s.present ? s.masked : "— empty —" }),
+          el("code", { class: "grow key-mask", title: s.present ? s.masked : "", text: s.present ? s.masked : "— empty —" }),
         ]);
         if (s.present) {
           const status = el("span", {});

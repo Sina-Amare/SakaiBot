@@ -9,6 +9,11 @@ from telethon.tl.types import (
     InputMessagesFilterDocument,
     InputMessagesFilterPhotos,
     InputMessagesFilterVideo,
+    UserStatusLastMonth,
+    UserStatusLastWeek,
+    UserStatusOffline,
+    UserStatusOnline,
+    UserStatusRecently,
 )
 
 from ...utils.logging import get_logger
@@ -29,6 +34,28 @@ class EntityService:
         if self.state.client is None:
             raise PanelUnavailable()
         return self.state.client
+
+    # ---------- presence ----------
+    def _presence(self, entity: Any) -> Optional[Dict[str, Any]]:
+        """Interpret a User's last-seen status. Pure — rides the get_entity
+        result, so it costs NO extra Telegram RPC. Returns None when status is
+        unavailable (privacy-hidden, a bot, or a group/channel)."""
+        status = getattr(entity, "status", None)
+        if status is None:
+            return None
+        if isinstance(status, UserStatusOnline):
+            exp = getattr(status, "expires", None)
+            return {"state": "online", "expires": exp.isoformat() if exp else None}
+        if isinstance(status, UserStatusOffline):
+            was = getattr(status, "was_online", None)
+            return {"state": "offline", "was_online": was.isoformat() if was else None}
+        if isinstance(status, UserStatusRecently):
+            return {"state": "recently"}
+        if isinstance(status, UserStatusLastWeek):
+            return {"state": "last_week"}
+        if isinstance(status, UserStatusLastMonth):
+            return {"state": "last_month"}
+        return None
 
     # ---------- detail ----------
     async def detail(self, entity_id: int) -> Dict[str, Any]:
@@ -55,6 +82,7 @@ class EntityService:
             "has_photo": getattr(entity, "photo", None) is not None,
             "verified": bool(getattr(entity, "verified", False)),
             "is_bot": bool(getattr(entity, "bot", False)),
+            "presence": self._presence(entity),
         }
 
     # ---------- history ----------
@@ -82,6 +110,7 @@ class EntityService:
         return {
             "id": msg.id,
             "sender": self._sender_name(msg, kind, ename),
+            "sender_id": getattr(msg, "sender_id", None),
             "out": bool(getattr(msg, "out", False)),
             "text": msg.message or "",
             "timestamp": msg.date.isoformat() if msg.date else None,

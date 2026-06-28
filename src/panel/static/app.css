@@ -240,9 +240,11 @@ select { appearance: none; cursor: pointer;
 
 /* ---- Avatars ---- */
 .avatar { border-radius: 50%; background: var(--surface-3); object-fit: cover; flex: none; box-shadow: inset 0 0 0 1px var(--line); }
+.avatar.xs { width: 28px; height: 28px; align-self: flex-end; }
 .avatar.sm { width: 32px; height: 32px; }
 .avatar.md { width: 42px; height: 42px; }
 .avatar.lg { width: 60px; height: 60px; box-shadow: inset 0 0 0 1px var(--line), 0 0 0 3px var(--accent-soft); }
+.avatar-spacer { background: none; box-shadow: none; }   /* reserve space, no glyph */
 
 /* ---- Gate ---- */
 .gate { position: fixed; inset: 0; display: grid; place-items: center; z-index: 50; padding: 20px; }
@@ -568,6 +570,9 @@ select { appearance: none; cursor: pointer;
 /* presence-dot states + live "typing…" indicator (header + SSE) */
 .status-dot.recently { background: var(--warn); }
 .status-dot.offline { background: var(--text-faint); }
+.ev-sub .pres.online { color: var(--good); font-weight: 560; }
+.ev-sub .pres.recently { color: var(--text-dim); }
+.ev-sub .pres.offline { color: var(--text-faint); }
 .ev-typing { color: var(--accent); font-weight: 560; display: inline-flex; align-items: center; gap: 5px; }
 .ev-typing .dots { display: inline-flex; gap: 3px; }
 .ev-typing .dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor;

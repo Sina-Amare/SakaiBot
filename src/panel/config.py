@@ -72,10 +72,11 @@ class PanelConfig:
     host: str = "127.0.0.1"
     port: int = DEFAULT_PORT
     token: str = ""
-    # When False (default) avatars are colored initials only (zero Telegram
-    # API calls). When True, real profile photos are fetched lazily, throttled
-    # and disk-cached — opt-in to keep the account ban-safe.
-    real_photos: bool = False
+    # Real profile photos are fetched lazily (only for on-screen avatars),
+    # throttled, and disk-cached for 24h — so ON by default is ban-safe and
+    # makes the panel feel like a real client. Set PANEL_REAL_PHOTOS=0 or pass
+    # --no-real-photos to fall back to colored initials (zero photo RPCs).
+    real_photos: bool = True
     # When False, the panel runs as a pure private console (no Telegram event
     # handlers). When True (default for `sakaibot panel`), the bot also stays
     # live in chats.
@@ -122,7 +123,7 @@ class PanelConfig:
         resolved_port = int(port or os.environ.get("PANEL_PORT", str(DEFAULT_PORT)))
         token = os.environ.get("PANEL_TOKEN", "") or ""
         if real_photos is None:
-            real_photos = os.environ.get("PANEL_REAL_PHOTOS", "0") == "1"
+            real_photos = os.environ.get("PANEL_REAL_PHOTOS", "1") != "0"
         if with_monitoring is None:
             with_monitoring = os.environ.get("PANEL_WITH_MONITORING", "1") != "0"
         return cls(

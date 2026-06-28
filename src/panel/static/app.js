@@ -224,14 +224,64 @@
     sub.innerHTML = "";
     sub.appendChild(el("span", { class: "kind-badge kind-" + it.kind, text: it.kind }));
     if (it.username) sub.appendChild(el("span", { text: it.username }));
-    sub.appendChild(el("span", { class: "faint", text: "id " + it.id }));
+    const wrap0 = $("#ev-avatar").parentElement;
+    const oldDot = wrap0.querySelector(".status-dot"); if (oldDot) oldDot.remove();
     $("#ev-avatar").src = avatarUrl(it.id, true);
+    loadEntityHeader(it);  // presence / members (1 throttled RPC), async
     const input = $("#composer-input");
     input.value = "";
     autoGrow(input);
     setSendEnabled(false);
     await loadChat();
     input.focus();
+  }
+
+  // ---- presence / header detail ----
+  function lastSeen(iso) {
+    const d = new Date(iso), now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+    if (sameDay(d, now)) return "at " + clockTime(iso);
+    if (diff < 172800) return "yesterday";
+    return d.toLocaleDateString();
+  }
+  function presenceLabel(p) {
+    if (!p) return null;
+    switch (p.state) {
+      case "online": return { text: "online", cls: "online" };
+      case "recently": return { text: "last seen recently", cls: "recently" };
+      case "last_week": return { text: "last seen within a week", cls: "recently" };
+      case "last_month": return { text: "last seen within a month", cls: "offline" };
+      case "offline": return { text: p.was_online ? "last seen " + lastSeen(p.was_online) : "offline", cls: "offline" };
+      default: return null;
+    }
+  }
+  async function loadEntityHeader(it) {
+    let d;
+    try { d = await api(`/entity/${it.id}`); } catch (_) { return; }
+    if (!State.entity || State.entity.id !== it.id) return;  // user switched chats
+    State.entityDetail = d;
+    const sub = $("#ev-sub");
+    sub.innerHTML = "";
+    sub.appendChild(el("span", { class: "kind-badge kind-" + it.kind, text: it.kind }));
+    const wrap = $("#ev-avatar").parentElement;
+    let dot = wrap.querySelector(".status-dot");
+    const pl = presenceLabel(d.presence);
+    if (pl) {
+      if (!dot) { dot = el("span", { class: "status-dot" }); wrap.appendChild(dot); }
+      dot.className = "status-dot " + pl.cls;
+      sub.appendChild(el("span", { class: "pres " + pl.cls, text: pl.text }));
+    } else {
+      if (dot) dot.remove();
+      if ((it.kind === "group" || it.kind === "channel") && d.member_count) {
+        const noun = it.kind === "channel" ? " subscribers" : " members";
+        sub.appendChild(el("span", { text: d.member_count.toLocaleString() + noun }));
+      } else if (it.username || d.username) {
+        sub.appendChild(el("span", { text: it.username || d.username }));
+      }
+    }
+    if (d.is_bot) sub.appendChild(el("span", { class: "faint", text: "bot" }));
   }
 
   function initEntityActions() {
@@ -488,10 +538,20 @@
       el("span", { text: clockTime(m.timestamp) }),
       m.out ? el("span", { class: "tick" + (m.pending ? " pending" : ""), text: m.pending ? "🕓" : "✓" }) : null,
     ]));
-    const row = el("div", { class: "msg-row" + (m.out ? " out" : "") + (groupStart ? " gstart" : "") }, [
-      bubble,
-      typeof m.id === "number" ? el("button", { class: "row-reply", title: "Reply", text: "↩", onclick: () => setReply(m) }) : null,
-    ]);
+    const children = [];
+    // Group chats: a small sender avatar next to incoming runs (like Telegram).
+    if (isGroupChat && !m.out) {
+      if (groupStart && m.sender_id) {
+        children.push(el("img", { class: "avatar xs", alt: "", loading: "lazy", src: avatarUrl(m.sender_id, true) }));
+      } else {
+        children.push(el("div", { class: "avatar xs avatar-spacer" }));
+      }
+    }
+    children.push(bubble);
+    if (typeof m.id === "number") {
+      children.push(el("button", { class: "row-reply", title: "Reply", text: "↩", onclick: () => setReply(m) }));
+    }
+    const row = el("div", { class: "msg-row" + (m.out ? " out" : "") + (groupStart ? " gstart" : "") }, children);
     return row;
   }
 

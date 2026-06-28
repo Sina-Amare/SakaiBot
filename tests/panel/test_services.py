@@ -1,6 +1,16 @@
 """Service-layer tests (offline) — exercise real services with mock client/AI."""
 
+from datetime import datetime, timezone
+from types import SimpleNamespace
+
 import pytest
+from telethon.tl.types import (
+    UserStatusOffline,
+    UserStatusOnline,
+    UserStatusRecently,
+)
+
+from .conftest import make_message
 
 
 @pytest.mark.asyncio
@@ -82,6 +92,29 @@ def test_auth_remove(panel_state):
     out = panel_state.auth.remove(101)
     assert out["removed"] == 101
     panel_state.settings_manager.save_user_settings.assert_called()
+
+
+def test_presence_interpretation(panel_state):
+    """user.status maps to presence states with NO extra Telegram RPC."""
+    svc = panel_state.entity
+    now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    assert svc._presence(SimpleNamespace(status=UserStatusOnline(expires=now)))["state"] == "online"
+    off = svc._presence(SimpleNamespace(status=UserStatusOffline(was_online=now)))
+    assert off["state"] == "offline" and off["was_online"]
+    assert svc._presence(SimpleNamespace(status=UserStatusRecently()))["state"] == "recently"
+    assert svc._presence(SimpleNamespace(status=None)) is None
+    assert svc._presence(SimpleNamespace()) is None  # no status attribute → graceful
+
+
+@pytest.mark.asyncio
+async def test_detail_includes_presence_key(panel_state):
+    d = await panel_state.entity.detail(101)
+    assert "presence" in d  # None for the statusless mock, but the key is present
+
+
+def test_format_message_includes_sender_id(panel_state):
+    out = panel_state.entity._format_message(make_message(id=5, sender_id=777), "group", "G")
+    assert out["sender_id"] == 777
 
 
 def test_keys_and_models(panel_state):

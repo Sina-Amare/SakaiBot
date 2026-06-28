@@ -41,18 +41,18 @@ def _lan_ip() -> str:
 @click.option("--tls-cert", default=None, help="Path to a TLS certificate (PEM) to serve HTTPS.")
 @click.option("--tls-key", default=None, help="Path to the TLS private key (PEM) to serve HTTPS.")
 @click.option("--no-monitoring", is_flag=True, default=False, help="Run as a pure private console (bot does NOT process chat commands).")
-@click.option("--real-photos", is_flag=True, default=False, help="Fetch real profile photos (lazy + cached). Default is initials only.")
+@click.option("--no-real-photos", is_flag=True, default=False, help="Use colored initials instead of real profile photos (zero photo RPCs).")
 @click.option("--rotate-token", is_flag=True, default=False, help="Generate a fresh access token (invalidates saved/installed clients).")
 @click.option("--verbose", is_flag=True, default=False, help="Verbose monitoring output.")
-def panel(port, host, expose_lan, tls_cert, tls_key, no_monitoring, real_photos, rotate_token, verbose):
+def panel(port, host, expose_lan, tls_cert, tls_key, no_monitoring, no_real_photos, rotate_token, verbose):
     """Launch the Aigram web control panel."""
     try:
-        asyncio.run(_run_panel(port, host, expose_lan, tls_cert, tls_key, not no_monitoring, real_photos, rotate_token, verbose))
+        asyncio.run(_run_panel(port, host, expose_lan, tls_cert, tls_key, not no_monitoring, no_real_photos, rotate_token, verbose))
     except KeyboardInterrupt:
         console.print("\n[cyan]Panel stopped.[/cyan]")
 
 
-async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring, real_photos, rotate_token, verbose):
+async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring, no_real_photos, rotate_token, verbose):
     from src.core.config import get_settings
     from src.cli.state import CLIState
     from src.cli.utils import set_shared_client, clear_shared_client
@@ -124,7 +124,7 @@ async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring,
         panel_config = PanelConfig.from_env(
             port=port,
             host=resolved_host,
-            real_photos=True if real_photos else None,
+            real_photos=False if no_real_photos else None,
             with_monitoring=with_monitoring,
             tls_certfile=tls_cert,
             tls_keyfile=tls_key,

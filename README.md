@@ -71,19 +71,24 @@ The screenshots below are generated from an invented demo account — fake conta
 ### Messaging
 
 - Read and send text messages and replies
-- Inline rendering of photos, stickers, video, voice notes, and documents
+- Inline rendering of photos, animated stickers (Lottie `.tgs`), GIFs, video, voice notes, and documents
+- Real Telegram profile photos as avatars, with colorful-initial fallbacks
+- Online / recently online / last-seen presence indicators on users
+- Profile drawer: click any avatar to see full bio, username, phone, shared-media counts
+- Shared-media tabs: photos, videos, files, links, voice messages, music, and GIFs
 - Grouped message bubbles, date separators, and relative timestamps
-- Last-message previews in the chat list and live updates as messages arrive
-- Light and dark themes, responsive down to phone widths
+- Last-message previews in the chat list with type badges (PV, Group, Channel, Bot)
+- Light and dark themes with a single-click toggle, responsive down to phone widths
+- Self-hosted Inter and Vazirmatn fonts — no external network requests
 
 ### AI inside the conversation
 
-- Summarize the last N messages of a chat, with selectable tone
+- Summarize the last N messages of a chat, with selectable tone and language
 - Ask a question and have it answered from the chat's history
 - Free-form prompting, with optional deep reasoning and web search
 - Translation, including Persian phonetic output
 - Image generation through Flux or SDXL workers
-- Text-to-speech and speech-to-text, with summaries of transcribed audio
+- Text-to-speech (Gemini TTS) and speech-to-text, with summaries of transcribed audio
 
 ### Provider management
 
@@ -95,7 +100,9 @@ The screenshots below are generated from an invented demo account — fake conta
 ### Hosting
 
 - Runs on a small VPS, a home device, a Raspberry Pi, or Termux
-- Installable PWA with a service worker for fast repeat loads and an offline fallback
+- Installable as a Progressive Web App — "Add to Home Screen" on iOS/Android for a native-app experience
+- Service worker caches the shell for instant repeat loads and an offline fallback page
+- Disk media cache for avatars, thumbnails, and chat media to minimize Telegram API calls
 - Request pacing and FloodWait handling to reduce the risk of an account limit
 
 ## Quick start
@@ -189,10 +196,13 @@ Aigram is a FastAPI application serving a vanilla-JavaScript PWA, with no build 
 src/
 ├── panel/                  # FastAPI app and the vanilla-JS PWA control panel
 │   ├── app.py              # thin routes that delegate to services
-│   ├── services/           # dialogs, entity (history/media), messenger (send),
+│   ├── services/           # dialogs, entity (history/media/profile), messenger (send),
 │   │                       #   commands (AI), keys, groups, status, auth
+│   ├── media_cache.py      # disk cache for avatars, thumbnails, and chat media
+│   ├── avatars.py          # colorful SVG initials fallback (no external requests)
 │   ├── throttle.py         # request pacing and FloodWait handling
-│   └── static/             # index.html, app.css, app.js, sw.js, manifest, icons
+│   └── static/             # index.html, app.css, app.js, sw.js, manifest, icons,
+│                           #   self-hosted fonts (Inter + Vazirmatn), vendor/lottie
 ├── ai/                     # providers (Gemini/OpenRouter), TTS, STT,
 │   │                       #   image generation, prompt enhancement, key rotation
 ├── telegram/               # Telethon integration, handlers, self-commands
@@ -208,6 +218,8 @@ src/
 | Read pacing | `panel/throttle.py` | FloodWait handling on every Telegram read |
 | Single write path | `panel/services/messenger_service.py` | the only module that sends to Telegram |
 | Hot reload | `panel/services/keys_service.py` | change keys and models without a restart |
+| Media cache | `panel/media_cache.py` | avatars, thumbnails, and media cached to disk |
+| Profile + presence | `panel/services/entity_service.py` | real photos, shared-media tabs, online status |
 
 ## Development
 
@@ -246,4 +258,4 @@ Aigram signs in as a real Telegram account, which makes it a userbot. This is ag
 
 Released under the MIT License. See [LICENSE](LICENSE). Copyright (c) 2025–2026 Sina Amare.
 
-Built with [Telethon](https://github.com/LonamiWebs/Telethon), [Google Gemini](https://ai.google.dev/), [OpenRouter](https://openrouter.ai/), [FastAPI](https://fastapi.tiangolo.com/), [Click](https://click.palletsprojects.com/), and [Pydantic](https://pydantic.dev/).
+Built with [Telethon](https://github.com/LonamiWebs/Telethon), [Google Gemini](https://ai.google.dev/), [OpenRouter](https://openrouter.ai/), [FastAPI](https://fastapi.tiangolo.com/), [Click](https://click.palletsprojects.com/), [Pydantic](https://pydantic.dev/), and [lottie-web](https://github.com/airbnb/lottie-web) for animated stickers.

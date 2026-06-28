@@ -180,14 +180,9 @@ def menu(ctx):
     """Start interactive menu system."""
     asyncio.run(start_interactive_menu())
 
-# Add setup wizard
-@cli.command()
-@click.pass_context
-def setup(ctx):
-    """Run interactive setup wizard."""
-    # TODO: Implement setup wizard
-    console.print("[yellow]Setup wizard coming soon![/yellow]")
-    console.print("Please edit .env file manually for now.")
+# NOTE: the `setup` command is the real onboarding wizard, registered above via
+# `cli.add_command(panel_setup)` (src/cli/commands/panel.py). A placeholder stub
+# used to live here and shadowed it — do not re-add one.
 
 if __name__ == '__main__':
     cli()

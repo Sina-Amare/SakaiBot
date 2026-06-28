@@ -44,7 +44,7 @@ def _lan_ip() -> str:
 @click.option("--real-photos", is_flag=True, default=False, help="Fetch real profile photos (lazy + cached). Default is initials only.")
 @click.option("--verbose", is_flag=True, default=False, help="Verbose monitoring output.")
 def panel(port, host, expose_lan, tls_cert, tls_key, no_monitoring, real_photos, verbose):
-    """Launch the premium Aigram web control panel."""
+    """Launch the Aigram web control panel."""
     try:
         asyncio.run(_run_panel(port, host, expose_lan, tls_cert, tls_key, not no_monitoring, real_photos, verbose))
     except KeyboardInterrupt:

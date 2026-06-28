@@ -117,6 +117,27 @@ def test_format_message_includes_sender_id(panel_state):
     assert out["sender_id"] == 777
 
 
+@pytest.mark.asyncio
+async def test_media_filter_kinds_accepted(panel_state):
+    """The new profile categories are accepted and return the standard shape."""
+    for kind in ["media", "voice", "music", "gif", "document", "url"]:
+        out = await panel_state.entity.media(201, kind=kind, limit=5)
+        assert out["ok"] and isinstance(out["items"], list)
+
+
+@pytest.mark.asyncio
+async def test_media_url_tab_carries_text(panel_state):
+    out = await panel_state.entity.media(201, kind="url", limit=5)
+    assert out["items"], "Links tab should include messages that contain text/URLs"
+    assert all(m["kind"] == "url" and m["text"] for m in out["items"])
+
+
+@pytest.mark.asyncio
+async def test_profile_includes_about_and_presence(panel_state):
+    p = await panel_state.entity.profile(101)
+    assert p["ok"] and "about" in p and "presence" in p
+
+
 def test_keys_and_models(panel_state):
     keys = panel_state.status.keys()
     names = {p["name"] for p in keys["providers"]}

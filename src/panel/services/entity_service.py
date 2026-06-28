@@ -7,8 +7,13 @@ from typing import Any, Dict, List, Optional
 
 from telethon.tl.types import (
     InputMessagesFilterDocument,
+    InputMessagesFilterGif,
+    InputMessagesFilterMusic,
     InputMessagesFilterPhotos,
+    InputMessagesFilterPhotoVideo,
+    InputMessagesFilterUrl,
     InputMessagesFilterVideo,
+    InputMessagesFilterVoice,
     UserStatusLastMonth,
     UserStatusLastWeek,
     UserStatusOffline,
@@ -29,6 +34,7 @@ MEDIA_MAX = 60
 class EntityService:
     def __init__(self, state: Any) -> None:
         self.state = state
+        self._profile_cache: Dict[int, tuple] = {}  # id -> (data, monotonic ts)
 
     def _require_client(self):
         if self.state.client is None:
@@ -255,10 +261,16 @@ class EntityService:
     ) -> Dict[str, Any]:
         client = self._require_client()
         limit = max(1, min(int(limit), MEDIA_MAX))
+        # Telegram-style profile categories. "media" = photos+videos combined.
         flt = {
+            "media": InputMessagesFilterPhotoVideo(),
             "photo": InputMessagesFilterPhotos(),
-            "document": InputMessagesFilterDocument(),
             "video": InputMessagesFilterVideo(),
+            "document": InputMessagesFilterDocument(),
+            "voice": InputMessagesFilterVoice(),
+            "music": InputMessagesFilterMusic(),
+            "gif": InputMessagesFilterGif(),
+            "url": InputMessagesFilterUrl(),
         }.get(kind)
 
         kwargs: Dict[str, Any] = {"limit": limit}
@@ -272,6 +284,17 @@ class EntityService:
         )
         items: List[Dict[str, Any]] = []
         for msg in messages:
+            text = (getattr(msg, "message", "") or "").strip()
+            # The Links tab lists messages that CONTAIN a URL (often no media).
+            if kind == "url":
+                if not text:
+                    continue
+                items.append({
+                    "message_id": msg.id, "kind": "url", "text": text,
+                    "file_name": None, "size": None, "mime": None, "has_thumb": False,
+                    "timestamp": msg.date.isoformat() if msg.date else None,
+                })
+                continue
             mk = self._media_kind(msg)
             if mk is None:
                 continue
@@ -289,6 +312,7 @@ class EntityService:
                 {
                     "message_id": msg.id,
                     "kind": mk,
+                    "text": text,
                     "file_name": file_name,
                     "size": size,
                     "mime": mime,
@@ -298,6 +322,40 @@ class EntityService:
             )
         oldest_id = messages[-1].id if messages else None
         return {"ok": True, "items": items, "oldest_id": oldest_id}
+
+    # ---------- profile (detail + bio, cached) ----------
+    async def profile(self, entity_id: int) -> Dict[str, Any]:
+        """Detail plus the bio/about (one GetFull* RPC). Cached ~60s so
+        reopening the profile drawer doesn't re-hit Telegram."""
+        import time
+
+        eid = int(entity_id)
+        hit = self._profile_cache.get(eid)
+        if hit and (time.monotonic() - hit[1]) < 60:
+            return hit[0]
+
+        data = await self.detail(eid)
+        about = None
+        client = self._require_client()
+        try:
+            from telethon.tl import functions
+
+            entity = await self.state.throttle.tg_read(lambda: client.get_entity(eid))
+            if data.get("kind") in ("group", "channel"):
+                full = await self.state.throttle.tg_read(
+                    lambda: client(functions.channels.GetFullChannelRequest(entity))
+                )
+                about = getattr(getattr(full, "full_chat", None), "about", None)
+            else:
+                full = await self.state.throttle.tg_read(
+                    lambda: client(functions.users.GetFullUserRequest(entity))
+                )
+                about = getattr(getattr(full, "full_user", None), "about", None)
+        except Exception as exc:  # noqa: BLE001 - bio is best-effort
+            logger.warning("profile bio fetch failed for %s: %s", eid, exc)
+        data["about"] = about or None
+        self._profile_cache[eid] = (data, time.monotonic())
+        return data
 
     # ---------- real profile photo (lazy + cached) ----------
     async def real_avatar_path(self, entity_id: int) -> Optional[str]:

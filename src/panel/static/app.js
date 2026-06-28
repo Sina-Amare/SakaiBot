@@ -287,7 +287,9 @@
   function initEntityActions() {
     $("#ev-ai-btn").addEventListener("click", openAi);
     $("#composer-ai").addEventListener("click", openAi);
-    $("#ev-media-btn").addEventListener("click", openMediaModal);
+    $("#ev-media-btn").addEventListener("click", openProfile);
+    $("#ev-name").addEventListener("click", openProfile);
+    $("#ev-avatar").addEventListener("click", openProfile);
     const input = $("#composer-input");
     input.addEventListener("input", () => { autoGrow(input); setSendEnabled(input.value.trim().length > 0); });
     input.addEventListener("keydown", (e) => {
@@ -313,9 +315,119 @@
     if (!State.entity) return;
     openModal("✨ AI · " + (State.entity.display_name || State.entity.id), (body) => { body.innerHTML = ""; renderCommands(body, State.entity); });
   }
-  function openMediaModal() {
+  // ---- profile drawer (info card + Telegram-style shared-media tabs) ----
+  const PROFILE_TABS = [
+    { key: "media", label: "Media" },
+    { key: "document", label: "Files" },
+    { key: "voice", label: "Voice" },
+    { key: "music", label: "Music" },
+    { key: "gif", label: "GIFs" },
+    { key: "url", label: "Links" },
+  ];
+  function openProfile() {
     if (!State.entity) return;
-    openModal("Shared media · " + (State.entity.display_name || State.entity.id), (body) => loadMedia(body, State.entity));
+    openModal(State.entity.display_name || String(State.entity.id), (body) => renderProfile(body, State.entity));
+  }
+  async function renderProfile(body, it) {
+    body.innerHTML = "";
+    const card = el("div", { class: "profile-card" });
+    card.appendChild(el("img", { class: "avatar lg", alt: "", src: avatarUrl(it.id, true) }));
+    const info = el("div", { class: "profile-info" });
+    info.appendChild(el("div", { class: "profile-name", dir: "auto", text: it.display_name || String(it.id) }));
+    const subline = el("div", { class: "profile-sub" });
+    const bio = el("div", { class: "profile-bio", dir: "auto" });
+    info.appendChild(subline);
+    info.appendChild(bio);
+    card.appendChild(info);
+    body.appendChild(card);
+
+    const tabbar = el("div", { class: "profile-tabs tabs" });
+    const pane = el("div", { class: "profile-pane" });
+    let active = "media";
+    PROFILE_TABS.forEach((t) => {
+      const b = el("button", {
+        class: "tab" + (t.key === active ? " active" : ""), text: t.label,
+        onclick: () => {
+          active = t.key;
+          $$(".tab", tabbar).forEach((x) => x.classList.toggle("active", x === b));
+          loadProfileTab(pane, it, t.key);
+        },
+      });
+      tabbar.appendChild(b);
+    });
+    body.appendChild(tabbar);
+    body.appendChild(pane);
+    loadProfileTab(pane, it, active);
+
+    try {
+      const p = await api(`/entity/${it.id}/profile`);
+      subline.innerHTML = "";
+      if (p.username) subline.appendChild(el("span", { text: p.username }));
+      const pl = presenceLabel(p.presence);
+      if (pl) subline.appendChild(el("span", { class: "pres " + pl.cls, text: pl.text }));
+      else if (p.member_count) {
+        const noun = it.kind === "channel" ? " subscribers" : " members";
+        subline.appendChild(el("span", { text: p.member_count.toLocaleString() + noun }));
+      }
+      subline.appendChild(el("span", { class: "faint", text: "id " + it.id }));
+      if (p.about) bio.textContent = p.about;
+    } catch (_) { /* info is best-effort */ }
+  }
+
+  function firstUrl(text) {
+    const m = (text || "").match(/https?:\/\/[^\s]+/);
+    return m ? m[0] : null;
+  }
+  function fmtSize(b) {
+    if (!b) return "";
+    const u = ["B", "KB", "MB", "GB"]; let i = 0, n = b;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return n.toFixed(n < 10 && i > 0 ? 1 : 0) + u[i];
+  }
+  async function loadProfileTab(pane, it, kind) {
+    pane.innerHTML = "<div class='muted'>Loading…</div>";
+    try {
+      const data = await api(`/entity/${it.id}/media?kind=${kind}&limit=40`);
+      pane.innerHTML = "";
+      if (!data.items.length) { pane.innerHTML = "<div class='muted'>Nothing here yet.</div>"; return; }
+      const fileOf = (m) => mediaUrl(`/api/entity/${it.id}/media/${m.message_id}/file`);
+      const thumbOf = (m) => mediaUrl(`/api/entity/${it.id}/media/${m.message_id}/thumb`);
+      if (kind === "media" || kind === "gif") {
+        const grid = el("div", { class: "media-grid" });
+        for (const m of data.items) {
+          const tile = el("div", { class: "media-tile", onclick: () => window.open(fileOf(m), "_blank") },
+            el("span", { class: "badge2", text: m.kind }));
+          tile.appendChild(el("img", { loading: "lazy", src: thumbOf(m) }));
+          grid.appendChild(tile);
+        }
+        pane.appendChild(grid);
+      } else if (kind === "voice" || kind === "music") {
+        const list = el("div", { class: "profile-list" });
+        for (const m of data.items) {
+          list.appendChild(el("div", { class: "profile-li" }, [
+            el("span", { class: "li-name", dir: "auto", text: m.file_name || (kind === "voice" ? "Voice message" : "Audio") }),
+            el("audio", { class: "m-audio", controls: "", preload: "none", src: fileOf(m) }),
+          ]));
+        }
+        pane.appendChild(list);
+      } else if (kind === "url") {
+        const list = el("div", { class: "profile-list" });
+        for (const m of data.items) {
+          list.appendChild(el("a", { class: "profile-li link", href: firstUrl(m.text) || "#", target: "_blank", rel: "noopener", dir: "auto", text: m.text }));
+        }
+        pane.appendChild(list);
+      } else {
+        const list = el("div", { class: "profile-list" });
+        for (const m of data.items) {
+          list.appendChild(el("a", { class: "profile-li", href: fileOf(m), target: "_blank", rel: "noopener" }, [
+            el("span", { class: "li-ic", text: "📄" }),
+            el("span", { class: "li-name", dir: "auto", text: m.file_name || m.mime || "File" }),
+            m.size ? el("span", { class: "li-size", text: fmtSize(m.size) }) : null,
+          ]));
+        }
+        pane.appendChild(list);
+      }
+    } catch (e) { pane.innerHTML = `<div class='muted'>${esc(e.message)}</div>`; }
   }
 
   // command cards
@@ -666,29 +778,6 @@
       input.value = text; autoGrow(input); setSendEnabled(true);
       toast(e.message, true);
     }
-  }
-
-  // ---- shared media (modal grid) ----
-  async function loadMedia(pane, it) {
-    pane.innerHTML = "<div class='muted'>Loading media…</div>";
-    try {
-      const data = await api(`/entity/${it.id}/media?kind=all&limit=30`);
-      pane.innerHTML = "";
-      if (!data.items.length) { pane.innerHTML = "<div class='muted'>No media in this chat.</div>"; return; }
-      const grid = el("div", { class: "media-grid" });
-      for (const m of data.items) {
-        const fileUrl = mediaUrl(`/api/entity/${it.id}/media/${m.message_id}/file`);
-        const tile = el("div", { class: "media-tile", onclick: () => window.open(fileUrl, "_blank") },
-          el("span", { class: "badge2", text: m.kind }));
-        if (m.kind === "photo" || m.kind === "video") {
-          tile.appendChild(el("img", { loading: "lazy", src: mediaUrl(`/api/entity/${it.id}/media/${m.message_id}/thumb`) }));
-        } else {
-          tile.appendChild(el("div", { class: "doc", text: m.file_name || m.mime || m.kind }));
-        }
-        grid.appendChild(tile);
-      }
-      pane.appendChild(grid);
-    } catch (e) { pane.innerHTML = `<div class='muted'>${esc(e.message)}</div>`; }
   }
 
   // ---- run command + results ----

@@ -165,6 +165,10 @@ def create_app(state: Any) -> FastAPI:
     async def entity_detail(entity_id: int) -> Dict[str, Any]:
         return await state.entity.detail(entity_id)
 
+    @api.get("/entity/{entity_id}/profile")
+    async def entity_profile(entity_id: int) -> Dict[str, Any]:
+        return await state.entity.profile(entity_id)
+
     @api.get("/entity/{entity_id}/history")
     async def entity_history(
         entity_id: int,

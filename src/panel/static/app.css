@@ -478,6 +478,28 @@ select { appearance: none; cursor: pointer;
 .media-tile .badge2 { position: absolute; top: 7px; left: 7px; font-size: 9px; background: rgba(0,0,0,0.6);
   color: #fff; padding: 2px 7px; border-radius: var(--r-pill); text-transform: uppercase; font-weight: 700; backdrop-filter: blur(4px); }
 
+/* ---- Profile view (info card + shared-media tabs) ---- */
+.profile-card { display: flex; gap: 16px; align-items: center; padding: 4px 2px 18px; }
+.profile-card .avatar.lg { width: 76px; height: 76px; }
+.profile-info { min-width: 0; }
+.profile-name { font-size: 20px; font-weight: 720; line-height: 1.2; }
+.profile-sub { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+.profile-bio { margin-top: 9px; font-size: 13.5px; color: var(--text); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.profile-tabs { gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.profile-pane { padding-top: 14px; min-height: 120px; }
+.profile-list { display: flex; flex-direction: column; gap: 8px; }
+.profile-li { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: var(--r);
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text); text-decoration: none;
+  transition: background var(--t) var(--ease), border-color var(--t) var(--ease); }
+.profile-li:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.profile-li.link { color: var(--accent); word-break: break-all; font-size: 13px; }
+.profile-li .li-ic { flex: none; }
+.profile-li .li-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-li .li-size { flex: none; color: var(--text-faint); font-size: 11.5px; }
+.profile-li .m-audio { width: 100%; }
+.profile-li:has(.m-audio) { flex-direction: column; align-items: stretch; gap: 6px; }
+#ev-name, #ev-avatar { cursor: pointer; }
+
 /* ---- Results rail ---- */
 .rail-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 14px;
   border-bottom: 1px solid var(--line); font-weight: 720; font-size: 14px; }

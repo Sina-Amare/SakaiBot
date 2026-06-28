@@ -204,6 +204,7 @@ temp/
 acli
 acli.exe
 prompt.md
+output.md          # /analyze and similar command dumps (may contain private chat data)
 *.md.backup
 TODO.md
 NOTES.md

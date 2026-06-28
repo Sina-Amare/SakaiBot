@@ -1,6 +1,6 @@
-# Contributing to SakaiBot
+# Contributing to Aigram
 
-Thank you for your interest in contributing to SakaiBot! This guide will help you get started.
+Thank you for your interest in contributing to Aigram! This guide will help you get started. (The repository, Python package, and CLI are named `sakaibot`.)
 
 ## Code of Conduct
 
@@ -120,9 +120,9 @@ pytest tests/unit/
 
 Update relevant documentation when making changes:
 
-- `README.md` - Overview and quick start
-- `docs/COMMANDS.md` - Command reference
-- `docs/CONFIGURATION.md` - Config options
+- `README.md` - overview, quick start, and the AI command reference
+- `.env.example` - configuration options
+- `DEPLOY.md` - deployment and hosting
 - Inline docstrings for functions
 
 ## Review Process
@@ -139,4 +139,4 @@ Update relevant documentation when making changes:
 
 ---
 
-Thank you for contributing! 🎉
+Thank you for contributing.

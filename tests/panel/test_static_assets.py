@@ -80,6 +80,16 @@ def test_mobile_responsiveness_guards():
     assert "theme-toggle-m" in js, "mobile theme toggle must be wired"
 
 
+def test_pwa_install_affordance():
+    """Installable on Android (beforeinstallprompt + button) and iOS (Add-to-Home hint)."""
+    html = _read("index.html")
+    assert 'id="install-btn"' in html, "Android install button missing"
+    js = _read("app.js")
+    assert "beforeinstallprompt" in js, "Android install prompt not handled"
+    assert "appinstalled" in js, "appinstalled cleanup missing"
+    assert "Add to Home Screen" in js, "iOS install hint missing"
+
+
 def test_asset_cache_versions_consistent():
     """The ?v= cache-bust on app.css/app.js and the SW shell version must move
     together, or returning users get a half-stale UI."""

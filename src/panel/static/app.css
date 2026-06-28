@@ -514,6 +514,17 @@ select { appearance: none; cursor: pointer;
 .toast .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
 .toast.bad .dot { background: var(--bad); }
 
+/* ---- iOS install hint (Safari has no beforeinstallprompt) ---- */
+.ios-hint { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom));
+  transform: translateX(-50%); max-width: min(420px, calc(100vw - 24px)); z-index: 61;
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px; font-size: 13px; font-weight: 540;
+  color: var(--text); background: var(--elevated); border: 1px solid var(--line-strong);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  border-radius: var(--r); box-shadow: var(--shadow-lg); }
+.ios-hint b { color: var(--accent); font-weight: 680; }
+.ios-hint-x { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--text-dim); cursor: pointer; line-height: 1; }
+
 /* ---- Theme toggle icon swap ---- */
 #theme-toggle .sun { display: none; }
 [data-theme="light"] #theme-toggle .sun { display: block; }

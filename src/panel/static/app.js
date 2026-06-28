@@ -80,6 +80,12 @@
       else boot();
       return true;
     } catch (e) {
+      if (e.status === 401) {
+        // A stale saved token (e.g. the panel rotated it) must not auto-fail
+        // forever — drop it so the gate is usable and a fresh ?token= works.
+        localStorage.removeItem("panel_token");
+        sessionStorage.removeItem("panel_token");
+      }
       $("#gate-err").textContent = e.status === 401 ? "Invalid token." : (e.message || "Failed");
       return false;
     }
@@ -1047,6 +1053,50 @@
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawers(); });
   }
 
+  // ---- PWA install (Android prompt + iOS hint) ----
+  let deferredInstall = null;
+  function isStandalone() {
+    return window.matchMedia && window.matchMedia("(display-mode: standalone)").matches
+      || window.navigator.standalone === true;
+  }
+  function initInstall() {
+    const btn = $("#install-btn");
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstall = e;
+      if (btn && !isStandalone()) btn.classList.remove("hidden");
+    });
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        if (!deferredInstall) return;
+        deferredInstall.prompt();
+        try { await deferredInstall.userChoice; } catch (_) {}
+        deferredInstall = null;
+        btn.classList.add("hidden");
+      });
+    }
+    window.addEventListener("appinstalled", () => {
+      deferredInstall = null;
+      if (btn) btn.classList.add("hidden");
+    });
+    maybeIosInstallHint();
+  }
+
+  function maybeIosInstallHint() {
+    const ua = navigator.userAgent || "";
+    const isIos = /iphone|ipad|ipod/i.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
+    const isSafari = isIos && !/crios|fxios|edgios/i.test(ua);
+    if (!isSafari || isStandalone() || localStorage.getItem("ios_install_dismissed")) return;
+    const hint = el("div", { id: "ios-install", class: "ios-hint" }, [
+      el("span", { html: "Install Aigram — tap <b>Share</b> then <b>Add to Home Screen</b>." }),
+      el("button", {
+        class: "ios-hint-x", "aria-label": "Dismiss", text: "✕",
+        onclick: () => { hint.remove(); localStorage.setItem("ios_install_dismissed", "1"); },
+      }),
+    ]);
+    document.body.appendChild(hint);
+  }
+
   // ---- service worker (PWA) ----
   function registerSW() {
     if (!("serviceWorker" in navigator)) return;
@@ -1082,6 +1132,7 @@
     initEntityActions();
     initDashboards();
     initMobile();
+    initInstall();
   }
 
   document.addEventListener("DOMContentLoaded", init);

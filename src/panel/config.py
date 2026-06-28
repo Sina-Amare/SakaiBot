@@ -12,6 +12,59 @@ _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
 DEFAULT_PORT = 8765
 
 
+def resolve_panel_token(env_writer=None) -> str:
+    """Return a stable panel access token, persisting a generated one to ``.env``.
+
+    Resolution order:
+    1. An explicit ``PANEL_TOKEN`` already in the environment wins (left as-is).
+    2. A ``PANEL_TOKEN`` previously saved in ``.env`` is reused.
+    3. Otherwise a fresh token is generated and written to ``.env`` so it stays
+       stable across restarts.
+
+    Stability is what lets an installed PWA keep its saved token and open
+    straight into Aigram instead of re-prompting after every restart. The
+    resolved token is also exported to ``os.environ['PANEL_TOKEN']`` so
+    :meth:`PanelConfig.from_env` picks it up. If ``.env`` is not writable (e.g.
+    a read-only Docker mount) the token is still used for this run.
+    """
+    from .env_writer import EnvWriter
+
+    env_token = (os.environ.get("PANEL_TOKEN") or "").strip()
+    if env_token:
+        return env_token
+
+    writer = env_writer or EnvWriter()
+    saved = (writer.read().get("PANEL_TOKEN") or "").strip()
+    if saved:
+        os.environ["PANEL_TOKEN"] = saved
+        return saved
+
+    token = secrets.token_urlsafe(32)
+    try:
+        writer.set_many({"PANEL_TOKEN": token})
+    except OSError:
+        pass  # read-only fs (e.g. Docker :ro mount) — use it for this run only
+    os.environ["PANEL_TOKEN"] = token
+    return token
+
+
+def rotate_panel_token(env_writer=None) -> str:
+    """Generate a NEW token, persist it to ``.env``, and return it.
+
+    Deliberately invalidates every saved/installed client (use ``--rotate-token``).
+    """
+    from .env_writer import EnvWriter
+
+    writer = env_writer or EnvWriter()
+    token = secrets.token_urlsafe(32)
+    try:
+        writer.set_many({"PANEL_TOKEN": token})
+    except OSError:
+        pass
+    os.environ["PANEL_TOKEN"] = token
+    return token
+
+
 @dataclass
 class PanelConfig:
     """Runtime config for the web panel."""

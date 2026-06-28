@@ -42,20 +42,21 @@ def _lan_ip() -> str:
 @click.option("--tls-key", default=None, help="Path to the TLS private key (PEM) to serve HTTPS.")
 @click.option("--no-monitoring", is_flag=True, default=False, help="Run as a pure private console (bot does NOT process chat commands).")
 @click.option("--real-photos", is_flag=True, default=False, help="Fetch real profile photos (lazy + cached). Default is initials only.")
+@click.option("--rotate-token", is_flag=True, default=False, help="Generate a fresh access token (invalidates saved/installed clients).")
 @click.option("--verbose", is_flag=True, default=False, help="Verbose monitoring output.")
-def panel(port, host, expose_lan, tls_cert, tls_key, no_monitoring, real_photos, verbose):
+def panel(port, host, expose_lan, tls_cert, tls_key, no_monitoring, real_photos, rotate_token, verbose):
     """Launch the Aigram web control panel."""
     try:
-        asyncio.run(_run_panel(port, host, expose_lan, tls_cert, tls_key, not no_monitoring, real_photos, verbose))
+        asyncio.run(_run_panel(port, host, expose_lan, tls_cert, tls_key, not no_monitoring, real_photos, rotate_token, verbose))
     except KeyboardInterrupt:
         console.print("\n[cyan]Panel stopped.[/cyan]")
 
 
-async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring, real_photos, verbose):
+async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring, real_photos, rotate_token, verbose):
     from src.core.config import get_settings
     from src.cli.state import CLIState
     from src.cli.utils import set_shared_client, clear_shared_client
-    from src.panel.config import PanelConfig
+    from src.panel.config import PanelConfig, resolve_panel_token, rotate_panel_token
     from src.panel.state import build_panel_state
     from src.panel.runner import start_panel
     from src.ai.processor import AIProcessor
@@ -107,6 +108,17 @@ async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring,
             await analyze_queue.start_cleanup_task()
             analyze_started = True
             display_info("Monitoring active: the bot still responds to chat commands.")
+
+        # Resolve a STABLE access token (persisted to .env) so an installed PWA
+        # keeps working across restarts. --rotate-token forces a fresh one.
+        if rotate_token:
+            new_token = rotate_panel_token()
+            display_info("Rotated the panel token — saved/installed clients must re-enter it.")
+        else:
+            new_token = resolve_panel_token()
+        if not new_token:
+            display_error("Could not resolve a panel token.")
+            return
 
         resolved_host = _lan_ip() if expose_lan else host
         panel_config = PanelConfig.from_env(

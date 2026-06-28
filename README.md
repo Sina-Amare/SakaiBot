@@ -126,7 +126,7 @@ The first run opens a setup wizard that collects your Telegram API id, hash, and
 
 ### Install it on your phone
 
-The panel is a PWA. Serve it over HTTPS — a free Cloudflare Tunnel is the simplest option — open the URL on your phone, and use "Add to Home Screen". [DEPLOY.md](DEPLOY.md) covers the tunnel setup and a few hosting paths in detail.
+The panel is a PWA. Serve it over HTTPS (a free Cloudflare Tunnel is the simplest option), open the URL on your phone, and use "Add to Home Screen". [DEPLOY.md](DEPLOY.md) covers the tunnel setup and a few hosting paths in detail.
 
 ## Configuration
 
@@ -205,7 +205,8 @@ src/
 | Shared MTProto session | `cli/utils.get_telegram_client` | one client, never a second connection |
 | API key rotation | `ai/api_key_manager.py` | failover on rate limits and quota errors |
 | Provider fallback | `ai/processor.py` | Gemini, then OpenRouter |
-| Send safety | `panel/throttle.py` | pacing and FloodWait, through one write path |
+| Read pacing | `panel/throttle.py` | FloodWait handling on every Telegram read |
+| Single write path | `panel/services/messenger_service.py` | the only module that sends to Telegram |
 | Hot reload | `panel/services/keys_service.py` | change keys and models without a restart |
 
 ## Development

@@ -113,6 +113,7 @@ class EntityService:
         """Shared message shape used by history, polling, and send echo."""
         media_kind = self._media_kind(msg)
         file_name, mime = self._doc_meta(msg)
+        sticker_format, is_animated, is_video = self._sticker_meta(msg)
         return {
             "id": msg.id,
             "sender": self._sender_name(msg, kind, ename),
@@ -125,6 +126,9 @@ class EntityService:
             "file_name": file_name,
             "mime": mime,
             "is_voice": bool(getattr(msg, "voice", None) or getattr(msg, "audio", None)),
+            "sticker_format": sticker_format,
+            "is_animated": is_animated,
+            "is_video": is_video,
         }
 
     def _reply_snippet(self, msg: Any, kind: str, ename: str) -> Dict[str, Any]:
@@ -238,6 +242,29 @@ class EntityService:
         if getattr(msg, "video", None):
             return "video"
         return None
+
+    @staticmethod
+    def _sticker_meta(msg: Any) -> tuple[Optional[str], bool, bool]:
+        """(sticker_format, is_animated, is_video) — pure, no RPC.
+
+        tgs = gzipped Lottie (animated), webm = video sticker, webp = static.
+        Telegram GIFs are delivered as muted mp4/webm video → is_video so the
+        UI can autoplay them in a <video> loop."""
+        fmt: Optional[str] = None
+        is_animated = False
+        is_video = False
+        if getattr(msg, "sticker", None):
+            doc = getattr(msg, "document", None)
+            mime = (getattr(doc, "mime_type", "") or "").lower() if doc else ""
+            if mime == "application/x-tgsticker":
+                fmt, is_animated = "tgs", True
+            elif mime == "video/webm":
+                fmt, is_video = "webm", True
+            else:
+                fmt = "webp"
+        elif getattr(msg, "gif", None):
+            is_video = True
+        return fmt, is_animated, is_video
 
     @staticmethod
     def _doc_meta(msg: Any) -> tuple[Optional[str], Optional[str]]:
@@ -391,11 +418,17 @@ class EntityService:
     ) -> Dict[str, Any]:
         client = self._require_client()
         cache = self.state.media_cache
-        cached = cache.thumb_path(entity_id, message_id) if thumb else cache.media_path(
-            entity_id, message_id
-        )
-        if cache.is_fresh(cached):
-            return {"path": str(cached), "mime": self._guess_mime(cached)}
+
+        # Cache hit. Thumbs are a fixed path; full media has a Telethon-chosen
+        # extension, so look it up via find_media (the old .bin check missed it).
+        if thumb:
+            cached = cache.thumb_path(entity_id, message_id)
+            if cache.is_fresh(cached):
+                return {"path": str(cached), "mime": self._guess_mime(cached)}
+        else:
+            hit = cache.find_media(entity_id, message_id)
+            if hit:
+                return {"path": str(hit), "mime": self._guess_mime(hit)}
 
         msg = await self.state.throttle.tg_read(
             lambda: client.get_messages(int(entity_id), ids=int(message_id))
@@ -405,20 +438,34 @@ class EntityService:
 
         if thumb:
             out = await self.state.throttle.tg_read(
-                lambda: client.download_media(msg, file=str(cached), thumb=-1),
+                lambda: client.download_media(msg, file=str(cache.thumb_path(entity_id, message_id)), thumb=-1),
                 kind="download",
             )
         else:
+            # No suffix → Telethon appends the correct one (.jpg/.tgs/.webm/...).
+            base = cache.media_path(entity_id, message_id).with_suffix("")
             out = await self.state.throttle.tg_read(
-                lambda: client.download_media(msg, file=str(cached.with_suffix(""))),
+                lambda: client.download_media(msg, file=str(base)),
                 kind="download",
             )
         if not out:
             raise PanelNotFound("Could not download media.")
         return {"path": str(out), "mime": self._guess_mime(Path(out))}
 
-    @staticmethod
-    def _guess_mime(path: Path) -> str:
+    _MIME_OVERRIDES = {
+        ".tgs": "application/gzip",       # gzipped Lottie sticker
+        ".webm": "video/webm",
+        ".webp": "image/webp",
+        ".json": "application/json",
+        ".oga": "audio/ogg",              # Telegram voice notes
+        ".ogg": "audio/ogg",
+    }
+
+    @classmethod
+    def _guess_mime(cls, path: Path) -> str:
+        ext = path.suffix.lower()
+        if ext in cls._MIME_OVERRIDES:
+            return cls._MIME_OVERRIDES[ext]
         import mimetypes
 
         mime, _ = mimetypes.guess_type(str(path))

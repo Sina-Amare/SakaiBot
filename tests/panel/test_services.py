@@ -1,6 +1,7 @@
 """Service-layer tests (offline) — exercise real services with mock client/AI."""
 
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -136,6 +137,45 @@ async def test_media_url_tab_carries_text(panel_state):
 async def test_profile_includes_about_and_presence(panel_state):
     p = await panel_state.entity.profile(101)
     assert p["ok"] and "about" in p and "presence" in p
+
+
+def test_sticker_meta_classification(panel_state):
+    svc = panel_state.entity
+    tgs = make_message(sticker=SimpleNamespace(),
+                       document=SimpleNamespace(mime_type="application/x-tgsticker"))
+    assert svc._sticker_meta(tgs) == ("tgs", True, False)
+    webm = make_message(sticker=SimpleNamespace(),
+                        document=SimpleNamespace(mime_type="video/webm"))
+    assert svc._sticker_meta(webm) == ("webm", False, True)
+    webp = make_message(sticker=SimpleNamespace(),
+                        document=SimpleNamespace(mime_type="image/webp"))
+    assert svc._sticker_meta(webp) == ("webp", False, False)
+    assert svc._sticker_meta(make_message(gif=SimpleNamespace())) == (None, False, True)
+    assert svc._sticker_meta(make_message()) == (None, False, False)
+
+
+def test_format_message_includes_sticker_fields(panel_state):
+    out = panel_state.entity._format_message(make_message(gif=SimpleNamespace()), "pv", "A")
+    assert out["is_video"] is True and "sticker_format" in out and "is_animated" in out
+
+
+def test_guess_mime_overrides(panel_state):
+    g = panel_state.entity._guess_mime
+    assert g(Path("x.tgs")) == "application/gzip"
+    assert g(Path("x.webm")) == "video/webm"
+    assert g(Path("x.webp")) == "image/webp"
+    assert g(Path("x.oga")) == "audio/ogg"
+    assert g(Path("x.jpg")) == "image/jpeg"  # falls through to mimetypes
+
+
+def test_find_media_excludes_thumb(tmp_path):
+    from src.panel.media_cache import MediaCache
+    c = MediaCache(tmp_path / "c")
+    (c.media / "5_7.thumb.jpg").write_bytes(b"x")
+    assert c.find_media(5, 7) is None  # only a thumbnail exists
+    real = c.media / "5_7.webm"
+    real.write_bytes(b"y")
+    assert c.find_media(5, 7) == real
 
 
 def test_keys_and_models(panel_state):

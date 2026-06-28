@@ -105,6 +105,19 @@ def test_fonts_selfhosted():
         assert "fonts.gstatic.com" not in low
 
 
+def test_lottie_vendored():
+    """Animated (.tgs) stickers use a SELF-HOSTED lottie player + gzip decode."""
+    js = _read("app.js")
+    assert "/vendor/lottie.min.js" in js, "lottie must be referenced from /vendor"
+    assert "DecompressionStream" in js, ".tgs gzip decode missing"
+    p = STATIC / "vendor" / "lottie.min.js"
+    assert p.exists() and p.stat().st_size > 50000, "lottie player missing/too small"
+    assert "/vendor/lottie.min.js" in _read("sw.js"), "lottie must be precached"
+    # no external CDN for the player
+    for blob in (js, _read("index.html")):
+        assert "cdn.jsdelivr.net" not in blob and "unpkg.com" not in blob
+
+
 def test_pwa_install_affordance():
     """Installable on Android (beforeinstallprompt + button) and iOS (Add-to-Home hint)."""
     html = _read("index.html")

@@ -547,6 +547,7 @@
     scroll.innerHTML = "<div class='chat-top muted'>Loading…</div>";
     chat = { items: [], oldestId: null, loading: false, hasMore: true };
     mediaNodes.clear();
+    destroyLottie();  // free SVG players from the previous chat
     scroll.onscroll = () => { if (scroll.scrollTop < 80) loadOlder(); };
     await loadOlder(true);
     scroll.scrollTop = scroll.scrollHeight;
@@ -682,6 +683,53 @@
     return img;
   }
 
+  // Autoplaying, muted, looping <video> (GIFs + video stickers). Muted is set
+  // as a property too — browsers require it for autoplay.
+  function autoVideo(src, poster, cls) {
+    const v = el("video", { class: cls, src: src, loop: "", playsinline: "", preload: "metadata" });
+    if (poster) v.setAttribute("poster", poster);
+    v.muted = true; v.autoplay = true; v.loop = true; v.playsInline = true;
+    return v;
+  }
+
+  // Lottie (.tgs) animated stickers — self-hosted player, lazily injected.
+  let _lottiePromise = null;
+  function ensureLottie() {
+    if (window.lottie) return Promise.resolve(window.lottie);
+    if (!_lottiePromise) {
+      _lottiePromise = new Promise((res, rej) => {
+        const s = document.createElement("script");
+        s.src = "/vendor/lottie.min.js";
+        s.onload = () => res(window.lottie);
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    return _lottiePromise;
+  }
+  const lottiePlayers = new Set();
+  async function renderLottie(node, fileUrl, thumbUrl) {
+    try {
+      if (!("DecompressionStream" in window)) throw new Error("no gzip support");
+      const lottie = await ensureLottie();
+      const resp = await fetch(fileUrl);  // fileUrl carries the ?t= token
+      if (!resp.ok || !resp.body) throw new Error("fetch failed");
+      const stream = resp.body.pipeThrough(new DecompressionStream("gzip"));
+      const data = await new Response(stream).json();
+      const holder = el("div", { class: "lottie-holder" });
+      node.appendChild(holder);
+      lottiePlayers.add(lottie.loadAnimation({
+        container: holder, renderer: "svg", loop: true, autoplay: true, animationData: data,
+      }));
+    } catch (_) {
+      node.appendChild(el("img", { loading: "lazy", src: thumbUrl, alt: "" }));
+    }
+  }
+  function destroyLottie() {
+    lottiePlayers.forEach((a) => { try { a.destroy(); } catch (_) {} });
+    lottiePlayers.clear();
+  }
+
   function renderMedia(m) {
     if (!m.has_media) return null;
     if (typeof m.id === "number" && mediaNodes.has(m.id)) return mediaNodes.get(m.id);
@@ -694,13 +742,24 @@
         node.appendChild(withFallback(el("img", { loading: "lazy", src: thumbUrl, alt: "" }), node, "photo"));
         break;
       case "sticker":
-        // Stickers may be .tgs (Lottie) / .webm — not <img>-renderable. The static
-        // THUMBNAIL always is, so use it (with a tidy placeholder on failure).
+        // Render stickers for real: .tgs → Lottie, .webm → looping <video>,
+        // .webp/other → the actual image (falls back to thumbnail on error).
         node = el("div", { class: "m-sticker" });
-        node.appendChild(withFallback(el("img", { loading: "lazy", src: thumbUrl, alt: "" }), node, "sticker"));
+        if (m.sticker_format === "tgs") {
+          renderLottie(node, fileUrl, thumbUrl);
+        } else if (m.sticker_format === "webm" || m.is_video) {
+          node.appendChild(autoVideo(fileUrl, null, "m-sticker-v"));
+        } else {
+          const src = m.sticker_format === "webp" ? fileUrl : thumbUrl;
+          node.appendChild(withFallback(el("img", { loading: "lazy", src: src, alt: "" }), node, "sticker"));
+        }
+        break;
+      case "gif":
+        // Telegram GIFs are muted mp4/webm — autoplay them in a loop.
+        node = el("div", { class: "m-photo m-gif" });
+        node.appendChild(autoVideo(fileUrl, thumbUrl, "m-gif-v"));
         break;
       case "video":
-      case "gif":
         node = el("div", { class: "m-photo m-video", onclick: () => window.open(fileUrl, "_blank") });
         node.appendChild(withFallback(el("img", { loading: "lazy", src: thumbUrl, alt: "" }), node, "video"));
         node.appendChild(el("span", { class: "play", html: "&#9658;" }));

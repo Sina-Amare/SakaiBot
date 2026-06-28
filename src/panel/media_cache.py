@@ -39,6 +39,19 @@ class MediaCache:
     def thumb_path(self, entity_id: int, message_id: int) -> Path:
         return self.media / f"{entity_id}_{message_id}.thumb.jpg"
 
+    def find_media(self, entity_id: int, message_id: int) -> Optional[Path]:
+        """The real cached media file. Telethon picks the extension at download
+        time (e.g. .jpg/.tgs/.webm), so glob for ``{e}_{m}.<ext>`` — excluding
+        the ``.thumb.jpg`` companion. Fixes a cache-miss where the freshness
+        check looked at a ``.bin`` path that was never actually written."""
+        stem = f"{entity_id}_{message_id}"
+        for p in self.media.glob(stem + ".*"):
+            if p.name.endswith(".thumb.jpg"):
+                continue
+            if self.is_fresh(p):
+                return p
+        return None
+
     @staticmethod
     def is_fresh(path: Path, ttl_seconds: Optional[float] = None) -> bool:
         try:

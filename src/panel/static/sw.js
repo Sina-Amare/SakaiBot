@@ -5,13 +5,13 @@
  * offline safety net. (A previous cache-first shell could pin stale app.css/
  * app.js against a fresh index.html — never again.) Bump SHELL to force a purge
  * of any old cache on the next visit. */
-const SHELL = "aigram-shell-v8";
+const SHELL = "aigram-shell-v9";
 const ASSETS = [
   "/", "/index.html", "/app.css", "/app.js", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png",
   "/fonts/inter-400.woff2", "/fonts/inter-500.woff2", "/fonts/inter-600.woff2",
   "/fonts/inter-700.woff2", "/fonts/vazirmatn-400.woff2", "/fonts/vazirmatn-500.woff2",
-  "/fonts/vazirmatn-700.woff2",
+  "/fonts/vazirmatn-700.woff2", "/vendor/lottie.min.js",
 ];
 
 self.addEventListener("install", (e) => {
@@ -35,8 +35,8 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return; // never touch POST/PUT/DELETE (commands, mutations)
   const url = new URL(req.url);
 
-  // Self-hosted fonts are immutable — serve cache-first for instant text.
-  if (url.pathname.startsWith("/fonts/")) {
+  // Self-hosted fonts + vendored libs are immutable — serve cache-first.
+  if (url.pathname.startsWith("/fonts/") || url.pathname.startsWith("/vendor/")) {
     e.respondWith(
       caches.match(req).then((r) => r || fetch(req).then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(SHELL).then((c) => c.put(req, copy)); }

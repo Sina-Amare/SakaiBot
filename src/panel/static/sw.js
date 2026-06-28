@@ -5,10 +5,13 @@
  * offline safety net. (A previous cache-first shell could pin stale app.css/
  * app.js against a fresh index.html — never again.) Bump SHELL to force a purge
  * of any old cache on the next visit. */
-const SHELL = "aigram-shell-v5";
+const SHELL = "aigram-shell-v6";
 const ASSETS = [
   "/", "/index.html", "/app.css", "/app.js", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png",
+  "/fonts/inter-400.woff2", "/fonts/inter-500.woff2", "/fonts/inter-600.woff2",
+  "/fonts/inter-700.woff2", "/fonts/vazirmatn-400.woff2", "/fonts/vazirmatn-500.woff2",
+  "/fonts/vazirmatn-700.woff2",
 ];
 
 self.addEventListener("install", (e) => {
@@ -31,6 +34,17 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return; // never touch POST/PUT/DELETE (commands, mutations)
   const url = new URL(req.url);
+
+  // Self-hosted fonts are immutable — serve cache-first for instant text.
+  if (url.pathname.startsWith("/fonts/")) {
+    e.respondWith(
+      caches.match(req).then((r) => r || fetch(req).then((res) => {
+        if (res.ok) { const copy = res.clone(); caches.open(SHELL).then((c) => c.put(req, copy)); }
+        return res;
+      }))
+    );
+    return;
+  }
 
   if (url.pathname.startsWith("/api/")) {
     // Commands and media are always live — never SW-cache them.

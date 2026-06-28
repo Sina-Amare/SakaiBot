@@ -3,6 +3,24 @@
    Dependency-free. Dark-first; premium light. Glass used surgically.
    ========================================================================== */
 
+/* ---- Self-hosted fonts (no CDN — works offline and in restricted regions).
+   Inter carries Latin; Vazirmatn (Arabic subset) carries Persian/Arabic and is
+   reached via the font-stack fallback since Inter lacks those glyphs. ---- */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("/fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/inter-500.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("/fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("/fonts/inter-700.woff2") format("woff2"); }
+@font-face { font-family: "Vazirmatn"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("/fonts/vazirmatn-400.woff2") format("woff2"); }
+@font-face { font-family: "Vazirmatn"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/vazirmatn-500.woff2") format("woff2"); }
+@font-face { font-family: "Vazirmatn"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("/fonts/vazirmatn-700.woff2") format("woff2"); }
+
 /* ---- Tokens ---- */
 :root {
   /* dark (default) — cool graphite + aurora teal */
@@ -32,19 +50,22 @@
   --good: #22c55e;  --good-soft: rgba(34, 197, 94, 0.15);
   --warn: #f5b544;  --warn-soft: rgba(245, 181, 68, 0.15);
   --bad:  #fb7185;  --bad-soft:  rgba(251, 113, 133, 0.15);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.6);
+  /* softened, multi-layer (ambient + key) — depth without a harsh single drop */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.20), 0 14px 34px rgba(0, 0, 0, 0.34);
+  --shadow-lg: 0 6px 22px rgba(0, 0, 0, 0.26), 0 34px 80px rgba(0, 0, 0, 0.50);
   --ring: 0 0 0 3px rgba(45, 212, 191, 0.30);
   --r-xs: 7px; --r-sm: 10px; --r: 13px; --r-lg: 17px; --r-xl: 22px; --r-pill: 999px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 22px; --sp-6: 30px;
-  --font: "Segoe UI", system-ui, -apple-system, "Vazirmatn", Tahoma, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font: "Inter", "Vazirmatn", system-ui, -apple-system, "Segoe UI", Tahoma, Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: "Cascadia Code", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 0.84, 0.44, 1);   /* soft, premium deceleration */
   --ease-spring: cubic-bezier(0.34, 1.32, 0.5, 1);
+  --t-fast: 0.14s; --t: 0.2s; --t-slow: 0.32s;     /* unified motion timing */
   --bubble-in: rgba(255, 255, 255, 0.065);
   --bubble-out: linear-gradient(135deg, rgba(45,212,191,0.20) 0%, rgba(34,211,238,0.13) 100%);
-  --bubble-shadow: 0 1px 1.5px rgba(0,0,0,0.30), 0 3px 10px rgba(0,0,0,0.16);
+  --bubble-shadow: 0 1px 2px rgba(0,0,0,0.18), 0 4px 14px rgba(0,0,0,0.12);
   --chat-wash: radial-gradient(1100px 520px at 50% -6%, rgba(45,212,191,0.055), transparent 62%);
 }
 [data-theme="light"] {
@@ -72,13 +93,13 @@
   --good: #16a34a; --good-soft: rgba(22, 163, 74, 0.12);
   --warn: #d97706; --warn-soft: rgba(217, 119, 6, 0.12);
   --bad: #e11d48;  --bad-soft: rgba(225, 29, 72, 0.12);
-  --shadow-sm: 0 1px 2px rgba(12, 50, 48, 0.08);
-  --shadow: 0 12px 34px rgba(12, 50, 48, 0.12);
-  --shadow-lg: 0 28px 70px rgba(12, 50, 48, 0.20);
+  --shadow-sm: 0 1px 2px rgba(12, 50, 48, 0.07);
+  --shadow: 0 2px 8px rgba(12, 50, 48, 0.07), 0 16px 38px rgba(12, 50, 48, 0.12);
+  --shadow-lg: 0 6px 22px rgba(12, 50, 48, 0.10), 0 34px 80px rgba(12, 50, 48, 0.18);
   --ring: 0 0 0 3px rgba(13, 148, 136, 0.25);
   --bubble-in: #ffffff;
   --bubble-out: linear-gradient(135deg, rgba(13,148,136,0.16) 0%, rgba(8,145,178,0.10) 100%);
-  --bubble-shadow: 0 1px 2px rgba(12,50,48,0.10), 0 5px 14px rgba(12,50,48,0.07);
+  --bubble-shadow: 0 1px 2px rgba(12,50,48,0.08), 0 5px 16px rgba(12,50,48,0.06);
   --chat-wash: radial-gradient(1100px 520px at 50% -6%, rgba(13,148,136,0.06), transparent 62%);
 }
 
@@ -93,8 +114,9 @@ body {
   background-attachment: fixed;
   color: var(--text);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 ::selection { background: rgba(45, 212, 191, 0.30); }
@@ -529,6 +551,30 @@ select { appearance: none; cursor: pointer;
 #theme-toggle .sun { display: none; }
 [data-theme="light"] #theme-toggle .sun { display: block; }
 [data-theme="light"] #theme-toggle .moon { display: none; }
+
+/* ---- Premium polish: motion, depth, presence ---- */
+/* soft hover micro-interactions (cancelled under prefers-reduced-motion below) */
+.dialog-row { transition: background var(--t) var(--ease), transform var(--t) var(--ease-out); }
+.dialog-row:hover { transform: translateY(-1px); }
+.avatar { transition: transform var(--t) var(--ease-out); }
+.dialog-row:hover .avatar { transform: scale(1.05); }
+.comp-send { transition: transform var(--t) var(--ease-spring), box-shadow var(--t) var(--ease), background var(--t) var(--ease); }
+.comp-send:hover { transform: scale(1.06); }
+.comp-send:active { transform: scale(0.94); }
+
+/* chat-message legibility — Persian benefits most now that Vazirmatn loads */
+.b-text { font-size: 14.5px; line-height: 1.6; }
+
+/* presence-dot states + live "typing…" indicator (header + SSE) */
+.status-dot.recently { background: var(--warn); }
+.status-dot.offline { background: var(--text-faint); }
+.ev-typing { color: var(--accent); font-weight: 560; display: inline-flex; align-items: center; gap: 5px; }
+.ev-typing .dots { display: inline-flex; gap: 3px; }
+.ev-typing .dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor;
+  animation: typing 1.2s var(--ease) infinite; }
+.ev-typing .dots i:nth-child(2) { animation-delay: 0.15s; }
+.ev-typing .dots i:nth-child(3) { animation-delay: 0.30s; }
+@keyframes typing { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
 
 /* ---- Mobile menu buttons (shown only under breakpoints) ---- */
 .menu-btn, .rail-btn { display: none; }

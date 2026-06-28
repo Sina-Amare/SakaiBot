@@ -80,6 +80,31 @@ def test_mobile_responsiveness_guards():
     assert "theme-toggle-m" in js, "mobile theme toggle must be wired"
 
 
+def test_fonts_selfhosted():
+    """Persian (Vazirmatn) + English (Inter) are self-hosted woff2 — never a CDN."""
+    css = _read("app.css")
+    assert "@font-face" in css, "no @font-face — fonts not actually loaded"
+    assert "Vazirmatn" in css and "Inter" in css
+    assert "/fonts/" in css, "@font-face must point at local /fonts, not a CDN"
+
+    fonts_dir = STATIC / "fonts"
+    for name in ["inter-400", "inter-500", "inter-600", "inter-700",
+                 "vazirmatn-400", "vazirmatn-500", "vazirmatn-700"]:
+        p = fonts_dir / f"{name}.woff2"
+        assert p.exists() and p.stat().st_size > 2000, f"font missing/empty: {name}"
+        assert p.read_bytes()[:4] == b"wOF2", f"not a valid woff2: {name}"
+
+    sw = _read("sw.js")
+    assert "/fonts/inter-400.woff2" in sw and "/fonts/vazirmatn-400.woff2" in sw, \
+        "fonts must be precached in the service worker"
+
+    # Never reach an external font CDN (offline + restricted-region safe).
+    for blob in (css, _read("index.html"), _read("app.js")):
+        low = blob.lower()
+        assert "fonts.googleapis.com" not in low
+        assert "fonts.gstatic.com" not in low
+
+
 def test_pwa_install_affordance():
     """Installable on Android (beforeinstallprompt + button) and iOS (Add-to-Home hint)."""
     html = _read("index.html")

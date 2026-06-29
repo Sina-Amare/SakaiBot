@@ -48,6 +48,7 @@ panel = [
     "python-multipart>=0.0.9",  # composer file uploads (UploadFile/Form)
 ]
 dev = [
+    "sakaibot[panel]",          # panel runtime (FastAPI/uvicorn/python-multipart) — the panel tests import it
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
@@ -56,14 +57,16 @@ dev = [
     "mypy>=1.5.0",
     "pre-commit>=3.3.0",
     "ruff>=0.1.0",
+    "playwright>=1.40",         # live e2e tests import it at collection; screenshot tooling
+    "Pillow>=10.0",             # demo screenshot generation
 ]
 optional = []
 
 [project.urls]
-Homepage = "https://github.com/Sina-Amare/SakaiBot"
-Documentation = "https://github.com/Sina-Amare/SakaiBot/tree/main/docs"
-Repository = "https://github.com/Sina-Amare/SakaiBot.git"
-"Bug Tracker" = "https://github.com/Sina-Amare/SakaiBot/issues"
+Homepage = "https://github.com/Sina-Amare/Aigram"
+Documentation = "https://github.com/Sina-Amare/Aigram/tree/main/docs"
+Repository = "https://github.com/Sina-Amare/Aigram.git"
+"Bug Tracker" = "https://github.com/Sina-Amare/Aigram/issues"
 
 [project.scripts]
 sakaibot = "src.cli.main:cli"

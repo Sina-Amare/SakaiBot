@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the issue already exists in [Issues](https://github.com/Sina-Amare/SakaiBot/issues)
+1. Check if the issue already exists in [Issues](https://github.com/Sina-Amare/Aigram/issues)
 2. If not, create a new issue with:
    - Clear, descriptive title
    - Steps to reproduce
@@ -54,7 +54,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ```bash
 # Clone repository
-git clone https://github.com/Sina-Amare/SakaiBot.git
+git clone https://github.com/Sina-Amare/Aigram.git
 cd SakaiBot
 
 # Create virtual environment
@@ -134,7 +134,7 @@ Update relevant documentation when making changes:
 
 ## Questions?
 
-- Open a [Discussion](https://github.com/Sina-Amare/SakaiBot/discussions)
+- Open a [Discussion](https://github.com/Sina-Amare/Aigram/discussions)
 - Check existing issues for similar questions
 
 ---

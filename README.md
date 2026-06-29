@@ -4,7 +4,7 @@
 
 A self-hosted web client for your own Telegram account, with an AI layer built in.
 
-[![Quality](https://github.com/Sina-Amare/SakaiBot/actions/workflows/quality.yml/badge.svg)](https://github.com/Sina-Amare/SakaiBot/actions/workflows/quality.yml)
+[![Quality](https://github.com/Sina-Amare/Aigram/actions/workflows/quality.yml/badge.svg)](https://github.com/Sina-Amare/Aigram/actions/workflows/quality.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PWA](https://img.shields.io/badge/PWA-installable-5a0fc8?logo=pwa&logoColor=white)](#install-it-on-your-phone)
@@ -166,7 +166,7 @@ You need Python 3.10 or newer, [FFmpeg](https://ffmpeg.org/download.html) for th
 ### With Docker
 
 ```bash
-git clone https://github.com/Sina-Amare/SakaiBot.git aigram
+git clone https://github.com/Sina-Amare/Aigram.git aigram
 cd aigram
 docker compose up -d
 docker compose exec sakaibot sakaibot setup    # Telegram login and LLM keys

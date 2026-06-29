@@ -59,15 +59,39 @@ The screenshots below are generated from an invented demo account — fake conta
 </td>
 </tr>
 <tr>
+<td width="50%" align="center">
+  <img src="docs/screenshots/message-menu.png" alt="Per-message actions menu" width="420"><br/>
+  <sub>Per-message actions: reply, copy, edit, forward, delete</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/forward-picker.png" alt="The forward chat picker" width="420"><br/>
+  <sub>Forward a message to any chat from a searchable picker</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+  <img src="docs/screenshots/compose-attach.png" alt="Composer with staged attachments" width="420"><br/>
+  <sub>Attach files and images (button or paste) with a preview strip</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/live-typing.png" alt="A live typing indicator in the chat header" width="420"><br/>
+  <sub>Live typing, presence, and instant messages over SSE</sub>
+</td>
+</tr>
+<tr>
 <td colspan="2" align="center">
   <img src="docs/screenshots/profile.png" alt="The profile view with shared-media tabs" width="640"><br/>
   <sub>Profile view: avatar, username, presence, and Telegram-style shared-media tabs</sub>
 </td>
 </tr>
 <tr>
-<td colspan="2" align="center">
+<td width="50%" align="center">
   <img src="docs/screenshots/chat-mobile.png" alt="The mobile layout running as an installed PWA" width="260"><br/>
   <sub>The same client on a phone, installed as a PWA</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/ai-mobile.png" alt="The AI results history drawer on mobile" width="260"><br/>
+  <sub>On a phone, AI results land in a categorized history drawer</sub>
 </td>
 </tr>
 </table>
@@ -76,16 +100,22 @@ The screenshots below are generated from an invented demo account — fake conta
 
 ### Messaging
 
-- Read and send text messages and replies
+- Read and send text messages, with reply, edit, forward, and delete — the primary Telegram actions, from a per-message menu
+- Attach files and images (button or drag-free clipboard paste) with a preview strip before sending
+- Download any received file, copy message text, or copy an image straight to the clipboard
 - Inline rendering of photos, animated stickers (Lottie `.tgs`), GIFs, video, voice notes, and documents
 - Real Telegram profile photos as avatars, with colorful-initial fallbacks
-- Online / recently online / last-seen presence in the chat header
 - Profile view: open a chat's header for its avatar, username, bio, presence, and shared media
 - Shared-media tabs: photos and videos, files, voice messages, music, GIFs, and links
-- Grouped message bubbles, date separators, and relative timestamps
+- Grouped message bubbles, date separators, relative timestamps, and an "edited" marker
 - Last-message previews in the chat list with type badges (PV, Group, Channel, Bot)
 - Light and dark themes with a single-click toggle, responsive down to phone widths
 - Self-hosted Inter and Vazirmatn fonts — no external network requests
+
+### Live and real-time
+
+- Live typing indicators, online/last-seen presence, and instant new messages over a Server-Sent-Events channel — no polling while it is connected, with an automatic polling fallback if it drops
+- All of it rides Telegram's existing update stream, so the live channel makes no extra API calls
 
 ### AI inside the conversation
 
@@ -95,6 +125,8 @@ The screenshots below are generated from an invented demo account — fake conta
 - Translation, including Persian phonetic output
 - Image generation through Flux or SDXL workers
 - Text-to-speech (Gemini TTS) and speech-to-text, with summaries of transcribed audio
+- A persisted **AI Results history**: every result is saved with a category (Analyze, Ask, Translate, Prompt, Image, Voice, Transcribe), filterable by type, and text results survive a reload. On a phone the AI sheet opens full-screen and the result lands in a dedicated results drawer
+- A visible amber note whenever a provider or model fallback was applied, so a quiet downgrade is never mistaken for lower-quality output
 
 ### Provider management
 
@@ -202,8 +234,10 @@ Aigram is a FastAPI application serving a vanilla-JavaScript PWA, with no build 
 src/
 ├── panel/                  # FastAPI app and the vanilla-JS PWA control panel
 │   ├── app.py              # thin routes that delegate to services
-│   ├── services/           # dialogs, entity (history/media/profile), messenger (send),
-│   │                       #   commands (AI), keys, groups, status, auth
+│   ├── events.py           # in-process pub/sub fanning Telegram updates to SSE
+│   ├── services/           # dialogs, entity (history/media/profile),
+│   │                       #   messenger (send/edit/forward/delete), commands
+│   │                       #   (AI), keys, groups, status, auth
 │   ├── media_cache.py      # disk cache for avatars, thumbnails, and chat media
 │   ├── avatars.py          # colorful SVG initials fallback (no external requests)
 │   ├── throttle.py         # request pacing and FloodWait handling
@@ -222,7 +256,8 @@ src/
 | API key rotation | `ai/api_key_manager.py` | failover on rate limits and quota errors |
 | Provider fallback | `ai/processor.py` | Gemini, then OpenRouter |
 | Read pacing | `panel/throttle.py` | FloodWait handling on every Telegram read |
-| Single write path | `panel/services/messenger_service.py` | the only module that sends to Telegram |
+| Single write path | `panel/services/messenger_service.py` | the only module that sends, edits, forwards, or deletes |
+| Live channel | `panel/events.py` + `panel/monitor_runtime.py` | SSE typing/presence/messages, RPC-free off the update stream |
 | Hot reload | `panel/services/keys_service.py` | change keys and models without a restart |
 | Media cache | `panel/media_cache.py` | avatars, thumbnails, and media cached to disk |
 | Profile + presence | `panel/services/entity_service.py` | real photos, shared-media tabs, online status |

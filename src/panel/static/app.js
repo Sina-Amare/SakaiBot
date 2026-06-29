@@ -355,7 +355,7 @@
         thumb.appendChild(el("span", { class: "attach-name", dir: "auto", text: f.name }));
       }
       thumb.appendChild(el("button", {
-        class: "attach-x", text: "✕", title: "Remove",
+        class: "attach-x", text: "✕", title: "Remove", "aria-label": "Remove attachment",
         onclick: () => { attachedFiles.splice(i, 1); renderAttachPreview(); refreshSendState(); },
       }));
       wrap.appendChild(thumb);
@@ -366,14 +366,39 @@
   function autoGrow(t) { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 168) + "px"; }
 
   // AI commands + shared media open as overlays over the chat
+  let lastModalFocus = null;
   function openModal(title, render) {
     const modal = $("#modal"), body = $("#modal-body");
+    lastModalFocus = document.activeElement;  // restore focus here on close
     $("#modal-title").textContent = title;
     body.innerHTML = "<div class='muted'>Loading…</div>";
     modal.classList.remove("hidden");
+    const card = $(".modal-card", modal);
+    if (card) card.focus();
     Promise.resolve()
       .then(() => render(body))
+      .then(() => {  // move focus to the first real control inside the dialog
+        const f = modal.querySelector("input, textarea, select, button:not(#modal-close)");
+        if (f) f.focus();
+      })
       .catch((e) => { body.innerHTML = `<div class='err'>${esc(e.message)}</div>`; });
+  }
+  function closeModal() {
+    $("#modal").classList.add("hidden");
+    if (lastModalFocus && lastModalFocus.focus) { try { lastModalFocus.focus(); } catch (_) {} }
+    lastModalFocus = null;
+  }
+  // keep Tab focus inside the open dialog (lightweight trap)
+  function trapModalTab(e) {
+    if (e.key !== "Tab") return;
+    const modal = $("#modal");
+    if (modal.classList.contains("hidden")) return;
+    const f = $$('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])', modal)
+      .filter((n) => n.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
   function openAi() {
     if (!State.entity) return;
@@ -552,7 +577,7 @@
         { key: "question", type: "textarea", label: "Question", ph: "What do they argue about most?" },
         { key: "think", type: "check", label: "Deep thinking" },
         { key: "web", type: "check", label: "Web search" },
-      ], (v, btn) => runCommand("tellme", { entity_id: it.id, count: +v.count || 100, question: v.question, think: v.think, web: v.web }, `Tellme · ${it.display_name}`, btn)));
+      ], (v, btn) => runCommand("tellme", { entity_id: it.id, count: +v.count || 100, question: v.question, think: v.think, web: v.web }, `Ask · ${it.display_name}`, btn)));
     }
 
     grid.appendChild(card("Prompt", "✨", "Ask the AI anything.", [
@@ -577,7 +602,7 @@
         ? { key: "voice", type: "select", label: "Voice", options: [{ v: "", t: "default" }, ...State.voices.map((v) => ({ v, t: v }))] }
         : { key: "voice", label: "Voice (optional)", ph: "e.g. Orus" },
       { key: "text", type: "textarea", label: "Text", ph: "Hello from Aigram" },
-    ], (v, btn) => runCommand("tts", { text: v.text, voice: v.voice || null }, "TTS", btn)));
+    ], (v, btn) => runCommand("tts", { text: v.text, voice: v.voice || null }, "Voice", btn)));
 
     pane.appendChild(grid);
   }
@@ -794,9 +819,10 @@
     if (m.text) bubble.appendChild(el("div", { class: "b-text", dir: "auto", text: m.text }));
     if (m.media_kind === "audio") bubble.appendChild(el("button", {
       class: "stt-btn", title: "Transcribe with AI",
-      onclick: () => runCommand("stt", { entity_id: State.entity.id, message_id: m.id }, "STT", null),
+      onclick: () => runCommand("stt", { entity_id: State.entity.id, message_id: m.id }, "Transcribe", null),
     }, el("span", { text: "🎤 Transcribe" })));
     bubble.appendChild(el("div", { class: "b-meta" }, [
+      m.edited ? el("span", { class: "edited", text: "edited" }) : null,
       el("span", { text: clockTime(m.timestamp) }),
       m.out ? el("span", { class: "tick" + (m.pending ? " pending" : ""), text: m.pending ? "🕓" : "✓" }) : null,
     ]));
@@ -813,7 +839,7 @@
     if (typeof m.id === "number") {
       children.push(el("div", { class: "row-actions" }, [
         el("button", { class: "row-reply", title: "Reply", text: "↩", onclick: () => setReply(m) }),
-        el("button", { class: "row-reply row-menu", title: "More", text: "⋯", onclick: (e) => openMessageMenu(e.currentTarget, m) }),
+        el("button", { class: "row-reply row-menu", title: "More", "aria-label": "Message actions", text: "⋯", onclick: (e) => openMessageMenu(e.currentTarget, m) }),
       ]));
     }
     const row = el("div", { class: "msg-row" + (m.out ? " out" : "") + (groupStart ? " gstart" : "") }, children);
@@ -1089,7 +1115,7 @@
   async function doForward(fromId, messageId, target) {
     try {
       await api(`/entity/${fromId}/forward`, { method: "POST", body: { message_id: messageId, to_entity_id: target.id } });
-      $("#modal").classList.add("hidden");
+      closeModal();
       toast("Forwarded to " + (target.display_name || target.id));
     } catch (e) { toast(e.message, true); }
   }
@@ -1108,13 +1134,13 @@
       } catch (e) { toast(e.message, true); }
     });
   }
-  function confirmAction(title, message, onYes) {
+  function confirmAction(title, message, onYes, confirmLabel = "Delete") {
     openModal(title, (body) => {
       body.innerHTML = "";
       body.appendChild(el("p", { class: "confirm-msg", text: message }));
       body.appendChild(el("div", { class: "confirm-actions" }, [
-        el("button", { class: "btn", text: "Cancel", onclick: () => $("#modal").classList.add("hidden") }),
-        el("button", { class: "btn btn-danger", text: "Delete", onclick: () => { $("#modal").classList.add("hidden"); onYes(); } }),
+        el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
+        el("button", { class: "btn btn-danger", text: confirmLabel, onclick: () => { closeModal(); onYes(); } }),
       ]));
     });
   }
@@ -1313,7 +1339,7 @@
       tname,
       el("div", { class: "rtools" }, [
         el("span", { class: "rtime faint", text: time }),
-        el("button", { class: "rdel", title: "Remove", text: "✕", onclick: () => removeResult(r.id) }),
+        el("button", { class: "rdel", title: "Remove", "aria-label": "Remove result", text: "✕", onclick: () => removeResult(r.id) }),
       ]),
     ]);
     const body = el("div", { class: "rbody" });
@@ -1389,8 +1415,9 @@
     $$("[data-dash]").forEach((c) =>
       c.addEventListener("click", () => { closeDrawers(); openDash(c.dataset.dash); })
     );
-    $("#modal-close").addEventListener("click", () => $("#modal").classList.add("hidden"));
-    $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") $("#modal").classList.add("hidden"); });
+    $("#modal-close").addEventListener("click", closeModal);
+    $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
+    $("#modal").addEventListener("keydown", trapModalTab);
     $("#rail-clear").addEventListener("click", clearResults);
     const railClose = $("#rail-close");
     if (railClose) railClose.addEventListener("click", closeDrawers);
@@ -1724,7 +1751,12 @@
     $("#menu-btn") && $("#menu-btn").addEventListener("click", () => toggleDrawer(".sidebar"));
     $("#rail-btn") && $("#rail-btn").addEventListener("click", () => toggleDrawer(".rail"));
     $("#scrim") && $("#scrim").addEventListener("click", closeDrawers);
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawers(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (openMenu) { closeMenu(); return; }
+      if (!$("#modal").classList.contains("hidden")) { closeModal(); return; }
+      closeDrawers();
+    });
   }
 
   // ---- PWA install (Android prompt + iOS hint) ----

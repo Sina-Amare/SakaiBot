@@ -121,6 +121,7 @@ class EntityService:
             "out": bool(getattr(msg, "out", False)),
             "text": msg.message or "",
             "timestamp": msg.date.isoformat() if msg.date else None,
+            "edited": bool(getattr(msg, "edit_date", None)),
             "has_media": getattr(msg, "media", None) is not None,
             "media_kind": media_kind,
             "file_name": file_name,

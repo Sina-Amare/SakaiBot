@@ -111,11 +111,11 @@
             <div id="ev-sub" class="ev-sub"></div>
           </div>
           <div class="ch-actions">
-            <button id="ev-ai-btn" class="ghost-btn" title="AI commands">
+            <button id="ev-ai-btn" class="ghost-btn" title="AI commands" aria-label="AI commands">
               <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4L12 3z"/></svg>
               <span>AI</span>
             </button>
-            <button id="ev-media-btn" class="ghost-btn" title="Shared media">
+            <button id="ev-media-btn" class="ghost-btn" title="Shared media" aria-label="Shared media &amp; profile">
               <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
               <span>Media</span>
             </button>
@@ -163,7 +163,7 @@
 
   <!-- Dashboard modal -->
   <div id="modal" class="modal hidden">
-    <div class="modal-card">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
       <div class="modal-head">
         <span id="modal-title">—</span>
         <button id="modal-close" class="icon-btn" aria-label="Close">

@@ -95,6 +95,8 @@ def register_live_updates(client: Any, hub: Any, entity_service: Any) -> List[Tu
 
     async def on_new_message(event: Any) -> None:
         try:
+            if hub.subscriber_count == 0:
+                return  # nobody is listening — skip all formatting work
             msg = event.message
             if getattr(msg, "out", False):
                 return  # outgoing is already echoed by the composer
@@ -109,6 +111,8 @@ def register_live_updates(client: Any, hub: Any, entity_service: Any) -> List[Tu
 
     async def on_user_update(event: Any) -> None:
         try:
+            if hub.subscriber_count == 0:
+                return  # no SSE clients — don't publish typing/presence
             cid = event.chat_id or event.user_id
             if getattr(event, "typing", False) or getattr(event, "uploading", False) \
                     or getattr(event, "recording", False):

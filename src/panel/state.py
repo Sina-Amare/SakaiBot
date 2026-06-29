@@ -36,6 +36,8 @@ class PanelState:
     dialogs_cache: Optional[Dict[str, Any]] = None          # {'items':[...], 'ts':float}
     result_tokens: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     events: EventHub = field(default_factory=EventHub)       # SSE pub/sub hub
+    me_name: Optional[str] = None                            # account display name (cached)
+    me_id: Optional[int] = None                              # account user id (cached)
 
     # services (attached by build_panel_state)
     dialogs: Any = None

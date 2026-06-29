@@ -40,6 +40,8 @@ class StatusService:
                     ).strip()
                     me_username = f"@{me.username}" if getattr(me, "username", None) else None
                     me_id = me.id
+                    self.state.me_name = me_name or self.state.me_name  # cache for AI transcripts
+                    self.state.me_id = me_id
             except Exception as exc:  # noqa: BLE001
                 logger.warning("get_me failed: %s", exc)
             try:

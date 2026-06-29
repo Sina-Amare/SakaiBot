@@ -298,7 +298,10 @@ select { appearance: none; cursor: pointer;
 .dash-nav { display: flex; gap: 8px; }
 
 /* ---- Sidebar ---- */
-.sidebar .tabs { margin: 12px 12px 8px; flex-wrap: wrap; }
+/* segmented control: one row that fills the sidebar, never wraps */
+.sidebar .tabs { margin: 12px 12px 8px; display: flex; gap: 3px; }
+.sidebar .tab { flex: 1 1 0; min-width: 0; padding: 7px 4px; text-align: center;
+  font-size: 12px; white-space: nowrap; }
 .search-row { display: flex; gap: 8px; padding: 0 12px 10px; align-items: center; }
 .search-wrap { position: relative; flex: 1; }
 .search-wrap .ic { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; }
@@ -359,7 +362,7 @@ select { appearance: none; cursor: pointer;
 .chat-scroll {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   padding: 16px clamp(14px, 5%, 56px) 28px; display: flex; flex-direction: column; gap: 2px;
-  scroll-behavior: smooth; overscroll-behavior: contain; background: var(--chat-wash);
+  overscroll-behavior: contain; background: var(--chat-wash);
 }
 .chat-top { text-align: center; font-size: 12px; color: var(--text-faint); padding: 10px 8px; }
 .day-sep { display: flex; justify-content: center; margin: 16px 0 12px; position: sticky; top: 2px; z-index: 2; pointer-events: none; }

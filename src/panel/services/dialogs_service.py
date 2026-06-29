@@ -16,7 +16,7 @@ from ..errors import PanelUnavailable
 logger = get_logger(__name__)
 
 DIALOGS_TTL_SECONDS = 300
-DIALOGS_WALK_LIMIT = 500
+DIALOGS_WALK_LIMIT = 1000  # cover large accounts; the walk is cached after the first pass
 
 
 class DialogsService:

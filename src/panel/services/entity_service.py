@@ -196,13 +196,35 @@ class EntityService:
         newest_id = messages[0].id if messages else None
         return {"ok": True, "items": items, "oldest_id": oldest_id, "newest_id": newest_id}
 
+    async def _owner_name(self) -> str:
+        """The account owner's real display name (cached) for AI transcripts."""
+        if self.state.me_name:
+            return self.state.me_name
+        client = self.state.client
+        if client is not None:
+            try:
+                me = await self.state.throttle.tg_read(lambda: client.get_me())
+                if me:
+                    name = " ".join(
+                        p for p in [getattr(me, "first_name", ""), getattr(me, "last_name", "")] if p
+                    ).strip()
+                    self.state.me_name = name or self.state.me_name
+                    self.state.me_id = getattr(me, "id", None)
+            except Exception:  # noqa: BLE001
+                pass
+        return self.state.me_name or "Me"
+
     async def messages_for_ai(self, entity_id: int, count: int) -> List[Dict[str, Any]]:
-        """Chronological [{sender, text, timestamp}] for analyze/tellme."""
+        """Chronological [{sender, text, timestamp}] for analyze/tellme.
+
+        Outgoing messages are attributed to the owner's REAL name (not "You"),
+        so the AI refers to everyone by name instead of addressing "you"."""
         client = self._require_client()
         count = max(1, min(int(count), 10000))
         row = self.state.dialogs.find(entity_id) or {}
         kind = row.get("kind", "pv")
         ename = row.get("display_name", str(entity_id))
+        owner = await self._owner_name()
         messages = await self.state.throttle.tg_read(
             lambda: client.get_messages(int(entity_id), limit=count)
         )
@@ -210,13 +232,8 @@ class EntityService:
         for msg in reversed(messages):  # oldest -> newest
             if not (msg.message or "").strip():
                 continue
-            out.append(
-                {
-                    "sender": self._sender_name(msg, kind, ename),
-                    "text": msg.message,
-                    "timestamp": msg.date,
-                }
-            )
+            sender = owner if getattr(msg, "out", False) else self._sender_name(msg, kind, ename)
+            out.append({"sender": sender, "text": msg.message, "timestamp": msg.date})
         return out
 
     # ---------- media enumeration ----------

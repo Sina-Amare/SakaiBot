@@ -35,18 +35,35 @@
   }
 
   // ---- api ----
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Resilient fetch: GETs retry on a dropped connection or a transient 5xx
+  // (e.g. while Telethon is reconnecting) so a weak network never blanks the UI
+  // or throws an uncaught error. Mutations (POST/etc.) fail fast — no double-send.
   async function api(path, { method = "GET", body = null } = {}) {
     const opts = { method, headers: { Authorization: "Bearer " + State.token } };
     if (body) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
-    const res = await fetch("/api" + path, opts);
-    let data = null;
-    try { data = await res.json(); } catch (_) { data = null; }
-    if (!res.ok) {
-      const msg = (data && data.error) || `Request failed (${res.status})`;
-      const err = new Error(msg); err.status = res.status; err.retry_after = data && data.retry_after;
-      throw err;
+    const maxTries = method === "GET" ? 3 : 1;
+    let lastErr;
+    for (let attempt = 1; attempt <= maxTries; attempt++) {
+      let res;
+      try {
+        res = await fetch("/api" + path, opts);
+      } catch (_) {
+        lastErr = new Error("Network unavailable"); lastErr.offline = true;
+        if (attempt < maxTries) { await sleep(350 * attempt); continue; }
+        throw lastErr;
+      }
+      let data = null;
+      try { data = await res.json(); } catch (_) { data = null; }
+      if (!res.ok) {
+        if (res.status >= 500 && attempt < maxTries) { await sleep(350 * attempt); continue; }
+        const msg = (data && data.error) || `Request failed (${res.status})`;
+        const err = new Error(msg); err.status = res.status; err.retry_after = data && data.retry_after;
+        throw err;
+      }
+      return data;
     }
-    return data;
+    throw lastErr;
   }
 
   function mediaUrl(path) {
@@ -133,6 +150,10 @@
         loadDialogs();
       })
     );
+    $("#dialog-list").addEventListener("scroll", (e) => {
+      const l = e.currentTarget;
+      if (l.scrollHeight - l.scrollTop - l.clientHeight < 280) loadMoreDialogs();
+    });
     $("#search").addEventListener("input", (e) => {
       clearTimeout(searchTimer);
       State.query = e.target.value.trim();
@@ -152,42 +173,61 @@
     for (let i = 0; i < 8; i++) list.appendChild(el("div", { class: "skel" }));
   }
 
+  const PAGE_DIALOGS = 200;
   async function loadDialogs() {
+    State.dialogPage = { total: 0, loading: true };
     skeletonList();
     try {
       const q = State.query ? "&q=" + encodeURIComponent(State.query) : "";
-      const data = await api(`/dialogs?type=${State.kind}${q}`);
-      State.dialogs = data.items;  // cache for the forward picker
-      renderDialogs(data.items);
+      const data = await api(`/dialogs?type=${State.kind}&offset=0&limit=${PAGE_DIALOGS}${q}`);
+      State.dialogs = (data.items || []).slice();        // cache for forward picker + paging
+      State.dialogPage = { total: data.total || State.dialogs.length, loading: false };
+      renderDialogs(State.dialogs, false);
     } catch (e) {
-      $("#dialog-list").innerHTML = "";
-      $("#dialog-list").appendChild(el("div", { class: "muted", style: "padding:14px", text: e.message }));
+      State.dialogPage = { total: 0, loading: false };
+      const list = $("#dialog-list"); list.innerHTML = "";
+      list.appendChild(el("div", { class: "muted", style: "padding:14px", text: e.message }));
     }
   }
+  // Infinite scroll: fetch the next page when the user nears the bottom.
+  async function loadMoreDialogs() {
+    const pg = State.dialogPage || { total: 0, loading: false };
+    if (pg.loading || !State.dialogs || State.dialogs.length >= pg.total) return;
+    pg.loading = true;
+    try {
+      const q = State.query ? "&q=" + encodeURIComponent(State.query) : "";
+      const data = await api(
+        `/dialogs?type=${State.kind}&offset=${State.dialogs.length}&limit=${PAGE_DIALOGS}${q}`);
+      const fresh = data.items || [];
+      if (fresh.length) { State.dialogs.push(...fresh); renderDialogs(fresh, true); }
+      pg.total = data.total || pg.total;
+    } catch (_) { /* transient; scrolling again retries */ }
+    finally { pg.loading = false; }
+  }
 
-  function renderDialogs(items) {
+  function dialogRow(it) {
+    const img = el("img", { class: "avatar md", alt: "", src: avatarUrl(it.id, false) });
+    maybeRealAvatar(img, it);  // lazy-upgrade to real photo if available
+    const row = el("div", { class: "dialog-row", onclick: () => selectEntity(it) }, [
+      img,
+      el("div", { class: "meta" }, [
+        el("div", { class: "name", dir: "auto", text: it.display_name || String(it.id) }),
+        el("div", { class: "sub", dir: "auto", text: it.preview || it.username || ("id " + it.id) }),
+      ]),
+      el("span", { class: "kind-badge kind-" + it.kind, text: it.kind }),
+    ]);
+    row.dataset.id = it.id;
+    if (State.entity && String(State.entity.id) === String(it.id)) row.classList.add("active");
+    return row;
+  }
+  function renderDialogs(items, append = false) {
     const list = $("#dialog-list");
-    io.disconnect();      // stop observing the about-to-be-detached avatar nodes
-    list.innerHTML = "";
-    if (!items.length) {
+    if (!append) { io.disconnect(); list.innerHTML = ""; }  // fresh render: drop stale observers
+    if (!append && !items.length) {
       list.appendChild(el("div", { class: "muted", style: "padding:18px;text-align:center", text: "No chats found." }));
       return;
     }
-    for (const it of items) {
-      const img = el("img", { class: "avatar md", alt: "", src: avatarUrl(it.id, false) });
-      // lazy-upgrade to real photo if available
-      maybeRealAvatar(img, it);
-      const row = el("div", { class: "dialog-row", onclick: () => selectEntity(it) }, [
-        img,
-        el("div", { class: "meta" }, [
-          el("div", { class: "name", dir: "auto", text: it.display_name || String(it.id) }),
-          el("div", { class: "sub", dir: "auto", text: it.preview || it.username || ("id " + it.id) }),
-        ]),
-        el("span", { class: "kind-badge kind-" + it.kind, text: it.kind }),
-      ]);
-      row.dataset.id = it.id;
-      list.appendChild(row);
-    }
+    for (const it of items) list.appendChild(dialogRow(it));
   }
 
   // Lazy real-photo upgrade (only when enabled + visible). Ban-safe: viewport only.
@@ -644,9 +684,26 @@
     scroll.onscroll = () => { if (scroll.scrollTop < 80) loadOlder(false, token); };
     await loadOlder(true, token);
     if (token !== null && token !== chatToken) return;  // user switched mid-load
-    scroll.scrollTop = scroll.scrollHeight;
+    pinToBottom(token);  // open AT the last message; re-pin as lazy media settles
     // NOTE: polling is started by connectSSE (only if SSE is unavailable),
     // so the live channel and the poll loop can never run simultaneously.
+  }
+
+  // Open a chat directly at the newest message — instantly (no top->bottom
+  // animation), and keep it pinned for a short window while lazy avatars/media
+  // load and change the content height (otherwise the view drifts off the end).
+  function pinToBottom(token) {
+    const scroll = $("#chat-scroll");
+    const pin = () => {
+      if (token != null && token !== chatToken) return;
+      scroll.scrollTop = scroll.scrollHeight;
+    };
+    pin();
+    let ticks = 0;
+    const iv = setInterval(() => { pin(); if (++ticks >= 8) clearInterval(iv); }, 70);
+    $$("#chat-scroll img, #chat-scroll video").forEach(
+      (m) => m.addEventListener("load", pin, { once: true })
+    );
   }
 
   // ---- live updates (visibility-aware polling; ban-safe, throttled server-side) ----
@@ -1839,6 +1896,15 @@
     await loadDialogs();
   }
 
+  function initNetwork() {
+    // Survive a weak/dropped connection gracefully — never hard-crash or blank.
+    window.addEventListener("offline", () => toast("You're offline — reconnecting…", true));
+    window.addEventListener("online", () => {
+      toast("Back online");
+      if (State.entity) connectSSE(State.entity.id);  // re-establish the live channel
+      loadStatus().catch(() => {});                   // refresh account/provider state
+    });
+  }
   function init() {
     registerSW();
     initGate();
@@ -1847,6 +1913,7 @@
     initDashboards();
     initMobile();
     initInstall();
+    initNetwork();
     loadResultsHistory();  // restore the saved AI results history
     setTimeout(hideSplash, 600);  // smooth branded launch screen, then reveal
   }

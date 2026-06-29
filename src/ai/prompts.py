@@ -36,6 +36,8 @@ def output_spec(language: str = "persian") -> str:
             "اصطلاح فنی یا انگلیسی رو انگلیسی نگه دار: <code>backend</code>.\n"
             "• هر ادعای مهم رو با نقل‌قولِ مستقیم از خود چت پشتیبانی کن. چیزی از خودت نساز؛ "
             "اگه شواهد کمه صادقانه بگو «شواهد کمه» و کوتاه بنویس.\n"
+            "• به هر کس با اسمِ واقعی‌اش (همون‌طور که تو متنِ چت اومده) اشاره کن، نه «تو» و نه «شما». "
+            "صاحبِ اکانت رو هم با اسمِ خودش صدا بزن، نه «تو».\n"
             "• طول پاسخ اندازه‌ی محتواست: چت کم‌مایه → کوتاه، چت پربار → مفصل. کشش الکی نده.\n"
         )
     return (
@@ -46,6 +48,8 @@ def output_spec(language: str = "persian") -> str:
         "• Tone: crisp, natural, witty — like a sharp friend talking, never corporate or stiff.\n"
         "• Back every real claim with a direct quote from the chat. Never invent; if evidence is "
         "thin, say so plainly and keep it short.\n"
+        "• Refer to everyone by their real name (as it appears in the chat), never as \"you\". "
+        "Name the account owner too — don't address them as \"you\".\n"
         "• Length follows substance: thin chat → short, rich chat → detailed. Don't pad.\n"
     )
 

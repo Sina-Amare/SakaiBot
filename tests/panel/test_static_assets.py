@@ -118,6 +118,13 @@ def test_lottie_vendored():
         assert "cdn.jsdelivr.net" not in blob and "unpkg.com" not in blob
 
 
+def test_chat_switch_race_guard():
+    """Fast chat switching must not paint a previous chat's messages/avatars."""
+    js = _read("app.js")
+    assert "chatToken" in js, "missing chat-switch staleness token"
+    assert "!== chatToken" in js, "in-flight loads must re-check the token after awaiting"
+
+
 def test_pwa_install_affordance():
     """Installable on Android (beforeinstallprompt + button) and iOS (Add-to-Home hint)."""
     html = _read("index.html")

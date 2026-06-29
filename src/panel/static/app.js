@@ -212,6 +212,7 @@
   // ---- entity view (chat) ----
   async function selectEntity(it) {
     State.entity = it;
+    const myToken = ++chatToken;  // invalidate any in-flight load/poll from the previous chat
     closeDrawers();
     clearReply();
     $$(".dialog-row").forEach((r) => r.classList.toggle("active", r.dataset.id == it.id));
@@ -232,7 +233,7 @@
     input.value = "";
     autoGrow(input);
     setSendEnabled(false);
-    await loadChat();
+    await loadChat(myToken);
     input.focus();
   }
 
@@ -521,6 +522,10 @@
   // ---- chat engine (full re-render; media nodes cached per message id) ----
   const PAGE = 30;
   let chat = { items: [], oldestId: null, loading: false, hasMore: true };
+  // Monotonic token bumped on every chat switch. Any in-flight load/poll for a
+  // previous chat re-checks it after awaiting and bails — so a stale response
+  // can never paint chat A's messages (and sender avatars) into chat B.
+  let chatToken = 0;
   const mediaNodes = new Map(); // msgId -> cached media element (survives re-renders, no re-fetch)
   const newIds = new Set();     // ids to animate in ONCE (only genuinely new messages)
 
@@ -541,15 +546,16 @@
     try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch (_) { return ""; }
   }
 
-  async function loadChat() {
+  async function loadChat(token = null) {
     stopPolling();
     const scroll = $("#chat-scroll");
     scroll.innerHTML = "<div class='chat-top muted'>Loading…</div>";
     chat = { items: [], oldestId: null, loading: false, hasMore: true };
     mediaNodes.clear();
     destroyLottie();  // free SVG players from the previous chat
-    scroll.onscroll = () => { if (scroll.scrollTop < 80) loadOlder(); };
-    await loadOlder(true);
+    scroll.onscroll = () => { if (scroll.scrollTop < 80) loadOlder(false, token); };
+    await loadOlder(true, token);
+    if (token !== null && token !== chatToken) return;  // user switched mid-load
     scroll.scrollTop = scroll.scrollHeight;
     startPolling();
   }
@@ -567,10 +573,13 @@
   function startPolling() { stopPolling(); pollTimer = setInterval(pollNew, POLL_MS); }
   async function pollNew() {
     if (!State.entity || document.hidden || chat.loading) return;
+    const myId = State.entity.id;
+    const myToken = chatToken;
     const after = newestNumericId();
     if (!after) return;
     try {
-      const data = await api(`/entity/${State.entity.id}/history?limit=20&after_id=${after}`);
+      const data = await api(`/entity/${myId}/history?limit=20&after_id=${after}`);
+      if (myToken !== chatToken) return;  // switched chats during the fetch
       const known = new Set(chat.items.map((x) => x.id));
       const fresh = (data.items || []).filter((m) => typeof m.id === "number" && !known.has(m.id));
       if (!fresh.length) return;
@@ -582,7 +591,8 @@
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && State.entity) pollNew(); });
 
-  async function loadOlder(initial = false) {
+  async function loadOlder(initial = false, token = null) {
+    if (token !== null && token !== chatToken) return;  // stale before we even start
     if (chat.loading || !chat.hasMore) return;
     chat.loading = true;
     const scroll = $("#chat-scroll");
@@ -591,6 +601,7 @@
     try {
       const cursor = chat.oldestId ? `&before_id=${chat.oldestId}` : "";
       const data = await api(`/entity/${State.entity.id}/history?limit=${PAGE}${cursor}`);
+      if (token !== null && token !== chatToken) return;  // switched chats during the fetch
       const older = (data.items || []).slice().reverse(); // oldest -> newest
       if (!older.length) { chat.hasMore = false; renderChat(); return; }
       const prevH = scroll.scrollHeight;

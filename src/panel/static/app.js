@@ -1318,9 +1318,17 @@
     body.innerHTML = "";
     const items = aiResults.filter((r) => resultFilter === "all" || r.cat === resultFilter);
     if (!items.length) {
-      body.appendChild(el("div", { class: "rail-empty", text: aiResults.length
-        ? "No results in this category."
-        : "AI results appear here — analyze a chat, ask a question, translate, and each is saved to this history." }));
+      if (aiResults.length) {
+        body.appendChild(el("div", { class: "rail-empty", text: "No results in this category." }));
+      } else {
+        const empty = el("div", { class: "rail-empty rail-empty-hero" });
+        empty.appendChild(el("div", { class: "rail-empty-mark", html:
+          '<svg viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4L12 3z"/></svg>' }));
+        empty.appendChild(el("div", { class: "rail-empty-title", text: "No AI results yet" }));
+        empty.appendChild(el("div", { class: "rail-empty-sub", text:
+          "Open the AI panel in a chat to analyze it, ask a question, translate, or generate — every result is saved here." }));
+        body.appendChild(empty);
+      }
       return;
     }
     for (const r of items) body.appendChild(resultCard(r));
@@ -1840,6 +1848,13 @@
     initMobile();
     initInstall();
     loadResultsHistory();  // restore the saved AI results history
+    setTimeout(hideSplash, 600);  // smooth branded launch screen, then reveal
+  }
+  function hideSplash() {
+    const s = $("#splash");
+    if (!s) return;
+    s.classList.add("gone");
+    setTimeout(() => s.remove(), 500);
   }
 
   document.addEventListener("DOMContentLoaded", init);

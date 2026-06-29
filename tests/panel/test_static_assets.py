@@ -151,6 +151,24 @@ def test_message_actions_reply_edit_forward_delete():
         assert route in js, f"missing route call: {route}"
 
 
+def test_launch_splash_screen():
+    """A branded launch splash paints instantly (inline) and fades out via JS."""
+    html = _read("index.html")
+    assert 'id="splash"' in html, "splash markup missing"
+    assert "#splash" in html, "inline critical splash CSS missing (instant paint)"
+    assert "/icons/aigram-logo.png" in html, "logo slot missing"
+    # no theme flash: saved theme applied before first paint
+    assert "localStorage.getItem('panel_theme')" in html
+    assert "hideSplash" in _read("app.js"), "splash never dismissed"
+
+
+def test_nav_pills_use_svg_not_emoji():
+    """Topbar/drawer dashboard pills use the SVG icon set, not per-OS emoji."""
+    html = _read("index.html")
+    for emoji in ["🔑", "🧭", "🧠", "👥", "❔"]:
+        assert emoji not in html, f"emoji {emoji} should be an SVG icon now"
+
+
 def test_ai_results_history():
     """AI results are a categorized, filterable, persisted history."""
     js = _read("app.js")

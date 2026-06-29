@@ -41,10 +41,14 @@ STICKER = ASSETS / "sticker.webp"
 
 # Deterministic gradient avatars per entity id (so the demo shows real photos,
 # not initials, without any network).
+# Muted, cohesive ramp that harmonizes with the teal brand (not a loud rainbow).
 AVATAR_COLORS = [
-    ((45, 212, 191), (34, 211, 238)), ((244, 114, 182), (168, 85, 247)),
-    ((251, 191, 36), (249, 115, 22)), ((96, 165, 250), (59, 130, 246)),
-    ((52, 211, 153), (16, 185, 129)), ((248, 113, 113), (239, 68, 68)),
+    ((45, 160, 150), (40, 150, 170)),    # teal (brand)
+    ((150, 120, 180), (120, 110, 170)),  # muted violet
+    ((200, 160, 90), (190, 130, 80)),    # warm sand
+    ((110, 140, 185), (88, 120, 170)),   # slate blue
+    ((92, 165, 140), (70, 150, 130)),    # sage
+    ((190, 120, 122), (172, 100, 112)),  # dusty rose
 ]
 
 
@@ -81,26 +85,49 @@ def make_sticker():
     img.save(STICKER, "WEBP")
 
 
+def _lerp(a, b, k):
+    return tuple(int(a[i] + (b[i] - a[i]) * k) for i in range(3))
+
+
 def make_photo():
+    """A richer, more photographic sunset: multi-stop sky, a glowing sun, two
+    layered hill silhouettes, and a soft vignette — reads as a real photo, not
+    a flat CSS gradient (the audit's top 'placeholder' tell)."""
     w, h = 1000, 680
+    # multi-stop vertical sky gradient (deep indigo -> magenta -> amber -> warm)
+    stops = [
+        (0.00, (28, 22, 58)), (0.34, (78, 44, 92)), (0.55, (190, 86, 86)),
+        (0.74, (236, 134, 74)), (0.88, (250, 196, 120)), (1.00, (252, 224, 158)),
+    ]
     img = Image.new("RGB", (w, h))
     px = img.load()
-    top, mid, bot = (38, 26, 64), (228, 110, 70), (250, 206, 128)
     for y in range(h):
         t = y / h
-        if t < 0.55:
-            k = t / 0.55
-            c = tuple(int(top[i] + (mid[i] - top[i]) * k) for i in range(3))
+        for i in range(len(stops) - 1):
+            t0, c0 = stops[i]
+            t1, c1 = stops[i + 1]
+            if t0 <= t <= t1:
+                row = _lerp(c0, c1, (t - t0) / (t1 - t0))
+                break
         else:
-            k = (t - 0.55) / 0.45
-            c = tuple(int(mid[i] + (bot[i] - mid[i]) * k) for i in range(3))
+            row = stops[-1][1]
         for x in range(w):
-            px[x, y] = c
-    d = ImageDraw.Draw(img)
-    cx, cy = w // 2, int(h * 0.5)
-    d.ellipse([cx - 90, cy - 90, cx + 90, cy + 90], fill=(255, 230, 170))
-    d.rectangle([0, int(h * 0.78), w, h], fill=(70, 40, 60))
-    img.save(PHOTO, quality=88)
+            px[x, y] = row
+    d = ImageDraw.Draw(img, "RGBA")
+    # sun glow (concentric translucent halos) + bright core, low on the horizon
+    cx, cy = int(w * 0.5), int(h * 0.66)
+    for r, a in [(220, 26), (160, 36), (110, 60), (74, 130)]:
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 226, 170, a))
+    d.ellipse([cx - 58, cy - 58, cx + 58, cy + 58], fill=(255, 240, 206))
+    # layered hill silhouettes for depth
+    d.polygon([(0, 540), (260, 470), (520, 520), (760, 455), (1000, 500),
+               (1000, h), (0, h)], fill=(96, 58, 86))
+    d.polygon([(0, 605), (340, 560), (640, 600), (1000, 560),
+               (1000, h), (0, h)], fill=(54, 34, 60))
+    # soft vignette
+    for i, a in enumerate([60, 38, 20]):
+        d.rectangle([i * 9, i * 9, w - i * 9, h - i * 9], outline=(8, 6, 18, a), width=9)
+    img.save(PHOTO, quality=90)
 
 
 def mk(id, text, out, hh, mm, **kw):
@@ -249,6 +276,17 @@ async def main():
         from playwright.async_api import async_playwright
         async with async_playwright() as p:
             browser = await p.chromium.launch()
+            # Launch splash — captured on a throwaway page with app.js blocked so
+            # the splash never runs its 0.6s auto-hide (deterministic shot).
+            splash_page = await browser.new_page(
+                viewport={"width": 1440, "height": 900}, device_scale_factor=2)
+            await splash_page.route("**/app.js*", lambda route: route.abort())
+            await splash_page.goto(f"{base}/?token={tok}", wait_until="domcontentloaded")
+            await splash_page.wait_for_selector("#splash", timeout=5000)
+            await splash_page.wait_for_timeout(450)  # let fonts + the bar settle
+            await splash_page.screenshot(path=str(OUT / "splash.png"))
+            await splash_page.close()
+
             page = await browser.new_page(viewport={"width": 1440, "height": 900}, device_scale_factor=2)
             await page.goto(f"{base}/?token={tok}")
             await page.wait_for_selector(".dialog-row", timeout=15000)

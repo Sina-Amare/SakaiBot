@@ -35,66 +35,82 @@ Everything runs on hardware you control. Your Telegram session and your API keys
 
 ## Screenshots
 
-The screenshots below are generated from an invented demo account — fake contacts, fake messages, no real data. You can regenerate them at any time (see [Development](#development)).
+<p align="center">
+  <img src="docs/screenshots/chat-dark.png" alt="Aigram chat view with the AI results rail" width="880">
+</p>
 
 <table>
 <tr>
 <td width="50%" align="center">
-  <img src="docs/screenshots/chat-light.png" alt="Chat view in light mode" width="420"><br/>
-  <sub>The same conversation in the light theme</sub>
+  <img src="docs/screenshots/ai-result.png" alt="An AI analysis result in the panel" width="430"><br/>
+  <sub>AI runs inside the chat — results land in a categorized, saved history</sub>
 </td>
 <td width="50%" align="center">
-  <img src="docs/screenshots/ai-result.png" alt="An AI analysis result in the panel" width="420"><br/>
-  <sub>An analysis runs and the result returns to the panel</sub>
+  <img src="docs/screenshots/message-menu.png" alt="Per-message actions menu" width="430"><br/>
+  <sub>Reply, copy, edit, forward, delete — the primary Telegram actions</sub>
 </td>
 </tr>
 <tr>
 <td width="50%" align="center">
-  <img src="docs/screenshots/ai-sheet.png" alt="The AI command sheet" width="420"><br/>
-  <sub>The AI command sheet: analyze, ask, prompt, translate, image, speech</sub>
+  <img src="docs/screenshots/chat-light.png" alt="Chat view in the light theme" width="430"><br/>
+  <sub>Light theme, with real dark/light parity</sub>
 </td>
 <td width="50%" align="center">
-  <img src="docs/screenshots/keys.png" alt="The keys and providers panel" width="420"><br/>
-  <sub>Add, test, and switch provider API keys without a restart</sub>
-</td>
-</tr>
-<tr>
-<td width="50%" align="center">
-  <img src="docs/screenshots/message-menu.png" alt="Per-message actions menu" width="420"><br/>
-  <sub>Per-message actions: reply, copy, edit, forward, delete</sub>
-</td>
-<td width="50%" align="center">
-  <img src="docs/screenshots/forward-picker.png" alt="The forward chat picker" width="420"><br/>
-  <sub>Forward a message to any chat from a searchable picker</sub>
-</td>
-</tr>
-<tr>
-<td width="50%" align="center">
-  <img src="docs/screenshots/compose-attach.png" alt="Composer with staged attachments" width="420"><br/>
-  <sub>Attach files and images (button or paste) with a preview strip</sub>
-</td>
-<td width="50%" align="center">
-  <img src="docs/screenshots/live-typing.png" alt="A live typing indicator in the chat header" width="420"><br/>
-  <sub>Live typing, presence, and instant messages over SSE</sub>
-</td>
-</tr>
-<tr>
-<td colspan="2" align="center">
-  <img src="docs/screenshots/profile.png" alt="The profile view with shared-media tabs" width="640"><br/>
-  <sub>Profile view: avatar, username, presence, and Telegram-style shared-media tabs</sub>
-</td>
-</tr>
-<tr>
-<td width="50%" align="center">
-  <img src="docs/screenshots/chat-mobile.png" alt="The mobile layout running as an installed PWA" width="260"><br/>
-  <sub>The same client on a phone, installed as a PWA</sub>
-</td>
-<td width="50%" align="center">
-  <img src="docs/screenshots/ai-mobile.png" alt="The AI results history drawer on mobile" width="260"><br/>
-  <sub>On a phone, AI results land in a categorized history drawer</sub>
+  <img src="docs/screenshots/splash.png" alt="The Aigram launch splash screen" width="430"><br/>
+  <sub>A branded launch screen on PWA and web</sub>
 </td>
 </tr>
 </table>
+
+<details>
+<summary><b>More screenshots</b> — mobile, live typing, attachments, profile, providers</summary>
+
+<table>
+<tr>
+<td width="50%" align="center">
+  <img src="docs/screenshots/ai-mobile.png" alt="AI results history drawer on mobile" width="250"><br/>
+  <sub>On a phone, AI results land in a categorized history drawer</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/chat-mobile.png" alt="Mobile chat as an installed PWA" width="250"><br/>
+  <sub>The same client on a phone, installable as a PWA</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+  <img src="docs/screenshots/live-typing.png" alt="Live typing indicator" width="430"><br/>
+  <sub>Live typing, presence, and instant messages over SSE</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/forward-picker.png" alt="Forward chat picker" width="430"><br/>
+  <sub>Forward to any chat from a searchable picker</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+  <img src="docs/screenshots/compose-attach.png" alt="Composer with staged attachments" width="430"><br/>
+  <sub>Attach files and images (button or paste) with a preview strip</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/ai-sheet.png" alt="The AI command sheet" width="430"><br/>
+  <sub>The AI command sheet: analyze, ask, prompt, translate, image, speech</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+  <img src="docs/screenshots/profile.png" alt="Profile with shared-media tabs" width="430"><br/>
+  <sub>Profile: avatar, username, presence, shared-media tabs</sub>
+</td>
+<td width="50%" align="center">
+  <img src="docs/screenshots/keys.png" alt="Keys and providers panel" width="430"><br/>
+  <sub>Add, test, and switch provider keys without a restart</sub>
+</td>
+</tr>
+</table>
+
+</details>
+
+<sub>All screenshots are generated from an invented demo account — fake contacts, fake messages, no real data ([regenerate them](#development)).</sub>
 
 ## Features
 

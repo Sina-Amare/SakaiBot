@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from .config import PanelConfig
+from .events import EventHub
 from .media_cache import MediaCache
 from .throttle import Throttle
 
@@ -34,6 +35,7 @@ class PanelState:
     # mutable runtime state
     dialogs_cache: Optional[Dict[str, Any]] = None          # {'items':[...], 'ts':float}
     result_tokens: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    events: EventHub = field(default_factory=EventHub)       # SSE pub/sub hub
 
     # services (attached by build_panel_state)
     dialogs: Any = None

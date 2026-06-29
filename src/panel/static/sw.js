@@ -5,7 +5,7 @@
  * offline safety net. (A previous cache-first shell could pin stale app.css/
  * app.js against a fresh index.html — never again.) Bump SHELL to force a purge
  * of any old cache on the next visit. */
-const SHELL = "aigram-shell-v13";
+const SHELL = "aigram-shell-v14";
 const ASSETS = [
   "/", "/index.html", "/app.css", "/app.js", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png",
@@ -47,8 +47,9 @@ self.addEventListener("fetch", (e) => {
   }
 
   if (url.pathname.startsWith("/api/")) {
-    // Commands and media are always live — never SW-cache them.
-    if (url.pathname.startsWith("/api/cmd/") || url.pathname.includes("/media/")) return;
+    // Commands, media, and the SSE stream are always live — never SW-cache them.
+    if (url.pathname.startsWith("/api/cmd/") || url.pathname.includes("/media/")
+        || url.pathname === "/api/events") return;
     // Network-first; cache only the cheap idempotent reads for an offline shell.
     const cacheable = url.pathname === "/api/status" || url.pathname.startsWith("/api/dialogs");
     e.respondWith(

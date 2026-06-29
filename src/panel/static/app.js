@@ -213,6 +213,7 @@
   async function selectEntity(it) {
     State.entity = it;
     const myToken = ++chatToken;  // invalidate any in-flight load/poll from the previous chat
+    closeSSE();                   // drop the previous chat's live stream
     closeDrawers();
     clearReply();
     $$(".dialog-row").forEach((r) => r.classList.toggle("active", r.dataset.id == it.id));
@@ -234,6 +235,7 @@
     autoGrow(input);
     setSendEnabled(false);
     await loadChat(myToken);
+    if (myToken === chatToken) connectSSE(it.id);  // live typing/presence/messages
     input.focus();
   }
 
@@ -621,6 +623,21 @@
   }
   function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   function startPolling() { stopPolling(); pollTimer = setInterval(pollNew, POLL_MS); }
+  // Merge fresh messages (chronological) into the open chat — shared by polling
+  // and the SSE live channel. Re-checks the chat token so a switch can't bleed.
+  function ingestNewMessages(items, token) {
+    if (token != null && token !== chatToken) return;
+    const known = new Set(chat.items.map((x) => x.id));
+    const fresh = (items || []).filter((m) => typeof m.id === "number" && !known.has(m.id));
+    if (!fresh.length) return;
+    fresh.forEach((m) => newIds.add(m.id));
+    chat.items.push(...fresh);
+    renderChat();
+    const scroll = $("#chat-scroll");
+    if (scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 140) {
+      scroll.scrollTop = scroll.scrollHeight;
+    }
+  }
   async function pollNew() {
     if (!State.entity || document.hidden || chat.loading) return;
     const myId = State.entity.id;
@@ -629,15 +646,59 @@
     if (!after) return;
     try {
       const data = await api(`/entity/${myId}/history?limit=20&after_id=${after}`);
-      if (myToken !== chatToken) return;  // switched chats during the fetch
-      const known = new Set(chat.items.map((x) => x.id));
-      const fresh = (data.items || []).filter((m) => typeof m.id === "number" && !known.has(m.id));
-      if (!fresh.length) return;
-      fresh.reverse(); // newest-first -> chronological
-      fresh.forEach((m) => newIds.add(m.id));
-      chat.items.push(...fresh);
-      renderChat();
+      ingestNewMessages((data.items || []).slice().reverse(), myToken);
     } catch (_) { /* transient network blip; next tick retries */ }
+  }
+
+  // ---- live channel (SSE): typing / presence / instant new messages ----
+  let sse = null;
+  let typingTimer = null;
+  function closeSSE() { if (sse) { try { sse.close(); } catch (_) {} sse = null; } }
+  function connectSSE(entityId) {
+    closeSSE();
+    if (!("EventSource" in window)) return;  // fall back to polling
+    try {
+      sse = new EventSource(`/api/events?entity_id=${entityId}&t=${encodeURIComponent(State.token)}`);
+    } catch (_) { sse = null; return; }
+    sse.onopen = () => stopPolling();  // live channel is up → polling not needed
+    sse.onmessage = (e) => {
+      let ev;
+      try { ev = JSON.parse(e.data); } catch (_) { return; }
+      if (!State.entity) return;
+      if (ev.type === "message" && ev.entity_id === State.entity.id) ingestNewMessages([ev.message], chatToken);
+      else if (ev.type === "typing" && ev.entity_id === State.entity.id) showTyping();
+      else if (ev.type === "presence") applyPresence(ev.entity_id, ev.presence);
+    };
+    sse.onerror = () => {
+      if (sse && sse.readyState === EventSource.CLOSED) { sse = null; startPolling(); }
+    };
+  }
+  function showTyping() {
+    const sub = $("#ev-sub");
+    let t = sub.querySelector(".ev-typing");
+    if (!t) {
+      t = el("span", { class: "ev-typing" }, [
+        el("span", { text: "typing" }),
+        el("span", { class: "dots" }, [el("i"), el("i"), el("i")]),
+      ]);
+      sub.appendChild(t);
+    }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => t.remove(), 5000);
+  }
+  function applyPresence(entityId, presence) {
+    if (!State.entity || State.entity.id !== entityId) return;
+    const pl = presenceLabel(presence);
+    if (!pl) return;
+    const wrap = $("#ev-avatar").parentElement;
+    let dot = wrap.querySelector(".status-dot");
+    if (!dot) { dot = el("span", { class: "status-dot" }); wrap.appendChild(dot); }
+    dot.className = "status-dot " + pl.cls;
+    const sub = $("#ev-sub");
+    const ty = sub.querySelector(".ev-typing"); if (ty) ty.remove();
+    let pres = sub.querySelector(".pres");
+    if (!pres) { pres = el("span", { class: "pres" }); sub.appendChild(pres); }
+    pres.className = "pres " + pl.cls; pres.textContent = pl.text;
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && State.entity) pollNew(); });
 

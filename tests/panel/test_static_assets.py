@@ -135,6 +135,13 @@ def test_composer_attach_and_paste():
     assert 'addEventListener("paste"' in js, "clipboard paste handler missing"
 
 
+def test_live_sse_client():
+    """Frontend uses the SSE live channel (typing/presence/messages) + SW skips it."""
+    js = _read("app.js")
+    assert "EventSource" in js and "connectSSE" in js and "/api/events" in js
+    assert "/api/events" in _read("sw.js"), "SSE must be excluded from SW caching"
+
+
 def test_chat_switch_race_guard():
     """Fast chat switching must not paint a previous chat's messages/avatars."""
     js = _read("app.js")

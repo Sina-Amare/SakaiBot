@@ -76,6 +76,7 @@ async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring,
     tts_processor = TextToSpeechProcessor()
 
     registered = []
+    live_taps = []
     analyze_started = False
 
     try:
@@ -140,6 +141,11 @@ async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring,
         )
         handle = await start_panel(state)
 
+        # Tap Telegram's update stream for the live SSE channel (typing /
+        # presence / new messages). RPC-free; registered even without monitoring.
+        from src.panel.monitor_runtime import register_live_updates
+        live_taps = register_live_updates(client, state.events, state.entity)
+
         url = panel_config.url
         console.rule("[bold #2dd4bf]Aigram Control Panel[/bold #2dd4bf]")
         display_success(f"Panel running at {url}")
@@ -161,10 +167,10 @@ async def _run_panel(port, host, expose_lan, tls_cert, tls_key, with_monitoring,
             display_info("Shutting down panel...")
             await handle.stop()
     finally:
-        if registered:
+        if registered or live_taps:
             from src.panel.monitor_runtime import unregister_monitoring
 
-            unregister_monitoring(client, registered)
+            unregister_monitoring(client, registered + live_taps)
         if analyze_started:
             from src.ai.analyze_queue import analyze_queue
 

@@ -5,11 +5,13 @@ No business logic here. Static SPA is served unauthenticated (it's just the
 shell); every ``/api/*`` route except ``/api/health`` requires the token.
 """
 
+import asyncio
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..utils.logging import get_logger
@@ -225,6 +227,29 @@ def create_app(state: Any) -> FastAPI:
     async def media_file(entity_id: int, message_id: int) -> Response:
         info = await state.entity.media_file(entity_id, message_id, thumb=False)
         return FileResponse(info["path"], media_type=info["mime"])
+
+    # ---- live channel (SSE): typing / presence / new messages ----
+    @api.get("/events")
+    async def events_stream(request: Request, entity_id: Optional[int] = None) -> StreamingResponse:
+        sub = state.events.subscribe(entity_id)
+
+        async def gen():
+            try:
+                yield ": connected\n\n"
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    try:
+                        ev = await asyncio.wait_for(sub.queue.get(), timeout=15)
+                        yield f"data: {json.dumps(ev, default=str)}\n\n"
+                    except asyncio.TimeoutError:
+                        yield ": ping\n\n"  # heartbeat keeps the connection alive
+            finally:
+                state.events.unsubscribe(sub)
+
+        return StreamingResponse(gen(), media_type="text/event-stream", headers={
+            "Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive",
+        })
 
     # ---- commands ----
     @api.post("/cmd/prompt")

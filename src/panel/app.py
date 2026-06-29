@@ -8,7 +8,7 @@ shell); every ``/api/*`` route except ``/api/health`` requires the token.
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Body, Depends, FastAPI, Request
+from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -186,6 +186,18 @@ def create_app(state: Any) -> FastAPI:
     ) -> Dict[str, Any]:
         return await state.messenger.send_text(
             entity_id, payload.get("text", ""), payload.get("reply_to")
+        )
+
+    @api.post("/entity/{entity_id}/send-file")
+    async def entity_send_attachment(
+        entity_id: int,
+        file: UploadFile = File(...),
+        caption: str = Form(default=""),
+        reply_to: Optional[int] = Form(default=None),
+    ) -> Dict[str, Any]:
+        data = await file.read()
+        return await state.messenger.send_attachment(
+            entity_id, data, file.filename or "file", caption, reply_to
         )
 
     @api.get("/entity/{entity_id}/media")

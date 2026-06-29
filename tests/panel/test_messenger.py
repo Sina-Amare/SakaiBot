@@ -5,7 +5,32 @@ send; this proves the send route DOES send when the user asks, with validation
 and proper reply threading.
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
+
+from .conftest import make_message
+
+
+@pytest.mark.asyncio
+async def test_send_file_uses_throttle_and_echoes(panel_state, mock_client):
+    mock_client.send_file = AsyncMock(return_value=make_message(id=321, text="cap", out=True))
+    out = await panel_state.messenger.send_attachment(
+        201, b"some-bytes", "photo.jpg", caption="cap", reply_to=7
+    )
+    assert out["ok"] and out["message"]["id"] == 321
+    mock_client.send_file.assert_awaited_once()
+    _, kwargs = mock_client.send_file.call_args
+    assert kwargs.get("reply_to") == 7
+
+
+@pytest.mark.asyncio
+async def test_send_file_rejects_empty_and_oversize(panel_state, mock_client):
+    with pytest.raises(Exception):
+        await panel_state.messenger.send_attachment(201, b"", "x.bin")
+    with pytest.raises(Exception):
+        await panel_state.messenger.send_attachment(201, b"x" * (21 * 1024 * 1024), "big.bin")
+    mock_client.send_file.assert_not_called()
 
 
 def test_send_calls_telegram_and_echoes(client, mock_client, auth_headers):

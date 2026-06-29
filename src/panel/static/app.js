@@ -292,11 +292,61 @@
     $("#ev-name").addEventListener("click", openProfile);
     $("#ev-avatar").addEventListener("click", openProfile);
     const input = $("#composer-input");
-    input.addEventListener("input", () => { autoGrow(input); setSendEnabled(input.value.trim().length > 0); });
+    input.addEventListener("input", () => { autoGrow(input); refreshSendState(); });
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (input.value.trim()) sendMessage(); }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (input.value.trim() || attachedFiles.length) sendMessage();
+      }
     });
     $("#composer-send").addEventListener("click", sendMessage);
+    // File attach (button + picker) and clipboard paste of images/files.
+    $("#composer-attach").addEventListener("click", () => $("#composer-file").click());
+    $("#composer-file").addEventListener("change", (e) => { stageFiles(e.target.files); e.target.value = ""; });
+    input.addEventListener("paste", (e) => {
+      const items = (e.clipboardData && e.clipboardData.items) || [];
+      const files = [];
+      for (const it of items) { if (it.kind === "file") { const f = it.getAsFile(); if (f) files.push(f); } }
+      if (files.length) { e.preventDefault(); stageFiles(files); }
+    });
+  }
+
+  // ---- composer attachments ----
+  let attachedFiles = [];
+  function refreshSendState() {
+    setSendEnabled($("#composer-input").value.trim().length > 0 || attachedFiles.length > 0);
+  }
+  function stageFiles(list) {
+    for (const f of list) {
+      if (attachedFiles.length >= 10) { toast("Up to 10 files at a time", true); break; }
+      if (f.size > 20 * 1024 * 1024) { toast(`${f.name} is too large (max 20 MB)`, true); continue; }
+      attachedFiles.push(f);
+    }
+    renderAttachPreview();
+    refreshSendState();
+  }
+  function clearAttachments() { attachedFiles = []; renderAttachPreview(); }
+  function renderAttachPreview() {
+    const wrap = $("#attach-preview");
+    wrap.innerHTML = "";
+    wrap.classList.toggle("hidden", attachedFiles.length === 0);
+    attachedFiles.forEach((f, i) => {
+      const thumb = el("div", { class: "attach-thumb", title: f.name });
+      if (f.type.startsWith("image/")) {
+        const url = URL.createObjectURL(f);
+        const img = el("img", { src: url, alt: "" });
+        img.addEventListener("load", () => URL.revokeObjectURL(url));
+        thumb.appendChild(img);
+      } else {
+        thumb.appendChild(el("span", { class: "attach-ic", text: "📄" }));
+        thumb.appendChild(el("span", { class: "attach-name", dir: "auto", text: f.name.slice(0, 16) }));
+      }
+      thumb.appendChild(el("button", {
+        class: "attach-x", text: "✕", title: "Remove",
+        onclick: () => { attachedFiles.splice(i, 1); renderAttachPreview(); refreshSendState(); },
+      }));
+      wrap.appendChild(thumb);
+    });
   }
 
   function setSendEnabled(on) { $("#composer-send").disabled = !on; }
@@ -817,9 +867,10 @@
   async function sendMessage() {
     const input = $("#composer-input");
     const text = input.value.trim();
-    if (!text || !State.entity) return;
+    if ((!text && !attachedFiles.length) || !State.entity) return;
     const replyTo = State.replyTo ? State.replyTo.id : null;
     const replySnap = State.replyTo ? { sender: State.replyTo.sender, text: State.replyTo.text } : null;
+    if (attachedFiles.length) { await sendAttachments(text, replyTo, replySnap); return; }
     setSendEnabled(false);
     input.value = ""; autoGrow(input);
     const optimistic = {
@@ -847,6 +898,34 @@
       renderChat();
       input.value = text; autoGrow(input); setSendEnabled(true);
       toast(e.message, true);
+    }
+  }
+
+  async function sendAttachments(text, replyTo, replySnap) {
+    const files = attachedFiles.slice();
+    const eid = State.entity.id;
+    const input = $("#composer-input");
+    clearAttachments();
+    input.value = ""; autoGrow(input); clearReply(); setSendEnabled(false);
+    const scroll = $("#chat-scroll");
+    // Caption + reply ride the FIRST file; Telethon auto-detects type (images send as photos).
+    for (let i = 0; i < files.length; i++) {
+      const fd = new FormData();
+      fd.append("file", files[i]);
+      if (i === 0 && text) fd.append("caption", text);
+      if (i === 0 && replyTo) fd.append("reply_to", String(replyTo));
+      try {
+        const res = await fetch(`/api/entity/${eid}/send-file`, {
+          method: "POST", headers: { Authorization: "Bearer " + State.token }, body: fd,
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error((data && data.error) || `Upload failed (${res.status})`);
+        if (data && data.message && State.entity && State.entity.id === eid) {
+          if (i === 0 && replySnap && !data.message.reply) data.message.reply = replySnap;
+          chat.items.push(data.message); newIds.add(data.message.id);
+          renderChat(); scroll.scrollTop = scroll.scrollHeight;
+        }
+      } catch (e) { toast(e.message, true); }
     }
   }
 

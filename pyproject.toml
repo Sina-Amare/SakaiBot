@@ -45,6 +45,7 @@ dependencies = [
 panel = [
     "fastapi>=0.110,<0.116",
     "uvicorn>=0.29,<0.31",
+    "python-multipart>=0.0.9",  # composer file uploads (UploadFile/Form)
 ]
 dev = [
     "pytest>=7.4.0",

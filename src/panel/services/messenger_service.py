@@ -8,6 +8,9 @@ action from the chat composer (never automation), goes through the ban-safety
 throttle (pacing + FloodWait handling), and is length-capped.
 """
 
+import shutil
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ...utils.logging import get_logger
@@ -16,6 +19,7 @@ from ..errors import PanelError, PanelUnavailable
 logger = get_logger(__name__)
 
 MAX_LEN = 4096  # Telegram's single-message text limit
+MAX_FILE_BYTES = 20 * 1024 * 1024  # 20 MB upload cap (keeps sends ban-safe)
 
 
 class MessengerService:
@@ -49,4 +53,50 @@ class MessengerService:
         ename = row.get("display_name", str(entity_id))
         message = self.state.entity._format_message(sent, kind, ename)
         logger.info("panel send -> entity %s (%d chars)", entity_id, len(text))
+        return {"ok": True, "message": message}
+
+    async def send_attachment(
+        self,
+        entity_id: int,
+        upload: bytes,
+        file_name: str,
+        caption: Optional[str] = None,
+        reply_to: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Send a user-provided file (with optional caption) and echo it back.
+
+        Telethon auto-detects type (images go as photos), so a pasted image
+        arrives as a photo. The file is staged in a temp dir under the media
+        cache so its real name is preserved, then removed after the send."""
+        client = self._require_client()
+        if not upload:
+            raise PanelError("Empty file.")
+        if len(upload) > MAX_FILE_BYTES:
+            raise PanelError(f"File too large (max {MAX_FILE_BYTES // (1024 * 1024)} MB).")
+        caption = (caption or "").strip()
+        if len(caption) > MAX_LEN:
+            raise PanelError(f"Caption too long (max {MAX_LEN} characters).")
+        rt = int(reply_to) if reply_to else None
+        safe_name = Path(file_name or "file").name or "file"  # strip path components
+
+        uploads = self.state.media_cache.root / "uploads"
+        uploads.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(dir=str(uploads)))
+        path = staging / safe_name
+        try:
+            path.write_bytes(upload)
+            sent = await self.state.throttle.tg_write(
+                lambda: client.send_file(
+                    int(entity_id), file=str(path),
+                    caption=caption or None, reply_to=rt, force_document=False,
+                )
+            )
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+        row = self.state.dialogs.find(int(entity_id)) or {}
+        kind = row.get("kind", "pv")
+        ename = row.get("display_name", str(entity_id))
+        message = self.state.entity._format_message(sent, kind, ename)
+        logger.info("panel send_file -> entity %s (%s, %d bytes)", entity_id, safe_name, len(upload))
         return {"ok": True, "message": message}

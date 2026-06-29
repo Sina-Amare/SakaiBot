@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Aigram" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="stylesheet" href="/app.css?v=11" />
+  <link rel="stylesheet" href="/app.css?v=12" />
 </head>
 <body>
   <!-- Token gate -->
@@ -123,7 +123,12 @@
         </div>
         <div id="chat-scroll" class="chat-scroll"></div>
         <div id="reply-bar" class="reply-bar hidden"></div>
+        <div id="attach-preview" class="attach-preview hidden"></div>
+        <input id="composer-file" type="file" multiple hidden />
         <div class="composer" id="composer">
+          <button id="composer-attach" class="comp-icon" title="Attach file" aria-label="Attach file">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M21.4 11.05l-8.49 8.49a5 5 0 01-7.07-7.07l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.49 8.49a2 2 0 01-2.83-2.83l7.78-7.78"/></svg>
+          </button>
           <button id="composer-ai" class="comp-icon" title="AI commands" aria-label="AI commands">
             <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4L12 3z"/></svg>
           </button>
@@ -164,6 +169,6 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script src="/app.js?v=11"></script>
+  <script src="/app.js?v=12"></script>
 </body>
 </html>

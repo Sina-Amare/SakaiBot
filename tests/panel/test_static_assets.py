@@ -118,6 +118,15 @@ def test_lottie_vendored():
         assert "cdn.jsdelivr.net" not in blob and "unpkg.com" not in blob
 
 
+def test_composer_attach_and_paste():
+    """Composer supports file attach (button + picker) and clipboard paste."""
+    html = _read("index.html")
+    assert 'id="composer-attach"' in html and 'id="composer-file"' in html
+    js = _read("app.js")
+    assert "stageFiles" in js and "/send-file" in js
+    assert 'addEventListener("paste"' in js, "clipboard paste handler missing"
+
+
 def test_chat_switch_race_guard():
     """Fast chat switching must not paint a previous chat's messages/avatars."""
     js = _read("app.js")

@@ -157,6 +157,7 @@
     try {
       const q = State.query ? "&q=" + encodeURIComponent(State.query) : "";
       const data = await api(`/dialogs?type=${State.kind}${q}`);
+      State.dialogs = data.items;  // cache for the forward picker
       renderDialogs(data.items);
     } catch (e) {
       $("#dialog-list").innerHTML = "";
@@ -216,6 +217,7 @@
     const myToken = ++chatToken;  // invalidate any in-flight load/poll from the previous chat
     closeSSE();                   // drop the previous chat's live stream
     closeDrawers();
+    State.editing = null;  // abandon any in-progress edit from the previous chat
     clearReply();
     $$(".dialog-row").forEach((r) => r.classList.toggle("active", r.dataset.id == it.id));
     $("#empty-main").classList.add("hidden");
@@ -344,7 +346,7 @@
         thumb.appendChild(el("img", { src: url, alt: "" }));
       } else {
         thumb.appendChild(el("span", { class: "attach-ic", text: "📄" }));
-        thumb.appendChild(el("span", { class: "attach-name", dir: "auto", text: f.name.slice(0, 16) }));
+        thumb.appendChild(el("span", { class: "attach-name", dir: "auto", text: f.name }));
       }
       thumb.appendChild(el("button", {
         class: "attach-x", text: "✕", title: "Remove",
@@ -821,21 +823,25 @@
   }
   function openMessageMenu(btn, m) {
     closeMenu();
+    const hasId = typeof m.id === "number";
     const fileUrl = mediaUrl(`/api/entity/${State.entity.id}/media/${m.id}/file`);
     const items = [];
+    if (hasId) items.push(["↩ Reply", () => setReply(m)]);
     if (m.text) {
-      items.push(["Copy text", async () => {
+      items.push(["⧉ Copy text", async () => {
         try { await navigator.clipboard.writeText(m.text); toast("Copied"); }
         catch (_) { toast("Copy failed", true); }
       }]);
     }
+    if (m.out && m.text && hasId) items.push(["✏️ Edit", () => startEdit(m)]);
+    if (hasId) items.push(["➤ Forward", () => openForwardPicker(m)]);
     if (m.has_media) {
-      items.push(["Download", () => {
+      items.push(["⤓ Download", () => {
         const a = el("a", { href: fileUrl, download: m.file_name || `media-${m.id}` });
         document.body.appendChild(a); a.click(); a.remove();
       }]);
       if (m.media_kind === "photo") {
-        items.push(["Copy image", async () => {
+        items.push(["⧉ Copy image", async () => {
           try {
             const res = await fetch(fileUrl);
             if (!res.ok) throw new Error(`fetch failed (${res.status})`);
@@ -846,14 +852,23 @@
         }]);
       }
     }
+    if (m.out && hasId) items.push(["🗑 Delete", () => confirmDelete(m), { danger: true }]);
     if (!items.length) return;
-    const menu = el("div", { class: "msg-menu" }, items.map(([label, fn]) =>
-      el("button", { class: "msg-menu-item", text: label, onclick: () => { closeMenu(); fn(); } })
+    const menu = el("div", { class: "msg-menu" }, items.map(([label, fn, opts]) =>
+      el("button", {
+        class: "msg-menu-item" + (opts && opts.danger ? " danger" : ""),
+        text: label, onclick: () => { closeMenu(); fn(); },
+      })
     ));
     document.body.appendChild(menu);
     const r = btn.getBoundingClientRect();
-    menu.style.top = `${Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8)}px`;
-    menu.style.left = `${Math.max(8, Math.min(r.left - 40, window.innerWidth - menu.offsetWidth - 8))}px`;
+    const mh = menu.offsetHeight, mw = menu.offsetWidth;
+    // flip the menu upward if it would overflow the bottom of the viewport
+    const top = (r.bottom + mh + 8 > window.innerHeight) ? Math.max(8, r.top - mh - 6) : r.bottom + 6;
+    // align the menu's right edge near the button, clamped to the viewport
+    const left = Math.max(8, Math.min(r.left - mw + r.width, window.innerWidth - mw - 8));
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
     openMenu = menu;
     setTimeout(() => document.addEventListener("click", closeMenu), 0);
   }
@@ -984,7 +999,114 @@
     bar.classList.remove("hidden");
     $("#composer-input").focus();
   }
-  function clearReply() { State.replyTo = null; const b = $("#reply-bar"); if (b) { b.classList.add("hidden"); b.innerHTML = ""; } }
+  function clearReply() { State.replyTo = null; const b = $("#reply-bar"); if (b) { b.classList.remove("editing"); b.classList.add("hidden"); b.innerHTML = ""; } }
+
+  // ---- edit (own messages) ----
+  function startEdit(m) {
+    clearReply();                       // reply + edit are mutually exclusive
+    State.editing = { id: m.id };
+    const input = $("#composer-input");
+    input.value = m.text || ""; autoGrow(input);
+    const bar = $("#reply-bar");
+    bar.innerHTML = "";
+    bar.appendChild(el("div", { class: "reply-acc edit" }));
+    bar.appendChild(el("div", { class: "reply-meta" }, [
+      el("div", { class: "reply-to", text: "✏️ Editing message" }),
+      el("div", { class: "reply-snip", dir: "auto", text: (m.text || "").slice(0, 90) }),
+    ]));
+    bar.appendChild(el("button", { class: "reply-x", title: "Cancel edit", text: "✕", onclick: cancelEdit }));
+    bar.classList.remove("hidden"); bar.classList.add("editing");
+    setSendEnabled(true); input.focus();
+  }
+  function cancelEdit() {
+    State.editing = null;
+    const input = $("#composer-input"); input.value = ""; autoGrow(input);
+    const b = $("#reply-bar"); b.classList.remove("editing"); b.classList.add("hidden"); b.innerHTML = "";
+    refreshSendState();
+  }
+  async function submitEdit(text) {
+    if (!text) { toast("Message is empty.", true); return; }
+    const editId = State.editing.id, eid = State.entity.id, myToken = chatToken;
+    setSendEnabled(false);
+    try {
+      const data = await api(`/entity/${eid}/edit`, { method: "POST", body: { message_id: editId, text } });
+      if (myToken === chatToken) {
+        const idx = chat.items.findIndex((x) => x.id === editId);
+        if (idx >= 0 && data.message) {
+          if (chat.items[idx].reply && !data.message.reply) data.message.reply = chat.items[idx].reply;
+          chat.items[idx] = data.message; renderChat();
+        }
+      }
+      toast("Edited");
+      cancelEdit();
+    } catch (e) { toast(e.message, true); setSendEnabled(true); }
+  }
+
+  // ---- forward (to another chat) ----
+  function openForwardPicker(m) {
+    openModal("Forward to…", async (body) => {
+      body.innerHTML = "";
+      const fromId = State.entity.id;
+      const search = el("input", { class: "fwd-search", type: "search", placeholder: "Search chats…" });
+      const list = el("div", { class: "fwd-list" });
+      body.appendChild(search); body.appendChild(list);
+      list.appendChild(el("div", { class: "muted", style: "padding:14px", text: "Loading chats…" }));
+      let all = (State.dialogs && State.dialogs.length) ? State.dialogs : [];
+      try { all = (await api("/dialogs?type=all")).items || all; } catch (_) {}
+      const draw = (items) => {
+        list.innerHTML = "";
+        if (!items.length) { list.appendChild(el("div", { class: "muted", style: "padding:14px", text: "No chats." })); return; }
+        items.slice(0, 80).forEach((it) => {
+          list.appendChild(el("div", { class: "fwd-row", onclick: () => doForward(fromId, m.id, it) }, [
+            el("img", { class: "avatar sm", alt: "", src: avatarUrl(it.id, true) }),
+            el("div", { class: "meta" }, [
+              el("div", { class: "name", dir: "auto", text: it.display_name || String(it.id) }),
+              el("div", { class: "sub", dir: "auto", text: it.username || it.kind }),
+            ]),
+          ]));
+        });
+      };
+      draw(all);
+      search.addEventListener("input", () => {
+        const q = search.value.trim().toLowerCase();
+        draw(!q ? all : all.filter((it) => (it.display_name || "").toLowerCase().includes(q)
+          || (it.username || "").toLowerCase().includes(q)));
+      });
+      search.focus();
+    });
+  }
+  async function doForward(fromId, messageId, target) {
+    try {
+      await api(`/entity/${fromId}/forward`, { method: "POST", body: { message_id: messageId, to_entity_id: target.id } });
+      $("#modal").classList.add("hidden");
+      toast("Forwarded to " + (target.display_name || target.id));
+    } catch (e) { toast(e.message, true); }
+  }
+
+  // ---- delete (own messages) ----
+  function confirmDelete(m) {
+    confirmAction("Delete message", "Delete this message for everyone? This can't be undone.", async () => {
+      const eid = State.entity.id, myToken = chatToken;
+      try {
+        await api(`/entity/${eid}/delete`, { method: "POST", body: { message_id: m.id } });
+        if (myToken === chatToken) {
+          const idx = chat.items.findIndex((x) => x.id === m.id);
+          if (idx >= 0) { chat.items.splice(idx, 1); renderChat(); }
+        }
+        toast("Deleted");
+      } catch (e) { toast(e.message, true); }
+    });
+  }
+  function confirmAction(title, message, onYes) {
+    openModal(title, (body) => {
+      body.innerHTML = "";
+      body.appendChild(el("p", { class: "confirm-msg", text: message }));
+      body.appendChild(el("div", { class: "confirm-actions" }, [
+        el("button", { class: "btn", text: "Cancel", onclick: () => $("#modal").classList.add("hidden") }),
+        el("button", { class: "btn btn-danger", text: "Delete", onclick: () => { $("#modal").classList.add("hidden"); onYes(); } }),
+      ]));
+    });
+  }
   function mediaLabel(m) {
     return { photo: "📷 Photo", video: "🎬 Video", sticker: "🩷 Sticker", audio: "🎤 Voice", gif: "GIF", document: "📄 File" }[m.media_kind] || (m.has_media ? "Media" : "");
   }
@@ -999,6 +1121,7 @@
   async function sendMessage() {
     const input = $("#composer-input");
     const text = input.value.trim();
+    if (State.editing) { await submitEdit(text); return; }  // editing an existing message
     if ((!text && !attachedFiles.length) || !State.entity) return;
     const replyTo = State.replyTo ? State.replyTo.id : null;
     const replySnap = State.replyTo ? { sender: State.replyTo.sender, text: State.replyTo.text } : null;
@@ -1065,60 +1188,163 @@
   }
 
   // ---- run command + results ----
+  // ---- AI results: a categorized, filterable, persisted history ----
+  const AI_CATS = {
+    analyze:   { label: "Analyze",    cls: "analyze" },
+    tellme:    { label: "Ask",        cls: "ask" },
+    prompt:    { label: "Prompt",     cls: "prompt" },
+    translate: { label: "Translate",  cls: "translate" },
+    image:     { label: "Image",      cls: "image" },
+    tts:       { label: "Voice",      cls: "voice" },
+    stt:       { label: "Transcribe", cls: "transcribe" },
+  };
+  const RESULTS_MAX = 40;
+  const RESULTS_KEY = "panel_ai_history";
+  let aiResults = [];
+  let resultFilter = "all";
+  let resultSeq = 0;
+
+  function loadResultsHistory() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(RESULTS_KEY) || "[]");
+      if (Array.isArray(saved)) aiResults = saved.filter((r) => r && r.status === "ok");
+    } catch (_) { aiResults = []; }
+    renderResults();
+  }
+  function persistResults() {
+    // Persist only finished TEXT results — media URLs are short-lived and would
+    // 404 after a reload, so image/audio results stay session-only.
+    try {
+      const keep = aiResults
+        .filter((r) => r.status === "ok" && r.kind === "text")
+        .slice(0, RESULTS_MAX)
+        .map((r) => ({ id: r.id, kind: "text", cat: r.cat, title: r.title, ts: r.ts, status: "ok", html: r.html }));
+      localStorage.setItem(RESULTS_KEY, JSON.stringify(keep));
+    } catch (_) { /* private mode / quota — history just won't persist */ }
+  }
+  function pushResult(kind, title) {
+    const cat = AI_CATS[kind] ? kind : "prompt";
+    const entry = {
+      id: "r" + (++resultSeq) + "-" + Date.now(), cat, title,
+      ts: new Date().toISOString(), status: "pending", kind: "text",
+    };
+    aiResults.unshift(entry);
+    if (aiResults.length > RESULTS_MAX) aiResults.length = RESULTS_MAX;
+    renderResults();
+    openRailMobile();
+    return entry;
+  }
+  function finishResult(entry, data) {
+    entry.status = "ok";
+    if (data.kind === "image") {
+      entry.kind = "image"; entry.mediaUrl = data.media_url;
+      entry.enhanced = data.meta && data.meta.enhanced_prompt;
+    } else if (data.kind === "audio") {
+      entry.kind = "audio"; entry.mediaUrl = data.media_url;
+    } else {
+      entry.kind = "text"; entry.html = data.html || ""; entry.mediaUrl = data.media_url || null;
+    }
+    persistResults();
+    renderResults();
+  }
+  function failResult(entry, message, retryAfter) {
+    entry.status = "error";
+    entry.error = message + (retryAfter ? ` (retry in ~${retryAfter}s)` : "");
+    renderResults();
+  }
+  function railCategories() {
+    const present = [];
+    for (const r of aiResults) if (!present.includes(r.cat)) present.push(r.cat);
+    return present;
+  }
+  function renderRailFilters() {
+    const wrap = $("#rail-filters");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    const cats = railCategories();
+    if (cats.length < 2) { wrap.classList.add("hidden"); return; }  // no point filtering one type
+    wrap.classList.remove("hidden");
+    const chip = (key, label) => el("button", {
+      class: "rail-chip" + (resultFilter === key ? " active" : ""),
+      text: label, onclick: () => { resultFilter = key; renderResults(); },
+    });
+    wrap.appendChild(chip("all", "All"));
+    for (const c of cats) wrap.appendChild(chip(c, (AI_CATS[c] || { label: c }).label));
+  }
+  function renderResults() {
+    const body = $("#rail-body");
+    if (!body) return;
+    $("#rail-count").textContent = aiResults.length ? `(${aiResults.length})` : "";
+    renderRailFilters();
+    if (resultFilter !== "all" && !railCategories().includes(resultFilter)) resultFilter = "all";
+    body.innerHTML = "";
+    const items = aiResults.filter((r) => resultFilter === "all" || r.cat === resultFilter);
+    if (!items.length) {
+      body.appendChild(el("div", { class: "rail-empty", text: aiResults.length
+        ? "No results in this category."
+        : "AI results appear here — analyze a chat, ask a question, translate, and each is saved to this history." }));
+      return;
+    }
+    for (const r of items) body.appendChild(resultCard(r));
+  }
+  function resultCard(r) {
+    const cat = AI_CATS[r.cat] || { label: r.cat, cls: "prompt" };
+    let time = "";
+    try { time = new Date(r.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch (_) {}
+    const tname = el("span", { class: "tname" }, [
+      r.status === "pending"
+        ? el("span", { class: "spin" })
+        : el("span", { class: "rcat rcat-" + cat.cls, text: cat.label }),
+      el("span", { class: "rttl", dir: "auto", text: r.title }),
+    ]);
+    const head = el("div", { class: "rtitle" }, [
+      tname,
+      el("div", { class: "rtools" }, [
+        el("span", { class: "rtime faint", text: time }),
+        el("button", { class: "rdel", title: "Remove", text: "✕", onclick: () => removeResult(r.id) }),
+      ]),
+    ]);
+    const body = el("div", { class: "rbody" });
+    if (r.status === "error") {
+      body.appendChild(el("div", { class: "rhtml", text: "⚠️ " + (r.error || "Failed") }));
+    } else if (r.status === "pending") {
+      body.appendChild(el("div", { class: "muted", text: "Running…" }));
+    } else if (r.kind === "image") {
+      if (r.mediaUrl) body.appendChild(el("img", { class: "rimg", src: mediaUrl(r.mediaUrl) }));
+      if (r.enhanced) body.appendChild(metaChips({ prompt: r.enhanced }));
+    } else if (r.kind === "audio") {
+      if (r.mediaUrl) body.appendChild(el("audio", { controls: "", src: mediaUrl(r.mediaUrl) }));
+    } else {
+      // Server HTML already carries its own metadata footer (model/time/tokens).
+      body.appendChild(el("div", { class: "rhtml", dir: "auto", html: r.html || "" }));
+      if (r.mediaUrl) body.appendChild(el("audio", { controls: "", src: mediaUrl(r.mediaUrl) }));
+    }
+    return el("div", { class: "result" + (r.status === "error" ? " error" : "") }, [head, body]);
+  }
+  function removeResult(id) {
+    aiResults = aiResults.filter((r) => r.id !== id);
+    persistResults();
+    renderResults();
+  }
+  function clearResults() {
+    aiResults = [];
+    resultFilter = "all";
+    persistResults();
+    renderResults();
+  }
+
   async function runCommand(kind, payload, title, btn) {
     $("#modal").classList.add("hidden"); // reveal the results rail behind the AI sheet
     if (btn) { btn.disabled = true; btn.dataset.html = btn.innerHTML; btn.innerHTML = '<span class="spin"></span><span>Running…</span>'; }
-    const card = addResultCard(title);
+    const entry = pushResult(kind, title);
     try {
       const data = await api("/cmd/" + kind, { method: "POST", body: payload });
-      fillResult(card, data, title);
+      finishResult(entry, data);
     } catch (e) {
-      $(".tname .spin", card)?.remove();
-      card.classList.add("error");
-      const retry = e.retry_after ? ` (retry in ~${e.retry_after}s)` : "";
-      $(".rbody", card).innerHTML = `<div class="rhtml">⚠️ ${esc(e.message)}${retry}</div>`;
+      failResult(entry, e.message, e.retry_after);
       toast(e.message, true);
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.html; }
-    }
-  }
-
-  function updateRailCount() {
-    const n = $$("#rail-body .result").length;
-    $("#rail-count").textContent = n ? `(${n})` : "";
-  }
-
-  function addResultCard(title) {
-    const body = $("#rail-body");
-    if ($(".rail-empty", body)) body.innerHTML = "";
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const card = el("div", { class: "result" }, [
-      el("div", { class: "rtitle" }, [
-        el("span", { class: "tname" }, [el("span", { class: "spin" }), el("span", { text: title })]),
-        el("span", { class: "rtime faint", text: time }),
-      ]),
-      el("div", { class: "rbody" }),
-    ]);
-    body.insertBefore(card, body.firstChild);
-    updateRailCount();
-    openRailMobile();
-    return card;
-  }
-
-  function fillResult(card, data, title) {
-    $(".tname .spin", card)?.remove();
-    const body = $(".rbody", card);
-    body.innerHTML = "";
-    if (data.kind === "image") {
-      body.appendChild(el("img", { class: "rimg", src: mediaUrl(data.media_url) }));
-      if (data.meta && data.meta.enhanced_prompt) body.appendChild(metaChips({ prompt: data.meta.enhanced_prompt }));
-    } else if (data.kind === "audio") {
-      body.appendChild(el("audio", { controls: "", src: mediaUrl(data.media_url) }));
-    } else {
-      // The server HTML already carries its own metadata footer (model/time/
-      // tokens + badges) for AI commands, so we don't duplicate it with chips.
-      body.appendChild(el("div", { class: "rhtml", dir: "auto", html: data.html || "" }));
-      if (data.media_url) body.appendChild(el("audio", { controls: "", src: mediaUrl(data.media_url) }));
     }
   }
 
@@ -1153,10 +1379,9 @@
     );
     $("#modal-close").addEventListener("click", () => $("#modal").classList.add("hidden"));
     $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") $("#modal").classList.add("hidden"); });
-    $("#rail-clear").addEventListener("click", () => {
-      $("#rail-body").innerHTML = '<div class="rail-empty">Command results appear here.</div>';
-      updateRailCount();
-    });
+    $("#rail-clear").addEventListener("click", clearResults);
+    const railClose = $("#rail-close");
+    if (railClose) railClose.addEventListener("click", closeDrawers);
     const toggleTheme = () => {
       const root = document.documentElement;
       root.dataset.theme = root.dataset.theme === "light" ? "dark" : "light";
@@ -1570,6 +1795,7 @@
     initDashboards();
     initMobile();
     initInstall();
+    loadResultsHistory();  // restore the saved AI results history
   }
 
   document.addEventListener("DOMContentLoaded", init);

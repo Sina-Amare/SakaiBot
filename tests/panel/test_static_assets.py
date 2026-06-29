@@ -142,6 +142,24 @@ def test_live_sse_client():
     assert "/api/events" in _read("sw.js"), "SSE must be excluded from SW caching"
 
 
+def test_message_actions_reply_edit_forward_delete():
+    """Primary Telegram message actions exist + hit their backend routes."""
+    js = _read("app.js")
+    for fn in ["setReply", "startEdit", "openForwardPicker", "confirmDelete"]:
+        assert fn in js, f"missing message action: {fn}"
+    for route in ["/edit", "/forward", "/delete"]:
+        assert route in js, f"missing route call: {route}"
+
+
+def test_ai_results_history():
+    """AI results are a categorized, filterable, persisted history."""
+    js = _read("app.js")
+    assert "loadResultsHistory" in js and "panel_ai_history" in js, "no persisted history"
+    assert "AI_CATS" in js and "renderRailFilters" in js, "no categories/filters"
+    html = _read("index.html")
+    assert "rail-filters" in html and "AI Results" in html
+
+
 def test_chat_switch_race_guard():
     """Fast chat switching must not paint a previous chat's messages/avatars."""
     js = _read("app.js")

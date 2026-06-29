@@ -100,3 +100,50 @@ class MessengerService:
         message = self.state.entity._format_message(sent, kind, ename)
         logger.info("panel send_file -> entity %s (%s, %d bytes)", entity_id, safe_name, len(upload))
         return {"ok": True, "message": message}
+
+    async def edit_text(
+        self, entity_id: int, message_id: int, text: str
+    ) -> Dict[str, Any]:
+        """Edit one of the user's own messages; echo the updated message back."""
+        client = self._require_client()
+        text = (text or "").strip()
+        if not text:
+            raise PanelError("Message is empty.")
+        if len(text) > MAX_LEN:
+            raise PanelError(f"Message too long (max {MAX_LEN} characters).")
+
+        edited = await self.state.throttle.tg_write(
+            lambda: client.edit_message(int(entity_id), int(message_id), text)
+        )
+        row = self.state.dialogs.find(int(entity_id)) or {}
+        message = self.state.entity._format_message(
+            edited, row.get("kind", "pv"), row.get("display_name", str(entity_id))
+        )
+        logger.info("panel edit -> entity %s msg %s", entity_id, message_id)
+        return {"ok": True, "message": message}
+
+    async def forward_message(
+        self, from_entity_id: int, message_id: int, to_entity_id: int
+    ) -> Dict[str, Any]:
+        """Forward a message from the open chat to another chat the user picks."""
+        client = self._require_client()
+        await self.state.throttle.tg_write(
+            lambda: client.forward_messages(
+                int(to_entity_id), int(message_id), int(from_entity_id)
+            )
+        )
+        row = self.state.dialogs.find(int(to_entity_id)) or {}
+        target = row.get("display_name", str(to_entity_id))
+        logger.info(
+            "panel forward -> from %s msg %s to %s", from_entity_id, message_id, to_entity_id
+        )
+        return {"ok": True, "target": target}
+
+    async def delete_message(self, entity_id: int, message_id: int) -> Dict[str, Any]:
+        """Delete one of the user's own messages for everyone (revoke)."""
+        client = self._require_client()
+        await self.state.throttle.tg_write(
+            lambda: client.delete_messages(int(entity_id), [int(message_id)], revoke=True)
+        )
+        logger.info("panel delete -> entity %s msg %s", entity_id, message_id)
+        return {"ok": True, "deleted": int(message_id)}

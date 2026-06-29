@@ -235,6 +235,30 @@ def create_app(state: Any) -> FastAPI:
             entity_id, bytes(buf), file.filename or "file", caption, reply_to
         )
 
+    @api.post("/entity/{entity_id}/edit")
+    async def entity_edit(
+        entity_id: int, payload: Dict[str, Any] = Body(default={})
+    ) -> Dict[str, Any]:
+        return await state.messenger.edit_text(
+            entity_id, int(payload.get("message_id")), payload.get("text", "")
+        )
+
+    @api.post("/entity/{entity_id}/forward")
+    async def entity_forward(
+        entity_id: int, payload: Dict[str, Any] = Body(default={})
+    ) -> Dict[str, Any]:
+        return await state.messenger.forward_message(
+            entity_id, int(payload.get("message_id")), int(payload.get("to_entity_id"))
+        )
+
+    @api.post("/entity/{entity_id}/delete")
+    async def entity_delete(
+        entity_id: int, payload: Dict[str, Any] = Body(default={})
+    ) -> Dict[str, Any]:
+        return await state.messenger.delete_message(
+            entity_id, int(payload.get("message_id"))
+        )
+
     @api.get("/entity/{entity_id}/media")
     async def entity_media(
         entity_id: int, kind: str = "all", limit: int = 24, before_id: Optional[int] = None

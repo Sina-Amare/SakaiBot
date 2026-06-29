@@ -78,3 +78,48 @@ def test_send_rejects_too_long(client, mock_client, auth_headers):
 def test_send_requires_token(client):
     resp = client.post("/api/entity/101/send", json={"text": "hi"})
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_edit_uses_throttle_and_echoes(panel_state, mock_client):
+    mock_client.edit_message = AsyncMock(
+        return_value=make_message(id=55, text="edited", out=True)
+    )
+    out = await panel_state.messenger.edit_text(101, 55, "edited")
+    assert out["ok"] and out["message"]["id"] == 55
+    mock_client.edit_message.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_edit_rejects_empty(panel_state, mock_client):
+    mock_client.edit_message = AsyncMock()
+    with pytest.raises(Exception):
+        await panel_state.messenger.edit_text(101, 55, "   ")
+    mock_client.edit_message.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_forward_uses_throttle(panel_state, mock_client):
+    mock_client.forward_messages = AsyncMock(return_value=None)
+    out = await panel_state.messenger.forward_message(101, 7, 202)
+    assert out["ok"]
+    mock_client.forward_messages.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_uses_throttle(panel_state, mock_client):
+    mock_client.delete_messages = AsyncMock(return_value=None)
+    out = await panel_state.messenger.delete_message(101, 7)
+    assert out["ok"] and out["deleted"] == 7
+    mock_client.delete_messages.assert_awaited_once()
+
+
+def test_edit_route_threads(client, mock_client, auth_headers):
+    mock_client.edit_message = AsyncMock(
+        return_value=make_message(id=9, text="new", out=True)
+    )
+    resp = client.post(
+        "/api/entity/101/edit", json={"message_id": 9, "text": "new"}, headers=auth_headers
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["message"]["id"] == 9

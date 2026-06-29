@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Aigram" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="stylesheet" href="/app.css?v=15" />
+  <link rel="stylesheet" href="/app.css?v=16" />
 </head>
 <body>
   <!-- Token gate -->
@@ -142,13 +142,19 @@
 
     <section class="rail" id="rail">
       <div class="rail-head">
-        <span>Results <span id="rail-count" class="count"></span></span>
-        <button id="rail-clear" class="icon-btn" title="Clear results" aria-label="Clear">
-          <svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
-        </button>
+        <span class="rail-title">✨ AI Results <span id="rail-count" class="count"></span></span>
+        <div class="rail-head-tools">
+          <button id="rail-clear" class="icon-btn" title="Clear all results" aria-label="Clear all">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
+          </button>
+          <button id="rail-close" class="icon-btn rail-close" title="Close" aria-label="Close results">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
       </div>
+      <div id="rail-filters" class="rail-filters hidden"></div>
       <div id="rail-body" class="rail-body">
-        <div class="rail-empty">Command results appear here.</div>
+        <div class="rail-empty">AI results appear here — analyze a chat, ask a question, translate, and each is saved to this history.</div>
       </div>
     </section>
   </div>
@@ -169,6 +175,6 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script src="/app.js?v=15"></script>
+  <script src="/app.js?v=16"></script>
 </body>
 </html>

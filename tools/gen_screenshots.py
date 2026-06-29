@@ -319,15 +319,23 @@ async def main():
                 await xs.first.click()
                 await page.wait_for_timeout(80)
 
-            # Per-message action menu (copy text / download / copy image) on the
-            # shared photo. evaluate-click bypasses the hover-reveal opacity.
-            row = page.locator(".msg-row").filter(
-                has_text="Sunset from the office").first
+            # Per-message action menu on an OUTGOING message — shows the full set
+            # (Reply / Copy / Edit / Forward / Delete). evaluate-click bypasses
+            # the hover-reveal opacity.
+            row = page.locator(".msg-row.out").filter(
+                has_text="dark theme").first
             await row.locator(".row-menu").evaluate("el => el.click()")
             await page.wait_for_selector(".msg-menu", timeout=5000)
             await page.wait_for_timeout(300)
             await page.screenshot(path=str(OUT / "message-menu.png"))
-            await page.evaluate("document.querySelector('.msg-menu')?.remove()")
+
+            # Forward picker: choosing "Forward" opens a searchable chat list.
+            await page.get_by_role("button", name="Forward").click()
+            await page.wait_for_selector(".fwd-list .fwd-row", timeout=8000)
+            await page.wait_for_timeout(400)
+            await page.screenshot(path=str(OUT / "forward-picker.png"))
+            await page.locator("#modal-close").click()
+            await page.wait_for_selector("#modal", state="hidden", timeout=5000)
 
             await page.locator("#theme-toggle").click()
             await page.wait_for_timeout(500)
@@ -351,6 +359,17 @@ async def main():
             await page.wait_for_selector(".bubble", timeout=15000)
             await page.wait_for_timeout(1000)
             await page.screenshot(path=str(OUT / "chat-mobile.png"))
+
+            # Mobile AI flow: the AI sheet is a full-screen modal; running a
+            # command surfaces the result in the AI Results drawer (history).
+            await page.locator("#composer-ai").click()
+            await page.wait_for_selector("#modal:not(.hidden) .card", timeout=10000)
+            analyze = page.locator(".card").filter(
+                has=page.locator('.card-head h3:text-is("Analyze chat")')).first
+            await analyze.get_by_role("button", name="Run").evaluate("el => el.click()")
+            await page.wait_for_selector(".rail.open .result .rhtml", timeout=15000)
+            await page.wait_for_timeout(600)
+            await page.screenshot(path=str(OUT / "ai-mobile.png"))
             await browser.close()
     finally:
         await handle.stop()

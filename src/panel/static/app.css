@@ -401,6 +401,13 @@ select { appearance: none; cursor: pointer;
 }
 .msg-row:hover .row-reply { opacity: 1; }
 .row-reply:hover { color: var(--accent); transform: scale(1.1); }
+.row-actions { display: flex; flex-direction: column; gap: 4px; align-self: center; }
+.msg-menu { position: fixed; z-index: 60; min-width: 150px; padding: 5px; border-radius: var(--r);
+  background: var(--elevated); border: 1px solid var(--line-strong); box-shadow: var(--shadow-lg);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); animation: pop 0.12s var(--ease); }
+.msg-menu-item { display: block; width: 100%; text-align: start; padding: 9px 12px; border: none;
+  background: transparent; color: var(--text); cursor: pointer; border-radius: var(--r-sm); font-size: 13px; }
+.msg-menu-item:hover { background: var(--surface-3); color: var(--accent); }
 
 /* ---- inline media ---- */
 .m-photo { display: block; max-width: 320px; border-radius: 12px; overflow: hidden; cursor: pointer; margin: 1px 0 2px; position: relative; }

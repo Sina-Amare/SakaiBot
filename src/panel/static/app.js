@@ -723,10 +723,53 @@
     }
     children.push(bubble);
     if (typeof m.id === "number") {
-      children.push(el("button", { class: "row-reply", title: "Reply", text: "↩", onclick: () => setReply(m) }));
+      children.push(el("div", { class: "row-actions" }, [
+        el("button", { class: "row-reply", title: "Reply", text: "↩", onclick: () => setReply(m) }),
+        el("button", { class: "row-reply row-menu", title: "More", text: "⋯", onclick: (e) => openMessageMenu(e.currentTarget, m) }),
+      ]));
     }
     const row = el("div", { class: "msg-row" + (m.out ? " out" : "") + (groupStart ? " gstart" : "") }, children);
     return row;
+  }
+
+  // ---- per-message actions: copy text / download / copy image ----
+  let openMenu = null;
+  function closeMenu() { if (openMenu) { openMenu.remove(); openMenu = null; } }
+  function openMessageMenu(btn, m) {
+    closeMenu();
+    const fileUrl = mediaUrl(`/api/entity/${State.entity.id}/media/${m.id}/file`);
+    const items = [];
+    if (m.text) {
+      items.push(["Copy text", async () => {
+        try { await navigator.clipboard.writeText(m.text); toast("Copied"); }
+        catch (_) { toast("Copy failed", true); }
+      }]);
+    }
+    if (m.has_media) {
+      items.push(["Download", () => {
+        const a = el("a", { href: fileUrl, download: m.file_name || `media-${m.id}` });
+        document.body.appendChild(a); a.click(); a.remove();
+      }]);
+      if (m.media_kind === "photo") {
+        items.push(["Copy image", async () => {
+          try {
+            const blob = await (await fetch(fileUrl)).blob();
+            await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+            toast("Image copied");
+          } catch (_) { toast("Copy image not supported", true); }
+        }]);
+      }
+    }
+    if (!items.length) return;
+    const menu = el("div", { class: "msg-menu" }, items.map(([label, fn]) =>
+      el("button", { class: "msg-menu-item", text: label, onclick: () => { closeMenu(); fn(); } })
+    ));
+    document.body.appendChild(menu);
+    const r = btn.getBoundingClientRect();
+    menu.style.top = `${Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8)}px`;
+    menu.style.left = `${Math.max(8, Math.min(r.left - 40, window.innerWidth - menu.offsetWidth - 8))}px`;
+    openMenu = menu;
+    setTimeout(() => document.addEventListener("click", closeMenu, { once: true }), 0);
   }
 
   const MEDIA_LABEL = { sticker: "Sticker", photo: "Photo", video: "Video", gif: "GIF", audio: "Audio", document: "File" };

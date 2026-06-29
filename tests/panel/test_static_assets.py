@@ -118,6 +118,14 @@ def test_lottie_vendored():
         assert "cdn.jsdelivr.net" not in blob and "unpkg.com" not in blob
 
 
+def test_message_actions_copy_download():
+    """Per-message menu offers copy text / download / copy image."""
+    js = _read("app.js")
+    assert "openMessageMenu" in js
+    assert "navigator.clipboard.writeText" in js
+    assert "ClipboardItem" in js, "copy-image support missing"
+
+
 def test_composer_attach_and_paste():
     """Composer supports file attach (button + picker) and clipboard paste."""
     html = _read("index.html")

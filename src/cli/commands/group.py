@@ -2,7 +2,6 @@
 
 import click
 import asyncio
-from rich import print as rprint
 from rich.table import Table
 from typing import Optional, Dict, Any, List
 from ...core.settings import SettingsManager
@@ -267,7 +266,7 @@ async def _manage_mappings(action: str):
                                 for topic in topics:
                                     if topic and isinstance(topic, dict) and 'id' in topic and 'title' in topic:
                                         topic_id_to_name[topic['id']] = topic['title']
-                        except Exception as e:
+                        except Exception:
                             # Not a forum or can't fetch topics, continue without names
                             # Silently ignore to avoid disrupting the display
                             pass

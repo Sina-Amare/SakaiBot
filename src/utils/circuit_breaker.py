@@ -3,7 +3,7 @@
 import asyncio
 from enum import Enum
 from typing import Callable, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import deque
 
 from .logging import get_logger

@@ -1,11 +1,10 @@
 """Google Gemini LLM provider implementation with key rotation."""
 
-import os
 import asyncio
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 import pytz
 
 from ..llm_interface import LLMProvider
@@ -13,7 +12,7 @@ from ..response_metadata import AIResponseMetadata
 from ...core.exceptions import AIProcessorError
 from ...core.constants import COMPLEX_TASKS, SIMPLE_TASKS
 from ...utils.logging import get_logger
-from ..api_key_manager import GeminiKeyManager, initialize_gemini_key_manager, get_gemini_key_manager
+from ..api_key_manager import initialize_gemini_key_manager
 from ..prompts import (
     TRANSLATION_AUTO_DETECT_PROMPT,
     TRANSLATION_SOURCE_TARGET_PROMPT,

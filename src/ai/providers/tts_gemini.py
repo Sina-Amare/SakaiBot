@@ -25,10 +25,7 @@ from ...core.tts_config import (
     MAX_RETRIES, 
     RETRY_DELAYS, 
     TTS_MODEL, 
-    DEFAULT_VOICE,
-    DEFAULT_SAMPLE_RATE,
-    DEFAULT_CHANNELS,
-    DEFAULT_SAMPLE_WIDTH
+    DEFAULT_VOICE
 )
 
 

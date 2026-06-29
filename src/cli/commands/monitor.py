@@ -3,17 +3,10 @@
 import sys
 import click
 import asyncio
-import signal
-from datetime import datetime
-from rich.live import Live
-from rich.panel import Panel
 from rich.table import Table
-from rich.layout import Layout
-from rich.text import Text
 from ..utils import (
     get_telegram_client, get_settings_manager,
-    display_error, display_success, display_info, display_warning,
-    normalize_command_mappings, console
+    display_error, display_success, display_info, normalize_command_mappings, console
 )
 
 # Global monitoring state

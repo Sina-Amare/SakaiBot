@@ -99,7 +99,6 @@ class TelegramClientManager:
     
     async def _get_user_input(self, prompt: str) -> str:
         """Get user input asynchronously."""
-        import sys
         import threading
         
         result = []

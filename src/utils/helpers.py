@@ -1,10 +1,8 @@
 """Helper utilities for SakaiBot."""
 
 import re
-import os
 from pathlib import Path
-from typing import Optional, Union
-from datetime import datetime, timedelta
+from typing import Union
 
 
 def safe_filename(filename: str, max_length: int = 255) -> str:

@@ -1,8 +1,6 @@
 """Self-command handlers for userbot commands."""
 
-from typing import Optional
 from telethon import events
-from telethon.tl.types import Message
 
 from ...core.settings import SettingsManager
 from ..user_verifier import TelegramUserVerifier
@@ -46,7 +44,7 @@ async def handle_auth_command(event: events.NewMessage.Event, args: str):
                     username = f"@{user.username}" if user.username else "N/A"
                     msg += f"{i}. {display_name} ({username})\n"
                     msg += f"   <code>{user_id}</code>\n\n"
-                except Exception as e:
+                except Exception:
                     msg += f"{i}. <code>{user_id}</code>\n   (Details unavailable)\n\n"
             
             msg += f"<i>Total: {len(auth_pvs)} users</i>"
@@ -846,7 +844,7 @@ async def handle_group_command(event: events.NewMessage.Event, args: str):
                 msg += "\n<b>To map:</b> <code>/group map category=topic_id</code>"
                 await event.edit(msg, parse_mode='html')
                 
-            except (ImportError, AttributeError) as e:
+            except (ImportError, AttributeError):
                 await event.edit(
                     "⚠️ <b>Topics API Not Available</b>\n\n"
                     "Your Telethon version may not support forum topics.\n"

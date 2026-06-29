@@ -4,8 +4,6 @@ import click
 import asyncio
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
-from rich import print as rprint
 from pathlib import Path
 import sys
 

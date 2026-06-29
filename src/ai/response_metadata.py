@@ -1,6 +1,6 @@
 """Response metadata for AI operations with execution status tracking."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 

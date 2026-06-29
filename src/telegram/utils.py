@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional, Tuple
 
 from telethon import TelegramClient, functions
 from telethon.tl.types import (
-    User, Chat, Channel, ForumTopic,
+    User, Channel, ForumTopic,
     MessageActionTopicCreate, MessageActionChatEditTitle
 )
 from telethon.errors.rpcerrorlist import ChannelForumMissingError

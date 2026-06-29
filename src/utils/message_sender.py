@@ -2,7 +2,6 @@
 
 import asyncio
 from typing import List, Optional, Tuple
-from datetime import datetime
 
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError

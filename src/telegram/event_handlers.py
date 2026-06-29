@@ -1,26 +1,18 @@
 """Event handlers for Telegram messages in SakaiBot."""
 
-import asyncio
 import os
-import re
-from typing import Dict, Any, Optional, List, Tuple
-import re
+from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
 
-from telethon import TelegramClient, events, functions
+from telethon import TelegramClient, events
 from telethon.tl.types import Message
-from pydub import AudioSegment
 
-from ..core.constants import MAX_MESSAGE_LENGTH, CONFIRMATION_KEYWORD
-from ..core.exceptions import TelegramError, AIProcessorError
 from ..ai.processor import AIProcessor
 from ..ai.stt import SpeechToTextProcessor
 from ..ai.tts import TextToSpeechProcessor
-from ..ai.tts_queue import tts_queue, TTSStatus
 from ..ai.image_generator import ImageGenerator
 from ..ai.prompt_enhancer import PromptEnhancer
 from ..utils.logging import get_logger
-from ..utils.helpers import clean_temp_files, parse_command_with_params, split_message
 from ..utils.task_manager import get_task_manager
 
 # Import specialized handlers
@@ -107,7 +99,6 @@ class EventHandlers:
         """Setup FFmpeg path for audio processing."""
         import platform
         from pydub import AudioSegment
-        from pydub.utils import which
         
         original_path = os.environ.get("PATH", "")
         path_modified = False

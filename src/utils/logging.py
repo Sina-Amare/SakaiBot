@@ -3,9 +3,8 @@
 import logging
 import sys
 import uuid
-import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 from contextvars import ContextVar
 
 from ..core.constants import LOG_FORMAT, MONITOR_LOG_FILE

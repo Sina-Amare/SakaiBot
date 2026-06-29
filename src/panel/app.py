@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from ..utils.logging import get_logger
 from .auth import require_token
 from .avatars import initials_svg
-from .errors import PanelError, PanelNotFound, PanelUnavailable
+from .errors import PanelError, PanelNotFound
 
 logger = get_logger(__name__)
 

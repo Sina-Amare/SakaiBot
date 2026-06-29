@@ -3,7 +3,7 @@
 import time
 from typing import Dict, Optional, Any
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass, field
 
 from .logging import get_logger

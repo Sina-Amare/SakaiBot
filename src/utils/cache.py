@@ -1,7 +1,6 @@
 """Cache management for SakaiBot."""
 
 import json
-import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Protocol

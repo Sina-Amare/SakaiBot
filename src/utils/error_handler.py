@@ -1,6 +1,6 @@
 """Comprehensive error handling with recovery strategies and user-friendly messages."""
 
-from typing import Optional, Callable, Any, TypeVar, Union
+from typing import Optional, Callable, Any, TypeVar
 from functools import wraps
 import asyncio
 

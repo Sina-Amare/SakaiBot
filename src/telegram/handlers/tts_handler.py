@@ -11,7 +11,6 @@ from ...ai.tts import TextToSpeechProcessor
 from ...ai.tts_queue import tts_queue, TTSStatus
 from ...core.tts_config import DEFAULT_VOICE
 from ...utils.helpers import clean_temp_files, parse_command_with_params
-from ...utils.logging import get_logger
 from .base import BaseHandler
 
 

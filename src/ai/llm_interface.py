@@ -1,7 +1,7 @@
 """Abstract interface for LLM providers."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from .response_metadata import AIResponseMetadata
 

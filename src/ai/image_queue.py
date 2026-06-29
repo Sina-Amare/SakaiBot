@@ -1,6 +1,5 @@
 """Image generation queue system with separate FIFO queues per model."""
 
-import asyncio
 import uuid
 from dataclasses import dataclass
 from enum import Enum

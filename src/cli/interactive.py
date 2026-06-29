@@ -1,14 +1,11 @@
 """Interactive menu system for SakaiBot CLI."""
 
 import asyncio
-import logging
-from typing import Optional, Dict, Any, List, Callable
+from typing import Dict, Any, List
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
-from rich.prompt import Prompt, IntPrompt
+from rich.prompt import Prompt
 from rich.text import Text
-from rich import print as rprint
 from pathlib import Path
 import sys
 

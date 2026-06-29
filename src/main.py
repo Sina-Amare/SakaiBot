@@ -4,7 +4,6 @@ import asyncio
 import os
 import signal
 import sys
-from pathlib import Path
 from typing import Optional
 
 from .core.config import Config, load_config
@@ -17,7 +16,7 @@ from .ai.processor import AIProcessor
 from .ai.stt import SpeechToTextProcessor
 from .ai.tts import TextToSpeechProcessor
 from .utils.cache import CacheManager
-from .utils.logging import setup_logging, get_logger
+from .utils.logging import get_logger
 from .utils.structured_logging import (
     setup_production_logging,
     is_docker_environment,

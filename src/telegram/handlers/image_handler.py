@@ -15,9 +15,6 @@ from ...ai.prompt_enhancer import PromptEnhancer
 from ...ai.processor import AIProcessor
 from ...core.constants import SUPPORTED_IMAGE_MODELS
 from ...core.exceptions import AIProcessorError
-from ...utils.helpers import clean_temp_files
-from ...utils.logging import get_logger
-from ...utils.message_sender import MessageSender
 from ...utils.rate_limiter import get_ai_rate_limiter
 from ...utils.validators import InputValidator
 from ...utils.metrics import get_metrics_collector, TimingContext

@@ -2,14 +2,9 @@
 
 import os
 import sys
-from pathlib import Path
-import sys
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 from rich.table import Table
-from rich import print as rprint
-import asyncio
 from typing import Optional, List, Dict, Any
 
 console = Console()

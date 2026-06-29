@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from .constants import SETTINGS_FILE_NAME
 from .exceptions import ConfigurationError

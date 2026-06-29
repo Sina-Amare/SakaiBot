@@ -7,7 +7,6 @@ from telethon import TelegramClient, events, functions
 from telethon.tl.types import Message
 
 from ...core.constants import CONFIRMATION_KEYWORD
-from ...utils.logging import get_logger
 from .base import BaseHandler
 
 

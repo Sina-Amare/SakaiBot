@@ -13,7 +13,7 @@ Key Features:
 """
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from enum import Enum

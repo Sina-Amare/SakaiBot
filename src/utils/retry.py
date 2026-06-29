@@ -2,7 +2,7 @@
 
 import asyncio
 import functools
-from typing import TypeVar, Callable, Any, Optional
+from typing import TypeVar, Callable, Any
 from ..utils.logging import get_logger
 
 T = TypeVar('T')

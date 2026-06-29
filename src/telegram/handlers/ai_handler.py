@@ -10,10 +10,7 @@ from telethon.tl.types import Message
 from ...ai.processor import AIProcessor
 from ...ai.response_metadata import build_response_parts
 
-from ...core.constants import MAX_MESSAGE_LENGTH
 from ...core.exceptions import AIProcessorError
-from ...utils.helpers import split_message
-from ...utils.logging import get_logger
 from ...utils.task_manager import get_task_manager
 from ...utils.rate_limiter import get_ai_rate_limiter
 from ...utils.validators import InputValidator

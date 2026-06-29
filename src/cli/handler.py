@@ -1,11 +1,10 @@
 """CLI handler for SakaiBot that integrates InteractiveMenu with Telegram client."""
 
-from typing import Optional
 from telethon import TelegramClient
 
 from .interactive import InteractiveMenu
 from .state import CLIState
-from ..core.config import Config, get_settings
+from ..core.config import get_settings
 from ..utils.cache import CacheManager
 from ..telegram.utils import TelegramUtils
 from ..core.settings import SettingsManager

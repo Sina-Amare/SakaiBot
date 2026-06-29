@@ -6,8 +6,7 @@ from pathlib import Path
 from rich.table import Table
 from rich.syntax import Syntax
 from ..utils import (
-    display_error, display_success, display_info, display_warning,
-    confirm_action, console
+    display_error, display_success, display_info, console
 )
 
 @click.group()

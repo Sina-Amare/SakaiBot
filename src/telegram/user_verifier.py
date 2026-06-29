@@ -1,7 +1,6 @@
 """Telegram user verification module for SakaiBot."""
 
-import asyncio
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any
 from telethon import TelegramClient
 from telethon import functions
 from telethon.tl.types import User

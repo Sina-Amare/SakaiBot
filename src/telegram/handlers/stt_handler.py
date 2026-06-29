@@ -19,9 +19,7 @@ from ...core.config import get_settings
 from ...core.constants import MAX_MESSAGE_LENGTH, DEFAULT_STT_SUMMARY_MODEL
 from ...core.exceptions import AIProcessorError
 from ...utils.helpers import clean_temp_files, split_message
-from ...utils.logging import get_logger
 from ...utils.message_sender import MessageSender
-from ...utils.telegram_html import clean_telegram_html
 from .base import BaseHandler
 
 

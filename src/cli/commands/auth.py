@@ -3,11 +3,10 @@
 import click
 import asyncio
 from rich.table import Table
-from typing import Optional
 from ..utils import (
     get_cache_manager, get_settings_manager,
     display_error, display_success, display_info, display_warning,
-    prompt_choice, prompt_text, confirm_action, console
+    confirm_action, console
 )
 from src.telegram.user_verifier import TelegramUserVerifier
 
@@ -198,7 +197,6 @@ async def _refresh_cache():
     try:
         from ..utils import get_telegram_client
         from src.telegram.utils import TelegramUtils
-        from src.utils.cache import CacheManager
 
         client, client_manager = await get_telegram_client()
         if not client:

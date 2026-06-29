@@ -4,7 +4,6 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Optional
 
 from .logging import get_logger
 

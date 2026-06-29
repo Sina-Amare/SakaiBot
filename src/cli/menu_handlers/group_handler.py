@@ -1,6 +1,5 @@
 """Group menu handlers for interactive CLI with REAL functionality."""
 
-import asyncio
 from rich.console import Console
 from rich.prompt import Prompt
 from pathlib import Path

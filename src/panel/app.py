@@ -235,12 +235,21 @@ def create_app(state: Any) -> FastAPI:
             entity_id, bytes(buf), file.filename or "file", caption, reply_to
         )
 
+    def _require_int(payload: Dict[str, Any], key: str) -> int:
+        val = payload.get(key)
+        if val is None:
+            raise PanelError(f"Missing '{key}'.", status_code=400)
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            raise PanelError(f"Invalid '{key}'.", status_code=400)
+
     @api.post("/entity/{entity_id}/edit")
     async def entity_edit(
         entity_id: int, payload: Dict[str, Any] = Body(default={})
     ) -> Dict[str, Any]:
         return await state.messenger.edit_text(
-            entity_id, int(payload.get("message_id")), payload.get("text", "")
+            entity_id, _require_int(payload, "message_id"), payload.get("text", "")
         )
 
     @api.post("/entity/{entity_id}/forward")
@@ -248,7 +257,7 @@ def create_app(state: Any) -> FastAPI:
         entity_id: int, payload: Dict[str, Any] = Body(default={})
     ) -> Dict[str, Any]:
         return await state.messenger.forward_message(
-            entity_id, int(payload.get("message_id")), int(payload.get("to_entity_id"))
+            entity_id, _require_int(payload, "message_id"), _require_int(payload, "to_entity_id")
         )
 
     @api.post("/entity/{entity_id}/delete")
@@ -256,7 +265,7 @@ def create_app(state: Any) -> FastAPI:
         entity_id: int, payload: Dict[str, Any] = Body(default={})
     ) -> Dict[str, Any]:
         return await state.messenger.delete_message(
-            entity_id, int(payload.get("message_id"))
+            entity_id, _require_int(payload, "message_id")
         )
 
     @api.get("/entity/{entity_id}/media")

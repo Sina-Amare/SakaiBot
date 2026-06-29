@@ -115,11 +115,14 @@ class MessengerService:
         edited = await self.state.throttle.tg_write(
             lambda: client.edit_message(int(entity_id), int(message_id), text)
         )
+        logger.info("panel edit -> entity %s msg %s", entity_id, message_id)
+        if edited is None or not hasattr(edited, "id"):
+            # Telethon can return a non-message for some edits; succeed quietly.
+            return {"ok": True}
         row = self.state.dialogs.find(int(entity_id)) or {}
         message = self.state.entity._format_message(
             edited, row.get("kind", "pv"), row.get("display_name", str(entity_id))
         )
-        logger.info("panel edit -> entity %s msg %s", entity_id, message_id)
         return {"ok": True, "message": message}
 
     async def forward_message(

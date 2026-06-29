@@ -219,6 +219,8 @@
     closeDrawers();
     State.editing = null;  // abandon any in-progress edit from the previous chat
     clearReply();
+    clearAttachments();    // staged files must not ride along to a different chat
+    $("#composer-attach").disabled = false;
     $$(".dialog-row").forEach((r) => r.classList.toggle("active", r.dataset.id == it.id));
     $("#empty-main").classList.add("hidden");
     $("#entity-view").classList.remove("hidden");
@@ -302,6 +304,9 @@
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         if (input.value.trim() || attachedFiles.length) sendMessage();
+      } else if (e.key === "Escape") {
+        if (State.editing) { e.preventDefault(); cancelEdit(); }
+        else if (State.replyTo) { e.preventDefault(); clearReply(); }
       }
     });
     $("#composer-send").addEventListener("click", sendMessage);
@@ -322,6 +327,7 @@
     setSendEnabled($("#composer-input").value.trim().length > 0 || attachedFiles.length > 0);
   }
   function stageFiles(list) {
+    if (State.editing) return;  // an edit is text-only; ignore attach/paste
     for (const f of list) {
       if (attachedFiles.length >= 10) { toast("Up to 10 files at a time", true); break; }
       if (f.size > 20 * 1024 * 1024) { toast(`${f.name} is too large (max 20 MB)`, true); continue; }
@@ -750,6 +756,7 @@
   }
 
   function renderChat() {
+    closeMenu();  // a live re-render must not leave an orphaned message menu
     const scroll = $("#chat-scroll");
     const prevTop = scroll.scrollTop;
     const atBottom = scroll.scrollHeight - prevTop - scroll.clientHeight < 48;
@@ -1004,6 +1011,8 @@
   // ---- edit (own messages) ----
   function startEdit(m) {
     clearReply();                       // reply + edit are mutually exclusive
+    clearAttachments();                 // an edit carries no attachments
+    $("#composer-attach").disabled = true;
     State.editing = { id: m.id };
     const input = $("#composer-input");
     input.value = m.text || ""; autoGrow(input);
@@ -1020,11 +1029,13 @@
   }
   function cancelEdit() {
     State.editing = null;
+    $("#composer-attach").disabled = false;
     const input = $("#composer-input"); input.value = ""; autoGrow(input);
     const b = $("#reply-bar"); b.classList.remove("editing"); b.classList.add("hidden"); b.innerHTML = "";
     refreshSendState();
   }
   async function submitEdit(text) {
+    if (!State.editing || !State.entity) return;  // edit was cancelled mid-keystroke
     if (!text) { toast("Message is empty.", true); return; }
     const editId = State.editing.id, eid = State.entity.id, myToken = chatToken;
     setSendEnabled(false);
@@ -1207,7 +1218,8 @@
   function loadResultsHistory() {
     try {
       const saved = JSON.parse(localStorage.getItem(RESULTS_KEY) || "[]");
-      if (Array.isArray(saved)) aiResults = saved.filter((r) => r && r.status === "ok");
+      // Match the write contract: only finished text results are ever persisted.
+      if (Array.isArray(saved)) aiResults = saved.filter((r) => r && r.status === "ok" && r.kind === "text");
     } catch (_) { aiResults = []; }
     renderResults();
   }

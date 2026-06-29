@@ -88,3 +88,26 @@ class TestPipeline:
         # No matter how malformed the input, the pipeline returns a string.
         for garbage in ("<<<<<", "&&&&", "<b><i><blockquote><b>", "<\x00>"):
             assert isinstance(clean_telegram_html(garbage), str)
+
+
+class TestMarkdownNormalization:
+    """Leaked Markdown (from weaker models) is normalized to clean Telegram HTML."""
+
+    def test_bold_and_heading_become_html(self) -> None:
+        out = clean_telegram_html("## Summary\nThis is **important** stuff")
+        assert "<b>Summary</b>" in out
+        assert "<b>important</b>" in out
+        assert "**" not in out and "##" not in out
+
+    def test_bullets_and_rules_cleaned(self) -> None:
+        out = clean_telegram_html("- first\n- second\n---\n")
+        assert "• first" in out and "• second" in out
+        assert "---" not in out
+
+    def test_inline_code_normalized(self) -> None:
+        assert "<code>backend</code>" in clean_telegram_html("the `backend` part")
+
+    def test_single_asterisk_evidence_preserved(self) -> None:
+        # a stray single * in quoted content must NOT be mangled into a tag
+        out = clean_telegram_html("she wrote 3 * 4 = 12")
+        assert "3 * 4 = 12" in out and "<b>" not in out and "<i>" not in out

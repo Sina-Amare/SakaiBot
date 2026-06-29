@@ -865,16 +865,18 @@
   function bubbleRow(m, groupStart, isGroupChat, fresh) {
     const media = renderMedia(m);
     let cls = "bubble" + (m.out ? " out" : "") + (groupStart ? " gstart" : "") + (fresh ? " just-in" : "");
+    const isAudio = m.media_kind === "voice" || m.media_kind === "music";
     if (media && !m.text) {
       if (m.media_kind === "sticker") cls += " sticker-bubble";
-      else if (m.media_kind !== "audio") cls += " media-only";
+      else if (!isAudio) cls += " media-only";
     }
     const bubble = el("div", { class: cls });
     if (groupStart && !m.out && isGroupChat) bubble.appendChild(el("div", { class: "b-sender", dir: "auto", text: m.sender }));
     if (m.reply) bubble.appendChild(replyPreview(m.reply));
     if (media) bubble.appendChild(media);
     if (m.text) bubble.appendChild(el("div", { class: "b-text", dir: "auto", text: m.text }));
-    if (m.media_kind === "audio") bubble.appendChild(el("button", {
+    // Transcribe is for VOICE notes only — not music files.
+    if (m.media_kind === "voice") bubble.appendChild(el("button", {
       class: "stt-btn", title: "Transcribe with AI",
       onclick: () => runCommand("stt", { entity_id: State.entity.id, message_id: m.id }, "Transcribe", null),
     }, el("span", { text: "🎤 Transcribe" })));
@@ -963,8 +965,8 @@
     setTimeout(() => document.addEventListener("click", closeMenu), 0);
   }
 
-  const MEDIA_LABEL = { sticker: "Sticker", photo: "Photo", video: "Video", gif: "GIF", audio: "Audio", document: "File" };
-  const MEDIA_ICON = { sticker: "🩷", photo: "📷", video: "🎬", gif: "🎞️", audio: "🎤", document: "📄" };
+  const MEDIA_LABEL = { sticker: "Sticker", photo: "Photo", video: "Video", gif: "GIF", voice: "Voice", music: "Music", audio: "Audio", document: "File" };
+  const MEDIA_ICON = { sticker: "🩷", photo: "📷", video: "🎬", gif: "🎞️", voice: "🎤", music: "🎵", audio: "🎤", document: "📄" };
   function mediaFallback(kind) {
     return el("div", { class: "m-fallback" }, [
       el("span", { class: "m-fb-ic", text: MEDIA_ICON[kind] || "📄" }),
@@ -1062,8 +1064,17 @@
         node.appendChild(withFallback(el("img", { loading: "lazy", src: thumbUrl, alt: "" }), node, "video"));
         node.appendChild(el("span", { class: "play", html: "&#9658;" }));
         break;
-      case "audio":
-        node = el("audio", { class: "m-audio", controls: "", preload: "none", src: fileUrl });
+      case "voice":
+      case "music":
+      case "audio":  // legacy
+        node = el("div", { class: "m-audio-wrap" }, [
+          el("div", { class: "m-audio-head" }, [
+            el("span", { class: "m-audio-ic", text: m.media_kind === "music" ? "🎵" : "🎤" }),
+            el("span", { class: "m-audio-name", dir: "auto",
+              text: m.media_kind === "music" ? (m.file_name || "Audio track") : "Voice message" }),
+          ]),
+          el("audio", { class: "m-audio", controls: "", preload: "none", src: fileUrl }),
+        ]);
         break;
       default:
         node = el("a", { class: "m-doc", href: fileUrl, target: "_blank", rel: "noopener" }, [
@@ -1202,7 +1213,7 @@
     });
   }
   function mediaLabel(m) {
-    return { photo: "📷 Photo", video: "🎬 Video", sticker: "🩷 Sticker", audio: "🎤 Voice", gif: "GIF", document: "📄 File" }[m.media_kind] || (m.has_media ? "Media" : "");
+    return { photo: "📷 Photo", video: "🎬 Video", sticker: "🩷 Sticker", voice: "🎤 Voice", music: "🎵 Music", audio: "🎤 Voice", gif: "GIF", document: "📄 File" }[m.media_kind] || (m.has_media ? "Media" : "");
   }
   function replyPreview(r) {
     return el("div", { class: "b-reply" }, [
@@ -1547,6 +1558,7 @@
               const r = await api("/keys/test", { method: "POST", body: { provider: p.provider, index: s.index } });
               status.className = "pill " + (r.ok ? "good" : "bad");
               status.textContent = r.ok ? `✓ ${r.latency_ms}ms` : `✗ ${r.error || "failed"}`;
+              status.title = r.ok ? "" : (r.error || "failed");  // full error on hover
             } finally { b.disabled = false; b.textContent = "Test"; }
           }}));
           row.appendChild(status);

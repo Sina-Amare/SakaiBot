@@ -245,15 +245,17 @@ class EntityService:
             return "sticker"
         if getattr(msg, "gif", None):
             return "gif"
-        if getattr(msg, "voice", None) or getattr(msg, "audio", None):
-            return "audio"
+        if getattr(msg, "voice", None):
+            return "voice"          # a recorded voice note (mic)
+        if getattr(msg, "audio", None):
+            return "music"          # a music / audio file (title + performer)
         doc = getattr(msg, "document", None)
         if doc is not None:
             mime = (getattr(doc, "mime_type", "") or "").lower()
             if mime.startswith("video/"):
                 return "video"
             if mime.startswith("audio/"):
-                return "audio"
+                return "music"
             if mime.startswith("image/"):
                 return "photo"
             return "document"

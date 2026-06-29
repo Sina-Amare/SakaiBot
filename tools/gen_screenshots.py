@@ -172,13 +172,41 @@ DEMO_DIALOGS = [
     dict(id=1008, kind="pv", display_name="Mom ❤️", username=None, has_photo=True, is_forum=False, preview="Call me when you land ✈️", last_date=iso(9, 15)),
 ]
 
+# Rich, structured AI outputs (Telegram-HTML) so the screenshots showcase what
+# the AI actually produces — sections, evidence quotes, real names — not just UI.
 ANALYSIS = (
-    "This is a warm, upbeat exchange between two close collaborators wrapping up "
-    "the day.\n\n"
-    "Tone: friendly and enthusiastic, with lots of positive reactions.\n"
-    "Main topics: feedback on the new panel UI, a shared sunset photo, and a "
-    "design spec to review.\n"
-    "Action items: review aigram-design-spec.pdf, and meet up at 7."
+    "📋 <b>Executive summary</b>\n"
+    "A warm, fast-moving exchange between <b>Maya</b> and the team, wrapping up the "
+    "day on a high — the redesigned panel landed well and the mood is celebratory.\n"
+    "━\n"
+    "🔍 <b>Key topics &amp; insights</b>\n"
+    "• <b>The redesigned panel</b> — Maya treats it as a real product, not a prototype:\n"
+    "<blockquote>It honestly feels like a real messenger now</blockquote>\n"
+    "• <b>A shared moment</b> — a sunset photo from the office drew an enthusiastic "
+    "reaction, keeping the tone personal.\n"
+    "• <b>Design review</b> — a spec (<code>aigram-design-spec.pdf</code>) was handed "
+    "over to review before tonight.\n"
+    "━\n"
+    "⚡ <b>Decisions &amp; outcomes</b>\n"
+    "• Review <code>aigram-design-spec.pdf</code> — accepted, in progress.\n"
+    "• Meet up at 7 — confirmed by both sides.\n"
+    "━\n"
+    "💡 <b>Takeaway</b>\n"
+    "Strong alignment and high morale; the one open thread is finishing the design-"
+    "spec review before the 7 o'clock meetup."
+)
+TELLME = (
+    "📋 <b>Answer</b>\n"
+    "They agreed to <b>meet at 7</b> tonight, once the design spec is reviewed.\n"
+    "━\n"
+    "🔍 <b>From the chat</b>\n"
+    "<blockquote>Sounds perfect — see you at 7 🙌</blockquote>\n"
+    "Maya confirmed the time; reviewing <code>aigram-design-spec.pdf</code> is the "
+    "only thing to finish first."
+)
+TRANSLATE = (
+    "Translation: See you tomorrow at 7 🙌\n"
+    "Phonetic: (سی یو تومارو ات سِوِن)"
 )
 
 
@@ -255,11 +283,16 @@ async def main():
 
     client.download_profile_photo = AsyncMock(side_effect=_dl_photo)
 
+    def _meta(text, out_tokens=140):
+        return AIResponseMetadata(
+            response_text=text, model_used="gemini-2.5-flash",
+            provider_used="Google Gemini", latency_seconds=2.1,
+            input_tokens=320, output_tokens=out_tokens)
+
     ai = conftest.build_mock_ai()
-    ai.analyze_conversation_messages = AsyncMock(return_value=AIResponseMetadata(
-        response_text=ANALYSIS, model_used="gemini-2.5-flash",
-        provider_used="Google Gemini", latency_seconds=2.1,
-        input_tokens=320, output_tokens=140))
+    ai.analyze_conversation_messages = AsyncMock(return_value=_meta(ANALYSIS))
+    ai.answer_question_from_chat_history = AsyncMock(return_value=_meta(TELLME, 70))
+    ai.translate_text_with_phonetics = AsyncMock(return_value=TRANSLATE)
 
     state = conftest.build_state(tmp, client=client, ai=ai, real_photos=True)
     state.dialogs_cache = {"items": DEMO_DIALOGS, "ts": time.monotonic()}
@@ -313,10 +346,30 @@ async def main():
             await page.wait_for_timeout(500)
             await page.screenshot(path=str(OUT / "ai-sheet.png"))
 
-            analyze = page.locator(".card").filter(has=page.locator('.card-head h3:text-is("Analyze chat")')).first
-            await analyze.get_by_role("button", name="Run").evaluate("el => el.click()")
+            async def ensure_sheet():
+                hidden = await page.evaluate(
+                    "() => document.getElementById('modal').classList.contains('hidden')")
+                if hidden:
+                    await page.locator("#ev-ai-btn").click()
+                    await page.wait_for_selector("#modal:not(.hidden) .card", timeout=10000)
+
+            async def run_card(title, fills=None):
+                await ensure_sheet()
+                card = page.locator(".card").filter(
+                    has=page.locator(f'.card-head h3:text-is("{title}")')).first
+                for sel, val in (fills or {}).items():
+                    await card.locator(sel).first.fill(val)
+                await card.get_by_role("button", name="Run").evaluate("el => el.click()")
+
+            # Showcase the AI: three abilities -> three categorized cards in the rail.
+            await run_card("Analyze chat")  # sheet already open from the shot above
             await page.wait_for_selector(".result .rhtml", timeout=15000)
-            await page.wait_for_timeout(600)
+            await page.wait_for_timeout(500)
+            await run_card("Ask about chat",
+                           {"textarea": "What did they decide, and when are they meeting?"})
+            await page.wait_for_timeout(900)
+            await run_card("Translate", {"textarea": "فردا ساعت ۷ می‌بینمت 🙌"})
+            await page.wait_for_timeout(900)
             await page.screenshot(path=str(OUT / "ai-result.png"))
 
             # scope to the topbar nav: the same data-dash chip also lives in the

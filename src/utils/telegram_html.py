@@ -13,13 +13,13 @@ turns arbitrary LLM output into safe Telegram-HTML by stripping unknown
 tags and entity-escaping ambiguous characters, then validating with
 Telethon's parser as a final safety net.
 
-**Deliberately no Markdown -> HTML conversion** — chat messages we analyze
-routinely contain ``*``, ``_``, backticks, code, math, and usernames.
-Converting ``*foo*`` to ``<i>foo</i>`` would corrupt direct-quote evidence
-in analysis output, which is the worst possible failure mode for a tool
-that exists to extract evidence from chats. Prompts ask for HTML; if a
-model emits literal ``**word**`` anyway it ships as literal text — ugly,
-but never destroys evidence.
+**Conservative Markdown normalization** — prompts ask for Telegram HTML, but
+weaker models still leak Markdown (``**bold**``, ``# heading``, ``- bullet``,
+``` `code` ```). ``normalize_ai_markdown`` converts only well-formed, same-line
+bold/code and line-start headings/bullets/rules to HTML/clean text, so output
+stays clean regardless of model. It intentionally does NOT touch single ``*``
+or mid-line stray markers, so direct-quote evidence (the worst thing to corrupt
+for an evidence-extraction tool) is preserved.
 """
 
 from __future__ import annotations
@@ -134,6 +134,32 @@ def validate_or_escape(text: str) -> str:
         return _escape_chars(text)
 
 
+# Markdown a model might leak despite being asked for Telegram HTML. We convert
+# the few well-formed inline patterns to HTML so output stays clean regardless of
+# which model produced it. Conservative: bold/italic require same-line, non-empty
+# content; headings/bullets only at line start — so quoted chat content with a
+# stray ``*`` is not corrupted.
+_MD_HEADING = re.compile(r"(?m)^[ \t]{0,3}#{1,6}[ \t]+(.+?)[ \t]*$")
+_MD_BOLD = re.compile(r"\*\*([^\n*]+?)\*\*")
+_MD_BOLD_ALT = re.compile(r"__([^\n_]+?)__")
+_MD_INLINE_CODE = re.compile(r"`([^`\n]+?)`")
+_MD_BULLET = re.compile(r"(?m)^([ \t]*)[*\-][ \t]+")
+_MD_HR = re.compile(r"(?m)^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$")
+
+
+def normalize_ai_markdown(text: str) -> str:
+    """Turn the Markdown models commonly leak into Telegram HTML / clean text."""
+    if not text:
+        return text
+    text = _MD_HR.sub("", text)                       # --- / *** rules -> drop
+    text = _MD_HEADING.sub(r"<b>\1</b>", text)        # # Heading -> bold
+    text = _MD_BOLD.sub(r"<b>\1</b>", text)           # **bold** -> <b>
+    text = _MD_BOLD_ALT.sub(r"<b>\1</b>", text)       # __bold__ -> <b>
+    text = _MD_INLINE_CODE.sub(r"<code>\1</code>", text)  # `code` -> <code>
+    text = _MD_BULLET.sub(r"\1• ", text)         # "* " / "- " -> "• "
+    return text
+
+
 def clean_telegram_html(text: str) -> str:
-    """Full pipeline: sanitize unknown tags, then validate-or-escape."""
-    return validate_or_escape(sanitize_html(text))
+    """Full pipeline: normalize leaked Markdown, sanitize unknown tags, validate."""
+    return validate_or_escape(sanitize_html(normalize_ai_markdown(text)))

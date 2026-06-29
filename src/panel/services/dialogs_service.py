@@ -5,7 +5,10 @@ This fills a gap in the existing code, which only fetched PVs and megagroups
 (never broadcast channels). It is READ-ONLY.
 """
 
+import asyncio
+import json
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from telethon.tl.types import Channel, Chat, User
@@ -99,6 +102,40 @@ class DialogsService:
         # One throttled op for the whole walk (paced, FloodWait-handled).
         return await self.state.throttle.tg_read(_collect)
 
+    def _disk_path(self) -> Optional[Path]:
+        mc = getattr(self.state, "media_cache", None)
+        root = getattr(mc, "root", None)
+        return Path(root) / "dialogs.json" if root else None
+
+    def _load_disk(self) -> Optional[List[Dict[str, Any]]]:
+        p = self._disk_path()
+        if not p or not p.exists():
+            return None
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            items = data.get("items") if isinstance(data, dict) else data
+            return items if isinstance(items, list) and items else None
+        except Exception:  # noqa: BLE001 - a corrupt cache just means a live walk
+            return None
+
+    def _save_disk(self, items: List[Dict[str, Any]]) -> None:
+        p = self._disk_path()
+        if not p:
+            return
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps({"items": items}), encoding="utf-8")
+        except Exception:  # noqa: BLE001 - best-effort cache
+            pass
+
+    async def _refresh_bg(self) -> None:
+        try:
+            items = await self._walk()
+            self.state.dialogs_cache = {"items": items, "ts": time.monotonic()}
+            self._save_disk(items)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("background dialog refresh skipped: %s", exc)
+
     async def _ensure(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
         cache = self.state.dialogs_cache
         fresh = (
@@ -108,8 +145,17 @@ class DialogsService:
         )
         if fresh:
             return cache["items"]
+        # Cold start: serve the disk snapshot INSTANTLY, refresh in the background
+        # (stale-while-revalidate) so a panel restart isn't blocked on a full walk.
+        if cache is None and not force_refresh:
+            disk = self._load_disk()
+            if disk is not None:
+                self.state.dialogs_cache = {"items": disk, "ts": time.monotonic()}
+                asyncio.create_task(self._refresh_bg())
+                return disk
         items = await self._walk()
         self.state.dialogs_cache = {"items": items, "ts": time.monotonic()}
+        self._save_disk(items)
         return items
 
     @staticmethod

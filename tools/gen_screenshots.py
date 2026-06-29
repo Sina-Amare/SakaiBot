@@ -415,10 +415,13 @@ async def main():
                 await page.wait_for_timeout(80)
 
             # Per-message action menu on an OUTGOING message — shows the full set
-            # (Reply / Copy / Edit / Forward / Delete). evaluate-click bypasses
+            # (Reply / Copy / Edit / Forward / Delete). Scroll it into view first
+            # so the menu anchors to the visible button; evaluate-click bypasses
             # the hover-reveal opacity.
             row = page.locator(".msg-row.out").filter(
                 has_text="dark theme").first
+            await row.scroll_into_view_if_needed()
+            await page.wait_for_timeout(200)
             await row.locator(".row-menu").evaluate("el => el.click()")
             await page.wait_for_selector(".msg-menu", timeout=5000)
             await page.wait_for_timeout(300)

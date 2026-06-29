@@ -988,10 +988,14 @@
     document.body.appendChild(menu);
     const r = btn.getBoundingClientRect();
     const mh = menu.offsetHeight, mw = menu.offsetWidth;
-    // flip the menu upward if it would overflow the bottom of the viewport
-    const top = (r.bottom + mh + 8 > window.innerHeight) ? Math.max(8, r.top - mh - 6) : r.bottom + 6;
-    // align the menu's right edge near the button, clamped to the viewport
-    const left = Math.max(8, Math.min(r.left - mw + r.width, window.innerWidth - mw - 8));
+    const vh = window.innerHeight, vw = window.innerWidth;
+    // open below the button, flip above if it would overflow the bottom...
+    let top = r.bottom + 6;
+    if (top + mh + 8 > vh) top = r.top - mh - 6;
+    // ...then ALWAYS clamp into the viewport so the menu can never float
+    // detached at the top/bottom (e.g. when the row is near an edge).
+    top = Math.max(8, Math.min(top, vh - mh - 8));
+    const left = Math.max(8, Math.min(r.right - mw, vw - mw - 8));  // align to button's right edge
     menu.style.top = `${top}px`;
     menu.style.left = `${left}px`;
     openMenu = menu;

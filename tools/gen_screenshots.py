@@ -257,6 +257,19 @@ async def main():
             await page.wait_for_timeout(1000)
             await page.screenshot(path=str(OUT / "chat-dark.png"))
 
+            # Live "typing" indicator delivered over the REAL SSE channel (also
+            # proves connectSSE wired up without a JS error). Auto-removes; we
+            # clear it explicitly so it can't bleed into later shots.
+            await page.wait_for_timeout(500)
+            state.events.publish({"type": "typing", "entity_id": 1001})
+            try:
+                await page.wait_for_selector(".ev-typing", timeout=4000)
+                await page.wait_for_timeout(300)
+                await page.screenshot(path=str(OUT / "live-typing.png"))
+            except Exception:
+                pass  # SSE not flushed under headless; non-fatal for the set
+            await page.evaluate("document.querySelector('.ev-typing')?.remove()")
+
             await page.locator("#ev-ai-btn").click()
             await page.wait_for_selector("#modal:not(.hidden) .card", timeout=10000)
             await page.wait_for_timeout(500)
@@ -284,6 +297,37 @@ async def main():
             await page.screenshot(path=str(OUT / "profile.png"))
             await page.locator("#modal-close").click()
             await page.wait_for_selector("#modal", state="hidden", timeout=5000)
+
+            # Composer attachment preview: stage an image + a PDF (no native
+            # dialog — Playwright sets the hidden <input type=file> directly).
+            await page.set_input_files("#composer-file", [
+                {"name": "sunset.jpg", "mimeType": "image/jpeg",
+                 "buffer": PHOTO.read_bytes()},
+                {"name": "aigram-design-spec.pdf", "mimeType": "application/pdf",
+                 "buffer": b"%PDF-1.4 demo attachment"},
+            ])
+            await page.wait_for_selector("#attach-preview:not(.hidden) .attach-thumb",
+                                        timeout=5000)
+            await page.wait_for_timeout(400)
+            await page.screenshot(path=str(OUT / "compose-attach.png"))
+            # clear staged files so they don't bleed into later shots — one at a
+            # time, since each removal re-renders and detaches the other buttons.
+            for _ in range(12):
+                xs = page.locator("#attach-preview .attach-x")
+                if await xs.count() == 0:
+                    break
+                await xs.first.click()
+                await page.wait_for_timeout(80)
+
+            # Per-message action menu (copy text / download / copy image) on the
+            # shared photo. evaluate-click bypasses the hover-reveal opacity.
+            row = page.locator(".msg-row").filter(
+                has_text="Sunset from the office").first
+            await row.locator(".row-menu").evaluate("el => el.click()")
+            await page.wait_for_selector(".msg-menu", timeout=5000)
+            await page.wait_for_timeout(300)
+            await page.screenshot(path=str(OUT / "message-menu.png"))
+            await page.evaluate("document.querySelector('.msg-menu')?.remove()")
 
             await page.locator("#theme-toggle").click()
             await page.wait_for_timeout(500)

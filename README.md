@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="src/panel/static/icons/aigram-logo.png" alt="Aigram logo" width="124" />
+
 # Aigram
 
 A self-hosted web client for your own Telegram account, with an AI layer built in.

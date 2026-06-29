@@ -5,9 +5,10 @@
  * offline safety net. (A previous cache-first shell could pin stale app.css/
  * app.js against a fresh index.html — never again.) Bump SHELL to force a purge
  * of any old cache on the next visit. */
-const SHELL = "aigram-shell-v17";
+const SHELL = "aigram-shell-v18";
 const ASSETS = [
   "/", "/index.html", "/app.css", "/app.js", "/manifest.webmanifest",
+  "/icons/aigram-logo.png", "/icons/favicon-32.png",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png",
   "/fonts/inter-400.woff2", "/fonts/inter-500.woff2", "/fonts/inter-600.woff2",
   "/fonts/inter-700.woff2", "/fonts/vazirmatn-400.woff2", "/fonts/vazirmatn-500.woff2",

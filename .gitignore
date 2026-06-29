@@ -240,3 +240,8 @@ secrets/*
 
 # Prompt lab outputs (local, may contain experiment data)
 tools/prompt_lab/out/
+
+# stray npm artifacts (this is a no-build Python project)
+node_modules/
+/package.json
+/package-lock.json

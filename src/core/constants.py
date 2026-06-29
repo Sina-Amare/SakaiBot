@@ -30,11 +30,14 @@ MAX_OUTPUT_TOKENS: Final[int] = 100000
 # daily quota. The 3.x Flash models exist but ship a tiny free RPD that 429s
 # almost immediately, so they're a poor default for a free self-host product.
 DEFAULT_GEMINI_MODEL_PRO: Final[str] = "gemini-2.5-flash"
-DEFAULT_OPENROUTER_MODEL_PRO: Final[str] = "openrouter/free"
+# OpenRouter fallback: a strong, reliable, multilingual FREE model — far better
+# than the old "openrouter/free" auto-router (which silently routed to tiny
+# models and gutted output quality when Gemini was rate-limited).
+DEFAULT_OPENROUTER_MODEL_PRO: Final[str] = "meta-llama/llama-3.3-70b-instruct:free"
 
 # Model Configuration - Flash tier (for simple tasks: translate, image enhancement)
 DEFAULT_GEMINI_MODEL_FLASH: Final[str] = "gemini-2.5-flash-lite"
-DEFAULT_OPENROUTER_MODEL_FLASH: Final[str] = "openrouter/free"
+DEFAULT_OPENROUTER_MODEL_FLASH: Final[str] = "meta-llama/llama-3.3-70b-instruct:free"
 
 # Web-search grounding model. Gemini 3.x has not yet brought Google Search
 # grounding into the free tier the way Gemini 2.5 Flash has, so any request

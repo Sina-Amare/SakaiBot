@@ -237,3 +237,6 @@ secrets/*
 *.key
 *.p12
 *.pfx
+
+# Prompt lab outputs (local, may contain experiment data)
+tools/prompt_lab/out/

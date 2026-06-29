@@ -906,13 +906,17 @@
     if (m.messages) parts.push(m.messages + " msgs");
     if (m.mode) parts.push(m.mode);
     if (m.prompt) parts.push("prompt: " + m.prompt);
-    if (m.provider_fallback) parts.push("⤵ fallback");
+    // Surface silent downgrades so weaker output is never mistaken for a bug.
+    if (m.provider_fallback) parts.push("⤵ fallback provider");
+    else if (m.model_fallback) parts.push("⤵ fallback model");
     return parts;
   }
 
   function metaChips(m) {
     const wrap = el("div", { class: "meta" });
-    for (const p of metaParts(m)) wrap.appendChild(el("span", { class: "mchip", text: p }));
+    for (const p of metaParts(m)) {
+      wrap.appendChild(el("span", { class: "mchip" + (p.startsWith("⤵") ? " warn" : ""), text: p }));
+    }
     return wrap;
   }
 

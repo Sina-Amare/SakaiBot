@@ -57,6 +57,7 @@ class CommandService:
                 "thinking_applied": result.thinking_applied,
                 "web_search_applied": result.web_search_applied,
                 "provider_fallback": result.provider_fallback_applied,
+                "model_fallback": result.model_fallback_applied,
             }
         else:
             full = str(result)
@@ -80,7 +81,7 @@ class CommandService:
     async def run_prompt(self, text: str, *, think: bool = False, web: bool = False) -> Dict[str, Any]:
         self._ensure_ai()
         from ...utils.validators import InputValidator
-        from ...ai.prompts import PROMPT_ADAPTIVE_PROMPT, get_telegram_formatting_guidelines
+        from ...ai.prompts import PROMPT_ADAPTIVE_PROMPT
 
         text = (text or "").strip()
         if not text:
@@ -90,8 +91,7 @@ class CommandService:
         except ValueError as exc:
             raise PanelError(str(exc))
 
-        guidelines = get_telegram_formatting_guidelines("persian")
-        full_prompt = PROMPT_ADAPTIVE_PROMPT.format(user_prompt=text + guidelines)
+        full_prompt = PROMPT_ADAPTIVE_PROMPT.format(user_prompt=text)
         result = await self._deadline(self.state.ai_processor.execute_custom_prompt(
             user_prompt=full_prompt,
             max_tokens=32000,

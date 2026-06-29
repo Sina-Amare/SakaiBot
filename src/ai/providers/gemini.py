@@ -17,15 +17,10 @@ from ..api_key_manager import GeminiKeyManager, initialize_gemini_key_manager, g
 from ..prompts import (
     TRANSLATION_AUTO_DETECT_PROMPT,
     TRANSLATION_SOURCE_TARGET_PROMPT,
-    CONVERSATION_ANALYSIS_PROMPT,
-    QUESTION_ANSWER_PROMPT,
     VOICE_MESSAGE_SUMMARY_PROMPT,
-    ANALYZE_GENERAL_PROMPT,
-    ANALYZE_FUN_PROMPT,
-    ANALYZE_ROMANCE_PROMPT,
     DEFAULT_CHAT_SUMMARY_PROMPT,
-    get_telegram_formatting_guidelines,
-    get_response_scaling_instructions
+    build_analysis_prompt,
+    build_question_prompt,
 )
 
 # Constants
@@ -957,80 +952,28 @@ class GeminiProvider(LLMProvider):
         
         messages_text = "\n".join(formatted_messages)
         num_messages = len(formatted_messages)
-        num_senders = len(senders)
-        
-        # Calculate duration
-        duration_minutes = 0
-        if len(timestamps) >= 2:
-            duration = max(timestamps) - min(timestamps)
-            duration_minutes = int(duration.total_seconds() / 60)
-        
-        # Build analysis prompt based on type
-        if analysis_type == "persian_detailed":
-            # Use the detailed Persian analysis prompt
-            prompt = CONVERSATION_ANALYSIS_PROMPT.format(
-                num_messages=num_messages,
-                num_senders=num_senders,
-                duration_minutes=duration_minutes,
-                actual_chat_messages=messages_text
-            )
-        elif analysis_type == "general":
-            prompt = ANALYZE_GENERAL_PROMPT.format(messages_text=messages_text)
-        elif analysis_type == "fun":
-            prompt = ANALYZE_FUN_PROMPT.format(messages_text=messages_text)
-        elif analysis_type == "romance":
-            prompt = ANALYZE_ROMANCE_PROMPT.format(messages_text=messages_text)
-        elif analysis_type == "voice_summary":
-            # Summary for voice messages
-            prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(
-                transcribed_text=messages_text
+
+        # One complete, self-contained prompt (single source of truth in prompts.py).
+        if analysis_type == "voice_summary":
+            formatted_prompt = VOICE_MESSAGE_SUMMARY_PROMPT.format(transcribed_text=messages_text)
+        elif analysis_type in ("fun", "general", "romance", "persian_detailed"):
+            formatted_prompt = build_analysis_prompt(
+                analysis_type, output_language, messages_text, num_messages
             )
         else:
-            # Default summary (from centralized prompts)
-            prompt = DEFAULT_CHAT_SUMMARY_PROMPT.format(messages_text=messages_text)
-        
-        self._logger.info(
-            f"Sending conversation ({num_messages} messages) for {analysis_type} analysis, language={output_language}"
-        )
-        
-        # Add English analysis instructions if needed (system messages are merged into prompts)
-        if output_language == "english":
-            english_instructions = (
-                "\n\n**CRITICAL**: You are a sharp, witty analyst with a Bill Burr-style observational humor. "
-                "Write ENTIRELY in English. Be direct, funny, and insightful. "
-                "Use dry wit and sarcasm while maintaining analytical accuracy. "
-                "Structure your response with clear sections and appropriate emojis."
-            )
-            prompt = prompt + english_instructions
-        
-        # Append language instruction to prompt
-        lang_instr = f"\n\n**CRITICAL**: Write your ENTIRE response in {output_language.upper()}. "
-        if output_language == "persian":
-            lang_instr += "Use colloquial Persian (یارو, رفیق), natural spacing (می‌آد not می اورد)."
-        else:
-            lang_instr += "Do NOT use Persian/Farsi. Write everything in English only."
-        
-        # Add Telegram-specific formatting guidelines (centralized in prompts.py)
-        format_guidelines = get_telegram_formatting_guidelines(output_language)
-        
-        # Add response scaling instructions based on message count and analysis type
-        scaling_instructions = get_response_scaling_instructions(num_messages, analysis_type)
-        
-        formatted_prompt = prompt + lang_instr + format_guidelines + scaling_instructions
-        
-        # Calculate tiered max_tokens based on conversation size
+            formatted_prompt = DEFAULT_CHAT_SUMMARY_PROMPT.format(messages_text=messages_text)
+
         max_tokens = self._calculate_max_tokens("analyze", num_messages)
-        
+        # Creative modes run hotter for livelier output; factual modes stay cooler.
+        temperature = {"fun": 0.85, "romance": 0.6}.get(analysis_type, 0.5)
         self._logger.info(
-            f"Analysis task: {num_messages} messages, using max_tokens={max_tokens}"
+            f"Analysis: {num_messages} msgs, type={analysis_type}, lang={output_language}, "
+            f"max_tokens={max_tokens}, temp={temperature}"
         )
-        
-        # Use lower temperature for analysis accuracy
-        # Use pro model for analysis (complex task)
         result = await self.execute_prompt(
             formatted_prompt,
             max_tokens=max_tokens,
-            temperature=0.4,
+            temperature=temperature,
             task_type="analyze",
             use_thinking=use_thinking
         )
@@ -1073,15 +1016,8 @@ class GeminiProvider(LLMProvider):
         
         combined_history = "\n".join(formatted_messages)
         
-        # Build Persian question-answering prompt with formatting guidelines
-        prompt = QUESTION_ANSWER_PROMPT.format(
-            combined_history_text=combined_history,
-            user_question=question
-        )
-        
-        # Add centralized formatting guidelines
-        format_guidelines = get_telegram_formatting_guidelines("persian")
-        formatted_prompt = prompt + format_guidelines
+        # One complete, self-contained tellme prompt (source of truth in prompts.py).
+        formatted_prompt = build_question_prompt("persian", combined_history, question)
         
         self._logger.info(
             f"Answering question '{question[:50]}...' based on {len(formatted_messages)} messages"
@@ -1094,7 +1030,7 @@ class GeminiProvider(LLMProvider):
         result = await self.execute_prompt(
             formatted_prompt,
             max_tokens=max_tokens,
-            temperature=0.5,
+            temperature=0.6,
             task_type="tellme",
             use_thinking=use_thinking,
             use_web_search=use_web_search

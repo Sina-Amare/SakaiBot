@@ -19,7 +19,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
+from telethon.tl.types import (  # noqa: E402
+    UserStatusOffline,
+    UserStatusOnline,
+    UserStatusRecently,
+)
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
@@ -32,6 +37,48 @@ OUT = PROJECT / "docs" / "screenshots"
 OUT.mkdir(parents=True, exist_ok=True)
 ASSETS = Path(tempfile.mkdtemp())
 PHOTO = ASSETS / "sunset.jpg"
+STICKER = ASSETS / "sticker.webp"
+
+# Deterministic gradient avatars per entity id (so the demo shows real photos,
+# not initials, without any network).
+AVATAR_COLORS = [
+    ((45, 212, 191), (34, 211, 238)), ((244, 114, 182), (168, 85, 247)),
+    ((251, 191, 36), (249, 115, 22)), ((96, 165, 250), (59, 130, 246)),
+    ((52, 211, 153), (16, 185, 129)), ((248, 113, 113), (239, 68, 68)),
+]
+
+
+def make_avatar(eid, name, path):
+    w = h = 240
+    c1, c2 = AVATAR_COLORS[eid % len(AVATAR_COLORS)]
+    img = Image.new("RGB", (w, h))
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            t = (x + y) / (w + h)
+            px[x, y] = tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+    d = ImageDraw.Draw(img)
+    letter = ((name or "?").strip()[:1] or "?").upper()
+    try:
+        font = ImageFont.truetype("arialbd.ttf", 120)
+    except OSError:
+        font = ImageFont.load_default()
+    bbox = d.textbbox((0, 0), letter, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    d.text(((w - tw) / 2 - bbox[0], (h - th) / 2 - bbox[1]), letter,
+           fill=(255, 255, 255), font=font)
+    img.save(path, quality=90)
+
+
+def make_sticker():
+    s = 320
+    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse([30, 30, s - 30, s - 30], fill=(45, 212, 191, 255))
+    d.ellipse([110, 120, 142, 162], fill=(4, 37, 33, 255))
+    d.ellipse([178, 120, 210, 162], fill=(4, 37, 33, 255))
+    d.arc([110, 150, 210, 235], start=10, end=170, fill=(4, 37, 33, 255), width=12)
+    img.save(STICKER, "WEBP")
 
 
 def make_photo():
@@ -68,6 +115,8 @@ CONVO = [
     mk(2, "It honestly feels like a real messenger now", False, 18, 52),
     mk(3, "Yes! Sending + inline media is so smooth 🙌", True, 18, 54),
     mk(4, "And the dark theme looks 🔥", True, 18, 54),
+    mk(10, "", False, 18, 55, media=SimpleNamespace(), sticker=SimpleNamespace(),
+       document=SimpleNamespace(mime_type="image/webp", attributes=[])),
     mk(5, "Sunset from the office 🌇", False, 18, 57,
        media=SimpleNamespace(), photo=SimpleNamespace()),
     mk(6, "Wow, absolutely stunning 😍", True, 18, 58,
@@ -86,14 +135,14 @@ def iso(hh, mm):
 
 
 DEMO_DIALOGS = [
-    dict(id=1001, kind="pv", display_name="Maya Chen", username="@maya", has_photo=False, is_forum=False, preview="Sounds perfect — see you at 7 🙌", last_date=iso(19, 4)),
-    dict(id=1002, kind="group", display_name="Design Team", username=None, has_photo=False, is_forum=False, preview="Alex: pushed the new mockups 🎨", last_date=iso(18, 40)),
-    dict(id=1003, kind="channel", display_name="Aigram News", username="@aigram", has_photo=False, is_forum=False, preview="v2 is live — inline media + send", last_date=iso(17, 10)),
-    dict(id=1004, kind="pv", display_name="Jordan Blake", username="@jordanb", has_photo=False, is_forum=False, preview="📷 Photo", last_date=iso(16, 22)),
-    dict(id=1005, kind="bot", display_name="DevBot", username="@devbot", has_photo=False, is_forum=False, preview="Build #482 passed ✓", last_date=iso(15, 5)),
-    dict(id=1006, kind="pv", display_name="Sam Patel", username="@samp", has_photo=False, is_forum=False, preview="🎤 Voice message", last_date=iso(14, 0)),
-    dict(id=1007, kind="group", display_name="Book Club", username=None, has_photo=False, is_forum=False, preview="Priya: loved chapter 7!", last_date=iso(12, 30)),
-    dict(id=1008, kind="pv", display_name="Mom ❤️", username=None, has_photo=False, is_forum=False, preview="Call me when you land ✈️", last_date=iso(9, 15)),
+    dict(id=1001, kind="pv", display_name="Maya Chen", username="@maya", has_photo=True, is_forum=False, preview="Sounds perfect — see you at 7 🙌", last_date=iso(19, 4)),
+    dict(id=1002, kind="group", display_name="Design Team", username=None, has_photo=True, is_forum=False, preview="Alex: pushed the new mockups 🎨", last_date=iso(18, 40)),
+    dict(id=1003, kind="channel", display_name="Aigram News", username="@aigram", has_photo=True, is_forum=False, preview="v2 is live — inline media + send", last_date=iso(17, 10)),
+    dict(id=1004, kind="pv", display_name="Jordan Blake", username="@jordanb", has_photo=True, is_forum=False, preview="📷 Photo", last_date=iso(16, 22)),
+    dict(id=1005, kind="bot", display_name="DevBot", username="@devbot", has_photo=True, is_forum=False, preview="Build #482 passed ✓", last_date=iso(15, 5)),
+    dict(id=1006, kind="pv", display_name="Sam Patel", username="@samp", has_photo=True, is_forum=False, preview="🎤 Voice message", last_date=iso(14, 0)),
+    dict(id=1007, kind="group", display_name="Book Club", username=None, has_photo=True, is_forum=False, preview="Priya: loved chapter 7!", last_date=iso(12, 30)),
+    dict(id=1008, kind="pv", display_name="Mom ❤️", username=None, has_photo=True, is_forum=False, preview="Call me when you land ✈️", last_date=iso(9, 15)),
 ]
 
 ANALYSIS = (
@@ -118,18 +167,66 @@ def demo_get_messages(entity_id, **kw):
 
 
 def demo_download_media(msg, file=None, thumb=None):
-    p = Path(file)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(PHOTO, p)
-    return str(p)
+    dest = Path(file)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    is_sticker = getattr(msg, "sticker", None) is not None
+    src = STICKER if is_sticker else PHOTO
+    if thumb is not None:  # thumb path already carries .thumb.jpg
+        shutil.copy(src, dest)
+        return str(dest)
+    out = dest.with_suffix(".webp" if is_sticker else ".jpg")
+    shutil.copy(src, out)
+    return str(out)
+
+
+# Presence variety so the header shows real Telegram-style statuses.
+_PRESENCE = {
+    1001: UserStatusOnline(expires=datetime.datetime(2026, 6, 24, 20, 0, 0)),
+    1004: UserStatusRecently(),
+    1006: UserStatusOffline(was_online=datetime.datetime(2026, 6, 24, 14, 0, 0)),
+    1008: UserStatusRecently(),
+}
+
+
+def demo_get_entity(eid):
+    row = next((d for d in DEMO_DIALOGS if d["id"] == eid), None)
+    common = dict(id=eid, photo=SimpleNamespace(), verified=False)
+    if row is None:
+        return SimpleNamespace(first_name="User", last_name="", username=None,
+                               bot=False, status=None, **common)
+    uname = (row["username"] or "").lstrip("@") or None
+    if row["kind"] in ("group", "channel"):
+        return SimpleNamespace(
+            title=row["display_name"], username=uname,
+            participants_count=128 if row["kind"] == "group" else 12400,
+            broadcast=(row["kind"] == "channel"), megagroup=(row["kind"] == "group"),
+            **common,
+        )
+    parts = row["display_name"].split()
+    return SimpleNamespace(
+        first_name=parts[0], last_name=(parts[1] if len(parts) > 1 else ""),
+        username=uname, bot=(row["kind"] == "bot"), status=_PRESENCE.get(eid),
+        **common,
+    )
 
 
 async def main():
     make_photo()
+    make_sticker()
     tmp = Path(tempfile.mkdtemp())
     client = conftest.build_mock_client()
     client.get_messages = AsyncMock(side_effect=demo_get_messages)
     client.download_media = AsyncMock(side_effect=demo_download_media)
+    client.get_entity = AsyncMock(side_effect=demo_get_entity)
+
+    def _dl_photo(entity, file=None):
+        p = Path(file)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        name = getattr(entity, "title", None) or getattr(entity, "first_name", "") or "?"
+        make_avatar(int(getattr(entity, "id", 0)), name, p)
+        return str(p)
+
+    client.download_profile_photo = AsyncMock(side_effect=_dl_photo)
 
     ai = conftest.build_mock_ai()
     ai.analyze_conversation_messages = AsyncMock(return_value=AIResponseMetadata(
@@ -137,7 +234,7 @@ async def main():
         provider_used="Google Gemini", latency_seconds=2.1,
         input_tokens=320, output_tokens=140))
 
-    state = conftest.build_state(tmp, client=client, ai=ai, real_photos=False)
+    state = conftest.build_state(tmp, client=client, ai=ai, real_photos=True)
     state.dialogs_cache = {"items": DEMO_DIALOGS, "ts": time.monotonic()}
     state.config.gemini_api_key_1 = "AIzaSyD3moK3yA00000000000000000000_qwA"
     state.config.gemini_api_key_2 = "AIzaSyB1234567890abcdefghijklmnop_t74E"
@@ -177,6 +274,14 @@ async def main():
             await page.wait_for_selector("#modal:not(.hidden) .modal-body", timeout=10000)
             await page.wait_for_timeout(600)
             await page.screenshot(path=str(OUT / "keys.png"))
+            await page.locator("#modal-close").click()
+            await page.wait_for_selector("#modal", state="hidden", timeout=5000)
+
+            # Profile view: click the chat name → info card + shared-media tabs.
+            await page.locator("#ev-name").click()
+            await page.wait_for_selector("#modal:not(.hidden) .profile-card", timeout=10000)
+            await page.wait_for_timeout(700)
+            await page.screenshot(path=str(OUT / "profile.png"))
             await page.locator("#modal-close").click()
             await page.wait_for_selector("#modal", state="hidden", timeout=5000)
 

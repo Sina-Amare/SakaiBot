@@ -60,6 +60,12 @@ The screenshots below are generated from an invented demo account — fake conta
 </tr>
 <tr>
 <td colspan="2" align="center">
+  <img src="docs/screenshots/profile.png" alt="The profile view with shared-media tabs" width="640"><br/>
+  <sub>Profile view: avatar, username, presence, and Telegram-style shared-media tabs</sub>
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
   <img src="docs/screenshots/chat-mobile.png" alt="The mobile layout running as an installed PWA" width="260"><br/>
   <sub>The same client on a phone, installed as a PWA</sub>
 </td>
@@ -73,9 +79,9 @@ The screenshots below are generated from an invented demo account — fake conta
 - Read and send text messages and replies
 - Inline rendering of photos, animated stickers (Lottie `.tgs`), GIFs, video, voice notes, and documents
 - Real Telegram profile photos as avatars, with colorful-initial fallbacks
-- Online / recently online / last-seen presence indicators on users
-- Profile drawer: click any avatar to see full bio, username, phone, shared-media counts
-- Shared-media tabs: photos, videos, files, links, voice messages, music, and GIFs
+- Online / recently online / last-seen presence in the chat header
+- Profile view: open a chat's header for its avatar, username, bio, presence, and shared media
+- Shared-media tabs: photos and videos, files, voice messages, music, GIFs, and links
 - Grouped message bubbles, date separators, and relative timestamps
 - Last-message previews in the chat list with type badges (PV, Group, Channel, Bot)
 - Light and dark themes with a single-click toggle, responsive down to phone widths

@@ -77,6 +77,39 @@ def test_image_result_media_streams_png(client, auth_headers):
     assert media.headers["content-type"] == "image/png"
 
 
+def test_media_download_forces_attachment_for_docs(client, panel_state):
+    """Untrusted Telegram docs (e.g. HTML) must download, not render inline."""
+    mc = panel_state.media_cache
+    mc.media.mkdir(parents=True, exist_ok=True)
+    (mc.media / "101_5.html").write_bytes(b"<h1>hi</h1>")
+    r = client.get(f"/api/entity/101/media/5/file?t={TOKEN}")
+    assert r.status_code == 200
+    assert r.headers.get("content-disposition", "").startswith("attachment")
+
+
+def test_media_download_inline_for_images(client, panel_state):
+    """Plain images stay inline (no forced download) so chat thumbnails work."""
+    mc = panel_state.media_cache
+    mc.media.mkdir(parents=True, exist_ok=True)
+    (mc.media / "101_6.jpg").write_bytes(b"\xff\xd8\xff\xe0jpeg")
+    r = client.get(f"/api/entity/101/media/6/file?t={TOKEN}")
+    assert r.status_code == 200
+    assert "attachment" not in r.headers.get("content-disposition", "")
+
+
+def test_send_file_route_rejects_oversize(client, auth_headers, monkeypatch):
+    """The upload route caps body size during read (not just in the service)."""
+    import src.panel.services.messenger_service as ms
+
+    monkeypatch.setattr(ms, "MAX_FILE_BYTES", 1024)
+    r = client.post(
+        "/api/entity/101/send-file",
+        files={"file": ("big.bin", b"x" * 4096, "application/octet-stream")},
+        headers=auth_headers,
+    )
+    assert r.status_code == 413
+
+
 def test_degraded_mode_when_no_client(tmp_path):
     state = build_state(tmp_path, client=None)
     app = create_app(state)

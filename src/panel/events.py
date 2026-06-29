@@ -14,6 +14,11 @@ import asyncio
 from typing import Any, Dict, Optional, Set
 
 QUEUE_MAX = 100  # per-subscriber backlog before we drop the oldest event
+MAX_SUBSCRIBERS = 64  # ceiling on concurrent SSE connections (self-DoS guard)
+
+
+class TooManySubscribers(RuntimeError):
+    """Raised when the live-channel connection ceiling is reached."""
 
 
 class Subscriber:
@@ -29,6 +34,8 @@ class EventHub:
         self._subs: Set[Subscriber] = set()
 
     def subscribe(self, entity_id: Optional[int] = None) -> Subscriber:
+        if len(self._subs) >= MAX_SUBSCRIBERS:
+            raise TooManySubscribers()
         sub = Subscriber(entity_id)
         self._subs.add(sub)
         return sub

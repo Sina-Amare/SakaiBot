@@ -24,6 +24,20 @@ logger = get_logger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+def _attachment_disposition(name: str) -> str:
+    """Header-injection-safe ``Content-Disposition: attachment`` for a download.
+
+    Quotes/newlines/non-ASCII in a Telegram-supplied filename can't break the
+    header: the ASCII fallback keeps only safe chars, and ``filename*`` carries
+    the real (percent-encoded UTF-8) name for clients that honor RFC 5987."""
+    from urllib.parse import quote
+
+    ascii_name = "".join(
+        c if (c.isalnum() or c in "._- ") else "_" for c in name
+    )[:120] or "download"
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"
+
+
 def create_app(state: Any) -> FastAPI:
     app = FastAPI(title="SakaiBot Control Panel", docs_url=None, redoc_url=None)
     app.state.panel = state
@@ -193,13 +207,32 @@ def create_app(state: Any) -> FastAPI:
     @api.post("/entity/{entity_id}/send-file")
     async def entity_send_attachment(
         entity_id: int,
+        request: Request,
         file: UploadFile = File(...),
         caption: str = Form(default=""),
         reply_to: Optional[int] = Form(default=None),
     ) -> Dict[str, Any]:
-        data = await file.read()
+        from .services.messenger_service import MAX_FILE_BYTES
+
+        # Reject early if the declared size already blows the cap...
+        clen = request.headers.get("content-length")
+        if clen and clen.isdigit() and int(clen) > MAX_FILE_BYTES + (1 << 20):
+            raise PanelError("File too large.", status_code=413)
+        # ...then read with a hard ceiling so an absent/lying Content-Length
+        # can't make us buffer an unbounded body into memory.
+        buf = bytearray()
+        while True:
+            chunk = await file.read(256 * 1024)
+            if not chunk:
+                break
+            buf.extend(chunk)
+            if len(buf) > MAX_FILE_BYTES:
+                raise PanelError(
+                    f"File too large (max {MAX_FILE_BYTES // (1024 * 1024)} MB).",
+                    status_code=413,
+                )
         return await state.messenger.send_attachment(
-            entity_id, data, file.filename or "file", caption, reply_to
+            entity_id, bytes(buf), file.filename or "file", caption, reply_to
         )
 
     @api.get("/entity/{entity_id}/media")
@@ -226,12 +259,24 @@ def create_app(state: Any) -> FastAPI:
     @api.get("/entity/{entity_id}/media/{message_id}/file")
     async def media_file(entity_id: int, message_id: int) -> Response:
         info = await state.entity.media_file(entity_id, message_id, thumb=False)
-        return FileResponse(info["path"], media_type=info["mime"])
+        mime = info["mime"] or "application/octet-stream"
+        # Telegram media comes from arbitrary peers. Anything that isn't a plain
+        # image/audio/video is served as a forced download so a crafted HTML or
+        # SVG document can't render (and run script) same-origin in the panel.
+        headers: Dict[str, str] = {}
+        if not (mime.startswith(("image/", "audio/", "video/")) and mime != "image/svg+xml"):
+            headers["Content-Disposition"] = _attachment_disposition(Path(info["path"]).name)
+        return FileResponse(info["path"], media_type=mime, headers=headers)
 
     # ---- live channel (SSE): typing / presence / new messages ----
     @api.get("/events")
     async def events_stream(request: Request, entity_id: Optional[int] = None) -> StreamingResponse:
-        sub = state.events.subscribe(entity_id)
+        from .events import TooManySubscribers
+
+        try:
+            sub = state.events.subscribe(entity_id)
+        except TooManySubscribers:
+            raise PanelError("Too many live connections.", status_code=503)
 
         async def gen():
             try:
@@ -244,6 +289,8 @@ def create_app(state: Any) -> FastAPI:
                         yield f"data: {json.dumps(ev, default=str)}\n\n"
                     except asyncio.TimeoutError:
                         yield ": ping\n\n"  # heartbeat keeps the connection alive
+            except asyncio.CancelledError:
+                pass  # client closed or server is shutting down — exit quietly
             finally:
                 state.events.unsubscribe(sub)
 

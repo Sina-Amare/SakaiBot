@@ -166,6 +166,7 @@
 
   function renderDialogs(items) {
     const list = $("#dialog-list");
+    io.disconnect();      // stop observing the about-to-be-detached avatar nodes
     list.innerHTML = "";
     if (!items.length) {
       list.appendChild(el("div", { class: "muted", style: "padding:18px;text-align:center", text: "No chats found." }));
@@ -328,17 +329,19 @@
     refreshSendState();
   }
   function clearAttachments() { attachedFiles = []; renderAttachPreview(); }
+  let attachUrls = [];
   function renderAttachPreview() {
     const wrap = $("#attach-preview");
     wrap.innerHTML = "";
+    attachUrls.forEach((u) => URL.revokeObjectURL(u));  // free the previous batch
+    attachUrls = [];
     wrap.classList.toggle("hidden", attachedFiles.length === 0);
     attachedFiles.forEach((f, i) => {
       const thumb = el("div", { class: "attach-thumb", title: f.name });
       if (f.type.startsWith("image/")) {
         const url = URL.createObjectURL(f);
-        const img = el("img", { src: url, alt: "" });
-        img.addEventListener("load", () => URL.revokeObjectURL(url));
-        thumb.appendChild(img);
+        attachUrls.push(url);  // revoked on the next render / clear, not on load
+        thumb.appendChild(el("img", { src: url, alt: "" }));
       } else {
         thumb.appendChild(el("span", { class: "attach-ic", text: "📄" }));
         thumb.appendChild(el("span", { class: "attach-name", dir: "auto", text: f.name.slice(0, 16) }));
@@ -578,7 +581,7 @@
   // previous chat re-checks it after awaiting and bails — so a stale response
   // can never paint chat A's messages (and sender avatars) into chat B.
   let chatToken = 0;
-  const mediaNodes = new Map(); // msgId -> cached media element (survives re-renders, no re-fetch)
+  const mediaNodes = new Map(); // "entityId:msgId" -> cached media element (survives re-renders, no re-fetch)
   const newIds = new Set();     // ids to animate in ONCE (only genuinely new messages)
 
   function sameDay(a, b) {
@@ -609,7 +612,8 @@
     await loadOlder(true, token);
     if (token !== null && token !== chatToken) return;  // user switched mid-load
     scroll.scrollTop = scroll.scrollHeight;
-    startPolling();
+    // NOTE: polling is started by connectSSE (only if SSE is unavailable),
+    // so the live channel and the poll loop can never run simultaneously.
   }
 
   // ---- live updates (visibility-aware polling; ban-safe, throttled server-side) ----
@@ -651,25 +655,39 @@
   }
 
   // ---- live channel (SSE): typing / presence / instant new messages ----
+  // connectSSE owns the live-update lifecycle: it stops polling once the stream
+  // is open and falls back to polling if SSE is unavailable or dies. loadChat
+  // never starts polling itself, so the two can't run at once.
   let sse = null;
   let typingTimer = null;
-  function closeSSE() { if (sse) { try { sse.close(); } catch (_) {} sse = null; } }
+  function clearTyping() {
+    clearTimeout(typingTimer);
+    const t = $("#ev-sub").querySelector(".ev-typing");
+    if (t) t.remove();
+  }
+  function closeSSE() {
+    if (sse) { try { sse.close(); } catch (_) {} sse = null; }
+    clearTyping();  // a stale "typing…" must not linger into the next chat
+  }
   function connectSSE(entityId) {
     closeSSE();
-    if (!("EventSource" in window)) return;  // fall back to polling
+    const myToken = chatToken;  // capture: a switch invalidates this stream
+    if (!("EventSource" in window)) { startPolling(); return; }  // no SSE → poll
     try {
       sse = new EventSource(`/api/events?entity_id=${entityId}&t=${encodeURIComponent(State.token)}`);
-    } catch (_) { sse = null; return; }
+    } catch (_) { sse = null; startPolling(); return; }
     sse.onopen = () => stopPolling();  // live channel is up → polling not needed
     sse.onmessage = (e) => {
+      if (myToken !== chatToken) return;  // a newer chat owns the view now
       let ev;
       try { ev = JSON.parse(e.data); } catch (_) { return; }
-      if (!State.entity) return;
-      if (ev.type === "message" && ev.entity_id === State.entity.id) ingestNewMessages([ev.message], chatToken);
-      else if (ev.type === "typing" && ev.entity_id === State.entity.id) showTyping();
+      if (ev.type === "message" && ev.entity_id === entityId) ingestNewMessages([ev.message], myToken);
+      else if (ev.type === "typing" && ev.entity_id === entityId) showTyping();
       else if (ev.type === "presence") applyPresence(ev.entity_id, ev.presence);
     };
     sse.onerror = () => {
+      // CONNECTING = the browser is auto-retrying; only fall back to polling
+      // once the stream is terminally CLOSED.
       if (sse && sse.readyState === EventSource.CLOSED) { sse = null; startPolling(); }
     };
   }
@@ -795,7 +813,12 @@
 
   // ---- per-message actions: copy text / download / copy image ----
   let openMenu = null;
-  function closeMenu() { if (openMenu) { openMenu.remove(); openMenu = null; } }
+  function closeMenu() {
+    if (!openMenu) return;
+    document.removeEventListener("click", closeMenu);  // no listener accumulation
+    openMenu.remove();
+    openMenu = null;
+  }
   function openMessageMenu(btn, m) {
     closeMenu();
     const fileUrl = mediaUrl(`/api/entity/${State.entity.id}/media/${m.id}/file`);
@@ -814,7 +837,9 @@
       if (m.media_kind === "photo") {
         items.push(["Copy image", async () => {
           try {
-            const blob = await (await fetch(fileUrl)).blob();
+            const res = await fetch(fileUrl);
+            if (!res.ok) throw new Error(`fetch failed (${res.status})`);
+            const blob = await res.blob();
             await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
             toast("Image copied");
           } catch (_) { toast("Copy image not supported", true); }
@@ -830,7 +855,7 @@
     menu.style.top = `${Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8)}px`;
     menu.style.left = `${Math.max(8, Math.min(r.left - 40, window.innerWidth - menu.offsetWidth - 8))}px`;
     openMenu = menu;
-    setTimeout(() => document.addEventListener("click", closeMenu, { once: true }), 0);
+    setTimeout(() => document.addEventListener("click", closeMenu), 0);
   }
 
   const MEDIA_LABEL = { sticker: "Sticker", photo: "Photo", video: "Video", gif: "GIF", audio: "Audio", document: "File" };
@@ -897,7 +922,10 @@
 
   function renderMedia(m) {
     if (!m.has_media) return null;
-    if (typeof m.id === "number" && mediaNodes.has(m.id)) return mediaNodes.get(m.id);
+    // Key by entity:id, not bare id — message ids repeat across chats, so a
+    // bare-id cache could hand chat B the photo node (and file URL) of chat A.
+    const mkey = typeof m.id === "number" ? State.entity.id + ":" + m.id : null;
+    if (mkey && mediaNodes.has(mkey)) return mediaNodes.get(mkey);
     const fileUrl = mediaUrl(`/api/entity/${State.entity.id}/media/${m.id}/file`);
     const thumbUrl = mediaUrl(`/api/entity/${State.entity.id}/media/${m.id}/thumb`);
     let node;
@@ -938,7 +966,7 @@
           el("span", { class: "m-doc-name", dir: "auto", text: m.file_name || m.mime || "file" }),
         ]);
     }
-    if (typeof m.id === "number") mediaNodes.set(m.id, node);
+    if (mkey) mediaNodes.set(mkey, node);
     return node;
   }
 
@@ -986,8 +1014,10 @@
     clearReply();
     renderChat();
     const scroll = $("#chat-scroll"); scroll.scrollTop = scroll.scrollHeight;
+    const myToken = chatToken;  // a chat switch mid-send invalidates the painting
     try {
       const data = await api(`/entity/${State.entity.id}/send`, { method: "POST", body: { text, reply_to: replyTo } });
+      if (myToken !== chatToken) return;  // moved on; the new chat owns the view
       const idx = chat.items.findIndex((x) => x.id === optimistic.id);
       if (idx >= 0) {
         const real = data.message || Object.assign(optimistic, { pending: false });
@@ -997,11 +1027,12 @@
       renderChat();
       scroll.scrollTop = scroll.scrollHeight;
     } catch (e) {
+      toast(e.message, true);
+      if (myToken !== chatToken) return;  // don't clobber the chat we switched to
       const idx = chat.items.findIndex((x) => x.id === optimistic.id);
       if (idx >= 0) chat.items.splice(idx, 1);
       renderChat();
       input.value = text; autoGrow(input); setSendEnabled(true);
-      toast(e.message, true);
     }
   }
 

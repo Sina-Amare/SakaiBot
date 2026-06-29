@@ -1,6 +1,8 @@
 """EventHub (SSE fan-out) contract: routing + bounded backlog + route auth."""
 
-from src.panel.events import QUEUE_MAX, EventHub
+import pytest
+
+from src.panel.events import MAX_SUBSCRIBERS, QUEUE_MAX, EventHub, TooManySubscribers
 
 
 def test_subscribe_unsubscribe():
@@ -33,6 +35,16 @@ def test_bounded_queue_drops_oldest():
     for i in range(QUEUE_MAX + 25):
         hub.publish({"type": "presence", "entity_id": 5, "i": i})
     assert s.queue.qsize() == QUEUE_MAX  # never grows unbounded
+
+
+def test_subscriber_cap_is_enforced():
+    hub = EventHub()
+    subs = [hub.subscribe(i) for i in range(MAX_SUBSCRIBERS)]
+    assert hub.subscriber_count == MAX_SUBSCRIBERS
+    with pytest.raises(TooManySubscribers):
+        hub.subscribe(9999)  # ceiling reached -> refuse, don't grow unbounded
+    hub.unsubscribe(subs[0])
+    assert hub.subscribe(123) is not None  # frees a slot
 
 
 def test_events_route_requires_token(client):

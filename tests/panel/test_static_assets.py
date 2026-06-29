@@ -169,6 +169,16 @@ def test_nav_pills_use_svg_not_emoji():
         assert emoji not in html, f"emoji {emoji} should be an SVG icon now"
 
 
+def test_folder_rail():
+    """Telegram-style folder rail with counted folders."""
+    html = _read("index.html")
+    assert 'id="folder-rail"' in html, "folder rail container missing"
+    js = _read("app.js")
+    assert "renderFolderRail" in js and "selectFolder" in js
+    for folder in ['"unread"', '"contacts"', '"pinned"', '"channel"']:
+        assert folder in js, f"folder {folder} missing from rail"
+
+
 def test_ai_results_history():
     """AI results are a categorized, filterable, persisted history."""
     js = _read("app.js")

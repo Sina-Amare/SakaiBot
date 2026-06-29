@@ -49,15 +49,15 @@ async def test_full_ui_walkthrough():
                 await page.wait_for_selector(".dialog-row", timeout=30000)
                 await expect(page.locator("#gate")).to_be_hidden()
 
-                # --- sidebar: counts + tab switching + search ---
+                # --- sidebar: folder rail switching + search ---
                 rows_all = await page.locator(".dialog-row").count()
                 assert rows_all > 0
-                await page.locator('.tab[data-kind="channel"]').click()
+                await page.locator('.folder-item[data-folder="channel"]').click()
                 await page.wait_for_timeout(400)
                 # every visible badge should now say "channel"
                 badges = await page.locator(".dialog-row .kind-badge").all_inner_texts()
                 assert badges and all(b.strip().lower() == "channel" for b in badges)
-                await page.locator('.tab[data-kind="pv"]').click()
+                await page.locator('.folder-item[data-folder="all"]').click()
                 await page.wait_for_selector(".dialog-row", timeout=10000)
                 await page.wait_for_timeout(300)
 

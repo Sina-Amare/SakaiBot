@@ -139,17 +139,49 @@
     $("#app").insertBefore(b, $(".topbar").nextSibling);
   }
 
+  // ---- folder rail (Telegram-style: icon + label + live count) ----
+  const FOLDERS = [
+    { key: "all", label: "All", svg: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/>' },
+    { key: "unread", label: "Unread", svg: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 12 3"/><circle cx="19" cy="5" r="3" fill="currentColor" stroke="none"/>' },
+    { key: "contacts", label: "Contacts", svg: '<path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/>' },
+    { key: "group", label: "Groups", svg: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.1a4 4 0 0 1 0 7.75"/>' },
+    { key: "channel", label: "Channels", svg: '<path d="M3 11l18-7v16l-18-7v-2z"/><path d="M7 13v4a2 2 0 0 0 4 0"/>' },
+    { key: "bot", label: "Bots", svg: '<rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13" r="1" fill="currentColor" stroke="none"/>' },
+    { key: "pinned", label: "Pinned", svg: '<path d="M9 4h6l-1 7 3 3v2H7v-2l3-3-1-7z"/><path d="M12 16v5"/>' },
+  ];
+  function renderFolderRail(folders) {
+    const rail = $("#folder-rail");
+    if (!rail) return;
+    const counts = folders || {};
+    rail.innerHTML = "";
+    for (const f of FOLDERS) {
+      const n = counts[f.key] || 0;
+      if (f.key !== "all" && n === 0 && Object.keys(counts).length) continue;  // hide empty folders
+      const item = el("button", {
+        class: "folder-item" + (State.kind === f.key ? " active" : ""),
+        title: f.label, "data-folder": f.key, onclick: () => selectFolder(f.key),
+      }, [
+        el("span", { class: "f-ic", html: `<svg viewBox="0 0 24 24">${f.svg}</svg>` }),
+        el("span", { class: "f-label", text: f.label }),
+      ]);
+      if (n > 0) item.appendChild(el("span", {
+        class: "f-count" + (f.key === "unread" ? "" : " muted"),
+        text: n > 999 ? "999+" : String(n),
+      }));
+      rail.appendChild(item);
+    }
+  }
+  function selectFolder(key) {
+    if (State.kind === key) return;
+    State.kind = key;
+    $$("#folder-rail .folder-item").forEach((x) => x.classList.remove("active"));
+    loadDialogs();
+  }
+
   // ---- sidebar / dialogs ----
   let searchTimer = null;
   function initSidebar() {
-    $$("#kind-tabs .tab").forEach((t) =>
-      t.addEventListener("click", () => {
-        $$("#kind-tabs .tab").forEach((x) => x.classList.remove("active"));
-        t.classList.add("active");
-        State.kind = t.dataset.kind;
-        loadDialogs();
-      })
-    );
+    renderFolderRail(null);  // show the rail immediately; counts fill after load
     $("#dialog-list").addEventListener("scroll", (e) => {
       const l = e.currentTarget;
       if (l.scrollHeight - l.scrollTop - l.clientHeight < 280) loadMoreDialogs();
@@ -182,6 +214,7 @@
       const data = await api(`/dialogs?type=${State.kind}&offset=0&limit=${PAGE_DIALOGS}${q}`);
       State.dialogs = (data.items || []).slice();        // cache for forward picker + paging
       State.dialogPage = { total: data.total || State.dialogs.length, loading: false };
+      if (data.folders) renderFolderRail(data.folders);  // live folder counts
       renderDialogs(State.dialogs, false);
     } catch (e) {
       State.dialogPage = { total: 0, loading: false };

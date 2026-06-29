@@ -161,15 +161,19 @@ def iso(hh, mm):
     return datetime.datetime(2026, 6, 24, hh, mm, 0).isoformat()
 
 
+def _d(unread=0, pinned=False, contact=False):
+    return dict(unread=unread, pinned=pinned, contact=contact)
+
+
 DEMO_DIALOGS = [
-    dict(id=1001, kind="pv", display_name="Maya Chen", username="@maya", has_photo=True, is_forum=False, preview="Sounds perfect — see you at 7 🙌", last_date=iso(19, 4)),
-    dict(id=1002, kind="group", display_name="Design Team", username=None, has_photo=True, is_forum=False, preview="Alex: pushed the new mockups 🎨", last_date=iso(18, 40)),
-    dict(id=1003, kind="channel", display_name="Aigram News", username="@aigram", has_photo=True, is_forum=False, preview="v2 is live — inline media + send", last_date=iso(17, 10)),
-    dict(id=1004, kind="pv", display_name="Jordan Blake", username="@jordanb", has_photo=True, is_forum=False, preview="📷 Photo", last_date=iso(16, 22)),
-    dict(id=1005, kind="bot", display_name="DevBot", username="@devbot", has_photo=True, is_forum=False, preview="Build #482 passed ✓", last_date=iso(15, 5)),
-    dict(id=1006, kind="pv", display_name="Sam Patel", username="@samp", has_photo=True, is_forum=False, preview="🎤 Voice message", last_date=iso(14, 0)),
-    dict(id=1007, kind="group", display_name="Book Club", username=None, has_photo=True, is_forum=False, preview="Priya: loved chapter 7!", last_date=iso(12, 30)),
-    dict(id=1008, kind="pv", display_name="Mom ❤️", username=None, has_photo=True, is_forum=False, preview="Call me when you land ✈️", last_date=iso(9, 15)),
+    dict(id=1001, kind="pv", display_name="Maya Chen", username="@maya", has_photo=True, is_forum=False, preview="Sounds perfect — see you at 7 🙌", last_date=iso(19, 4), **_d(pinned=True, contact=True)),
+    dict(id=1002, kind="group", display_name="Design Team", username=None, has_photo=True, is_forum=False, preview="Alex: pushed the new mockups 🎨", last_date=iso(18, 40), **_d(unread=3, pinned=True)),
+    dict(id=1003, kind="channel", display_name="Aigram News", username="@aigram", has_photo=True, is_forum=False, preview="v2 is live — inline media + send", last_date=iso(17, 10), **_d(unread=12)),
+    dict(id=1004, kind="pv", display_name="Jordan Blake", username="@jordanb", has_photo=True, is_forum=False, preview="📷 Photo", last_date=iso(16, 22), **_d(unread=1, contact=True)),
+    dict(id=1005, kind="bot", display_name="DevBot", username="@devbot", has_photo=True, is_forum=False, preview="Build #482 passed ✓", last_date=iso(15, 5), **_d()),
+    dict(id=1006, kind="pv", display_name="Sam Patel", username="@samp", has_photo=True, is_forum=False, preview="🎤 Voice message", last_date=iso(14, 0), **_d(contact=True)),
+    dict(id=1007, kind="group", display_name="Book Club", username=None, has_photo=True, is_forum=False, preview="Priya: loved chapter 7!", last_date=iso(12, 30), **_d(unread=2)),
+    dict(id=1008, kind="pv", display_name="Mom ❤️", username=None, has_photo=True, is_forum=False, preview="Call me when you land ✈️", last_date=iso(9, 15), **_d(pinned=True, contact=True)),
 ]
 
 # Rich, structured AI outputs (Telegram-HTML) so the screenshots showcase what

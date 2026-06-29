@@ -24,6 +24,24 @@ async def test_dialogs_classification(panel_state):
     assert by_kind["channel"]["id"] == 202
 
 
+def test_folder_counts_and_filter(panel_state):
+    """The folder rail's counts + membership logic (unread/contacts/pinned)."""
+    svc = panel_state.dialogs
+    panel_state.dialogs_cache = {"items": [
+        {"id": 1, "kind": "pv", "unread": 2, "pinned": True, "contact": True},
+        {"id": 2, "kind": "group", "unread": 0, "pinned": False, "contact": False},
+        {"id": 3, "kind": "channel", "unread": 5, "pinned": False, "contact": False},
+        {"id": 4, "kind": "bot", "unread": 0, "pinned": False, "contact": False},
+    ], "ts": 0}
+    f = svc._folder_counts()
+    assert f["all"] == 4 and f["unread"] == 2 and f["contacts"] == 1 and f["pinned"] == 1
+    assert f["group"] == 1 and f["channel"] == 1 and f["bot"] == 1
+    assert svc._in_folder({"kind": "pv", "unread": 2, "contact": True, "pinned": True}, "unread")
+    assert svc._in_folder({"kind": "pv", "contact": True}, "contacts")
+    assert not svc._in_folder({"kind": "pv", "contact": False}, "contacts")
+    assert not svc._in_folder({"kind": "group", "unread": 0}, "unread")
+
+
 @pytest.mark.asyncio
 async def test_dialogs_cached(panel_state, mock_client):
     await panel_state.dialogs.list_dialogs()

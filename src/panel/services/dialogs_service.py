@@ -84,6 +84,10 @@ class DialogsService:
             "is_forum": bool(getattr(entity, "forum", False)),
             "preview": preview,
             "last_date": last_date.isoformat() if last_date else None,
+            # Folder signals — all free from iter_dialogs, no extra RPC.
+            "unread": int(getattr(dialog, "unread_count", 0) or 0),
+            "pinned": bool(getattr(dialog, "pinned", False)),
+            "contact": bool(getattr(entity, "contact", False)),
         }
 
     async def _walk(self) -> List[Dict[str, Any]]:
@@ -181,21 +185,53 @@ class DialogsService:
     ) -> Dict[str, Any]:
         items = await self._ensure(force_refresh=force_refresh)
         if kind and kind != "all":
-            items = [r for r in items if r["kind"] == kind]
+            items = [r for r in items if self._in_folder(r, kind)]
         if q:
             items = [r for r in items if self._matches(r, q)]
         total = len(items)
         page = items[offset: offset + limit]
-        counts: Dict[str, int] = {"pv": 0, "group": 0, "channel": 0, "bot": 0}
-        for r in (self.state.dialogs_cache or {}).get("items", []):
-            counts[r["kind"]] = counts.get(r["kind"], 0) + 1
         return {
             "ok": True,
             "items": page,
             "total": total,
-            "counts": counts,
+            "counts": self._counts(),       # kept for back-compat (pv/group/channel/bot)
+            "folders": self._folder_counts(),
             "cached_at": (self.state.dialogs_cache or {}).get("ts"),
         }
+
+    @staticmethod
+    def _in_folder(row: Dict[str, Any], folder: str) -> bool:
+        if folder in ("pv", "group", "channel", "bot"):
+            return row["kind"] == folder
+        if folder == "unread":
+            return int(row.get("unread", 0)) > 0
+        if folder == "pinned":
+            return bool(row.get("pinned"))
+        if folder == "contacts":
+            return row["kind"] == "pv" and bool(row.get("contact"))
+        return True  # "all" / unknown -> no filter
+
+    def _counts(self) -> Dict[str, int]:
+        counts: Dict[str, int] = {"pv": 0, "group": 0, "channel": 0, "bot": 0}
+        for r in (self.state.dialogs_cache or {}).get("items", []):
+            counts[r["kind"]] = counts.get(r["kind"], 0) + 1
+        return counts
+
+    def _folder_counts(self) -> Dict[str, int]:
+        """Counts for every folder in the rail (computed over the full cache)."""
+        all_items = (self.state.dialogs_cache or {}).get("items", [])
+        f = {k: 0 for k in
+             ("all", "unread", "contacts", "pv", "group", "channel", "bot", "pinned")}
+        for r in all_items:
+            f["all"] += 1
+            f[r["kind"]] = f.get(r["kind"], 0) + 1
+            if int(r.get("unread", 0)) > 0:
+                f["unread"] += 1
+            if r.get("pinned"):
+                f["pinned"] += 1
+            if r["kind"] == "pv" and r.get("contact"):
+                f["contacts"] += 1
+        return f
 
     def find(self, entity_id: int) -> Optional[Dict[str, Any]]:
         cache = self.state.dialogs_cache

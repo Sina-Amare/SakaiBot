@@ -279,7 +279,29 @@ select { appearance: none; cursor: pointer;
 .topbar .divider { width: 1px; height: 26px; background: var(--line); }
 .sidebar { grid-area: side; border-right: 1px solid var(--line); background: var(--surface);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%); backdrop-filter: blur(var(--glass-blur)) saturate(140%);
-  display: flex; flex-direction: column; min-height: 0; }
+  display: flex; flex-direction: row; min-height: 0; }
+.side-col { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+/* Telegram-style folder rail */
+.folder-rail { flex: none; width: 74px; display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 6px; overflow-y: auto; border-right: 1px solid var(--line);
+  background: var(--surface-2); scrollbar-width: none; }
+.folder-rail::-webkit-scrollbar { display: none; }
+.folder-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 9px 2px 7px; border: none; background: transparent; color: var(--text-dim);
+  border-radius: var(--r-sm); cursor: pointer; transition: background 0.13s, color 0.13s; }
+.folder-item:hover { background: var(--surface-3); color: var(--text); }
+.folder-item.active { background: var(--accent-soft); color: var(--accent); }
+.folder-item .f-ic { width: 23px; height: 23px; }
+.folder-item .f-ic svg { width: 23px; height: 23px; fill: none; stroke: currentColor;
+  stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.folder-item .f-label { font-size: 10px; font-weight: 500; line-height: 1.1; text-align: center;
+  white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.folder-item .f-count { position: absolute; top: 3px; right: 9px; min-width: 16px; height: 16px;
+  padding: 0 4px; border-radius: 9px; background: var(--accent); color: var(--accent-ink);
+  font-size: 9.5px; font-weight: 700; line-height: 16px; text-align: center;
+  font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface-2); }
+.folder-item.active .f-count { background: var(--accent); }
+.folder-item .f-count.muted { background: var(--text-faint); color: var(--surface-solid); }
 .main { grid-area: main; display: flex; flex-direction: column; padding: 0; min-height: 0; min-width: 0; overflow: hidden; }
 #empty-main, #entity-view { flex: 1; min-height: 0; }
 .rail { grid-area: rail; border-left: 1px solid var(--line); background: var(--surface);

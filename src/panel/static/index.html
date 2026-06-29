@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Aigram" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="stylesheet" href="/app.css?v=19" />
+  <link rel="stylesheet" href="/app.css?v=20" />
   <!-- set the saved theme before first paint so neither the splash nor the app flashes -->
   <script>try{var t=localStorage.getItem('panel_theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
   <!-- critical splash styles inlined so the launch screen paints instantly (PWA + web, offline) -->
@@ -98,13 +98,10 @@
     </header>
 
     <aside class="sidebar">
-      <div class="tabs" id="kind-tabs">
-        <button class="tab active" data-kind="all">All</button>
-        <button class="tab" data-kind="pv">PV</button>
-        <button class="tab" data-kind="group">Groups</button>
-        <button class="tab" data-kind="channel">Channels</button>
-        <button class="tab" data-kind="bot">Bots</button>
-      </div>
+      <!-- Telegram-style folder rail: All / Unread / Contacts / Groups / Channels
+           / Bots / Pinned, each with a live count. Rendered by JS. -->
+      <nav class="folder-rail" id="folder-rail" aria-label="Chat folders"></nav>
+      <div class="side-col">
       <div class="search-row">
         <div class="search-wrap">
           <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -124,6 +121,7 @@
         <button class="chip" data-dash="help"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a3 3 0 0 1 5.6 1c0 2-3 2.3-3 4"/><path d="M12 17.5h.01"/></svg> Help</button>
         <button id="theme-toggle-m" class="chip" title="Toggle theme"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/></svg> Theme</button>
       </div>
+      </div><!-- /.side-col -->
     </aside>
 
     <main class="main" id="main">
@@ -206,6 +204,6 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script src="/app.js?v=19"></script>
+  <script src="/app.js?v=20"></script>
 </body>
 </html>
